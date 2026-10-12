@@ -1,11 +1,15 @@
 import { useState } from "react";
-import { api, useStation, type StationState } from "./api";
+import { api, useStation, type LocoNetLine, type StationState } from "./api";
+import { DetectorsTab, LocoNetTab, RailComTab } from "./monitors";
 
-type Tab = "station" | "drive" | "turnouts" | "cv" | "monitor";
-const TABS: [Tab, string][] = [["station", "Zentrale"], ["drive", "Fahren"], ["turnouts", "Weichen"], ["cv", "CV-Programmierung"], ["monitor", "Monitor"]];
+type Tab = "station" | "drive" | "turnouts" | "cv" | "railcom" | "loconet" | "detectors" | "monitor";
+const TABS: [Tab, string][] = [
+  ["station", "Zentrale"], ["drive", "Fahren"], ["turnouts", "Weichen"], ["cv", "CV-Programmierung"],
+  ["railcom", "RailCom"], ["loconet", "LocoNet"], ["detectors", "Melder"], ["monitor", "Rohdaten"],
+];
 
 export function App() {
-  const { state, wire, online, clearWire } = useStation();
+  const { state, wire, loconet, online, clearWire, clearLoconet } = useStation();
   const [tab, setTab] = useState<Tab>("station");
   const [error, setError] = useState<string>();
   const run = async (p: Promise<unknown>) => { try { setError(undefined); await p; } catch (e) { setError((e as Error).message); } };
@@ -30,6 +34,9 @@ export function App() {
         {state?.connected && tab === "drive" && <DriveTab state={state} run={run} />}
         {state?.connected && tab === "turnouts" && <TurnoutsTab state={state} run={run} />}
         {state?.connected && tab === "cv" && <CvTab run={run} />}
+        {state?.connected && tab === "railcom" && <RailComTab state={state} run={run} />}
+        {state?.connected && tab === "loconet" && <LocoNetTab state={state} lines={loconet as LocoNetLine[]} clear={clearLoconet} run={run} />}
+        {state?.connected && tab === "detectors" && <DetectorsTab state={state} run={run} />}
         {tab === "monitor" && <Monitor wire={wire} clear={clearWire} />}
       </main>
     </div>

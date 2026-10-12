@@ -29,3 +29,19 @@ button.danger { border-color: var(--danger); color: var(--danger); }
 table { border-collapse: collapse; } th { text-align: left; color: var(--muted); font-weight: 500; } td, th { padding: 4px 16px 4px 0; }
 .log { height: 420px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; padding: 8px; font: 12px/1.4 ui-monospace, monospace; }
 @media (max-width: 600px) { .app { padding: 0 16px 24px; } }
+.switch { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.switch input { padding: 0; }
+.hint { color: var(--muted); font-size: 13px; margin: 6px 0; }
+table.grid { width: 100%; margin: 8px 0; } table.grid th { border-bottom: 1px solid var(--line); padding: 6px 12px 6px 0; }
+table.grid td { border-bottom: 1px solid var(--line); padding: 6px 12px 6px 0; font-variant-numeric: tabular-nums; }
+.log.tall { height: 460px; white-space: pre; }
+.bad-line { color: var(--danger); }
+input.invalid { border-color: var(--danger); }
+.module { margin: 10px 0; }
+.ports { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; margin-top: 6px; }
+.cell { display: inline-flex; flex-direction: column; gap: 2px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--line); }
+.cell.free { color: var(--ok); } .cell.busy { color: var(--warn); border-color: var(--warn); } .cell.over { color: var(--danger); border-color: var(--danger); }
+.ports .cell small { color: var(--muted); }
+td .cell { flex-direction: row; padding: 1px 10px; }
+details { margin-top: 12px; } summary { cursor: pointer; }
+button:disabled { opacity: .5; cursor: not-allowed; }

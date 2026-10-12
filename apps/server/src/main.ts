@@ -51,6 +51,38 @@ app.post<{ Params: { addr: string }; Body: { output: 0 | 1 } }>("/api/turnout/:a
   return { ok: true };
 });
 
+app.put<{ Body: Partial<{ railcom: boolean; loconet: boolean; detectors: boolean }> }>("/api/monitors", async (req) => {
+  const { railcom, loconet, detectors } = req.body ?? {};
+  station.setMonitors({
+    ...(railcom !== undefined && { railcom: !!railcom }),
+    ...(loconet !== undefined && { loconet: !!loconet }),
+    ...(detectors !== undefined && { detectors: !!detectors }),
+  });
+  return station.snapshot().monitors;
+});
+
+app.post<{ Body: { addr?: number } }>("/api/railcom/poll", async (req) => {
+  station.pollRailCom(int(req.body?.addr ?? 0, 0, 9999, "address"));
+  return { ok: true };
+});
+
+app.post<{ Body: { bytes: number[] } }>("/api/loconet/send", async (req) => {
+  if (!Array.isArray(req.body?.bytes)) throw Object.assign(new Error("bytes must be an array"), { statusCode: 400 });
+  try { station.sendLocoNet(req.body.bytes.map((b) => int(b, 0, 255, "byte"))); }
+  catch (e) { throw Object.assign(e as Error, { statusCode: 400 }); }
+  return { ok: true };
+});
+
+app.post<{ Body: { kind: "sic" | "report" | "lissy" | "can"; reportAddress?: number } }>("/api/detectors/poll", async (req) => {
+  const { kind, reportAddress } = req.body ?? {};
+  if (kind === "can") station.pollCanDetectors();
+  else if (kind === "sic") station.pollLocoNetDetectors("Sic");
+  else if (kind === "report") station.pollLocoNetDetectors("ReportAddress", int(reportAddress ?? 1017, 1, 65535, "reportAddress"));
+  else if (kind === "lissy") station.pollLocoNetDetectors("Lissy", int(reportAddress ?? 1, 0, 65535, "reportAddress"));
+  else throw Object.assign(new Error("unknown kind"), { statusCode: 400 });
+  return { ok: true };
+});
+
 app.get<{ Params: { cv: string } }>("/api/cv/:cv", async (req) => {
   const cv = int(req.params.cv, 1, 1024, "cv");
   return { cv, value: await station.readCv(cv) };
@@ -65,9 +97,11 @@ app.get("/ws", { websocket: true }, (socket) => {
   send({ kind: "state", state: station.snapshot() });
   const onState = (state: unknown) => send({ kind: "state", state });
   const onWire = (w: unknown) => send({ kind: "wire", wire: w });
+  const onLocoNet = (line: unknown) => send({ kind: "loconet", line });
+  station.on("loconet", onLocoNet);
   station.on("state", onState);
   station.client.on("wire", onWire);
-  socket.on("close", () => { station.off("state", onState); station.client.off("wire", onWire); });
+  socket.on("close", () => { station.off("state", onState); station.client.off("wire", onWire); station.off("loconet", onLocoNet); });
 });
 
 const webDist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../web/dist");

@@ -1,4 +1,5 @@
 import { ChecksumError, decodeX, encodeFrame, encodeX, type Frame } from "./frame.js";
+import { decodeLocoNet, type LocoNetDecoded } from "./loconet.js";
 
 export type TrackPower = "off" | "on" | "shortCircuit" | "programming" | "emergencyStop";
 
@@ -26,7 +27,42 @@ export interface SystemState {
   capabilities: number;
 }
 
+export interface RailComData {
+  address: number;
+  receiveCounter: number;
+  errorCounter: number;
+  /** undefined if the decoder does not report it */
+  speed?: number;
+  qos?: number;
+}
+
+export type LocoNetDirection = "rx" | "tx" | "lan";
+
+export type LocoNetDetectorEvent =
+  | { kind: "occupancy"; occupied: boolean }
+  | { kind: "transponder"; present: boolean; locoAddress: number }
+  | { kind: "lissyLoco"; locoAddress: number; forward?: boolean; classInfo: number }
+  | { kind: "lissyBlock"; occupied: boolean }
+  | { kind: "lissySpeed"; speed: number }
+  | { kind: "other"; type: number; info: number[] };
+
+export interface CanDetectorValue {
+  nid: number;
+  /** configurable module address */
+  moduleAddress: number;
+  port: number;
+  /** occupancy report */
+  occupancy?: { occupied: boolean; voltage: boolean; overload: number };
+  /** RailCom loco list chunk (type 0x11..0x1F); address 0 ends the list */
+  locos?: { address: number; direction: "forward" | "backward" | "unknown" }[];
+  type: number;
+}
+
 export type Message =
+  | { type: "railcom"; data: RailComData }
+  | { type: "loconet"; direction: LocoNetDirection; bytes: number[]; decoded: LocoNetDecoded }
+  | { type: "loconetDetector"; feedbackAddress: number; event: LocoNetDetectorEvent }
+  | { type: "canDetector"; value: CanDetectorValue }
   | { type: "serial"; serial: number }
   | { type: "hwinfo"; hwType: number; hwName: string; fwVersion: string }
   | { type: "version"; xbusVersion: string; commandStationId: number }
@@ -117,6 +153,47 @@ function parseX(data: Buffer): Message {
   return { type: "unknown", header: 0x40, data };
 }
 
+export function parseRailCom(d: Buffer): RailComData {
+  // The structure may grow in future firmware: read only the fields we know.
+  const opt = d.length > 9 ? d[9]! : 0;
+  return {
+    address: d.readUInt16LE(0),
+    receiveCounter: d.readUInt32LE(2),
+    errorCounter: d.readUInt16LE(6),
+    speed: opt & 0x03 ? d[10] : undefined,
+    qos: opt & 0x04 ? d[11] : undefined,
+  };
+}
+
+export function parseDetectorEvent(type: number, info: number[]): LocoNetDetectorEvent {
+  switch (type) {
+    case 0x01: return { kind: "occupancy", occupied: info[0] === 1 };
+    case 0x02:
+    case 0x03: return { kind: "transponder", present: type === 0x02, locoAddress: info[0]! | (info[1]! << 8) };
+    case 0x10: {
+      const e = info[2] ?? 0;
+      return { kind: "lissyLoco", locoAddress: info[0]! | (info[1]! << 8), forward: e & 0x40 ? !(e & 0x20) : undefined, classInfo: e & 0x0f };
+    }
+    case 0x11: return { kind: "lissyBlock", occupied: info[0] === 1 };
+    case 0x12: return { kind: "lissySpeed", speed: info[0]! | (info[1]! << 8) };
+  }
+  return { kind: "other", type, info };
+}
+
+const canLoco = (v: number) => ({
+  address: v & 0x3fff,
+  direction: (v & 0x8000 ? (v & 0x4000 ? "backward" : "forward") : "unknown") as "forward" | "backward" | "unknown",
+});
+
+export function parseCanDetector(d: Buffer): CanDetectorValue {
+  const type = d[5]!;
+  const v1 = d.readUInt16LE(6), v2 = d.readUInt16LE(8);
+  const out: CanDetectorValue = { nid: d.readUInt16LE(0), moduleAddress: d.readUInt16LE(2), port: d[4]!, type };
+  if (type === 0x01) out.occupancy = { occupied: (v1 & 0x1000) !== 0, voltage: (v1 & 0x0100) !== 0, overload: (v1 & 0xff00) === 0x1200 ? v1 & 0xff : 0 };
+  else if (type >= 0x11 && type <= 0x1f) out.locos = [v1, v2].map(canLoco);
+  return out;
+}
+
 export function parseFrame(f: Frame): Message {
   const d = f.data;
   try {
@@ -152,6 +229,18 @@ export function parseFrame(f: Frame): Message {
         };
       case 0x40:
         return parseX(d);
+      case 0x88:
+        return { type: "railcom", data: parseRailCom(d) };
+      case 0xa0:
+      case 0xa1:
+      case 0xa2: {
+        const bytes = [...d];
+        return { type: "loconet", direction: f.header === 0xa0 ? "rx" : f.header === 0xa1 ? "tx" : "lan", bytes, decoded: decodeLocoNet(bytes) };
+      }
+      case 0xa4:
+        return { type: "loconetDetector", feedbackAddress: d.readUInt16LE(1), event: parseDetectorEvent(d[0]!, [...d.subarray(3)]) };
+      case 0xc4:
+        return { type: "canDetector", value: parseCanDetector(d) };
     }
   } catch (e) {
     if (!(e instanceof ChecksumError) && !(e instanceof RangeError)) throw e;
@@ -200,6 +289,32 @@ export const reply = {
       (i.forward ? 0x80 : 0) | v,
       (i.functions[0] ? 0x10 : 0) | f(1, 4), f(5, 12), f(13, 20), f(21, 28),
     ]);
+  },
+  railcom: (r: RailComData) => {
+    const b = Buffer.alloc(13);
+    b.writeUInt16LE(r.address, 0);
+    b.writeUInt32LE(r.receiveCounter, 2);
+    b.writeUInt16LE(r.errorCounter, 6);
+    b[9] = (r.speed !== undefined ? 0x01 : 0) | (r.qos !== undefined ? 0x04 : 0);
+    b[10] = r.speed ?? 0;
+    b[11] = r.qos ?? 0;
+    return encodeFrame(0x88, b);
+  },
+  /** message must include its checksum byte */
+  loconet: (direction: LocoNetDirection, bytes: number[]) =>
+    encodeFrame(direction === "rx" ? 0xa0 : direction === "tx" ? 0xa1 : 0xa2, bytes),
+  loconetDetector: (type: number, feedbackAddress: number, info: number[]) =>
+    encodeFrame(0xa4, [type, feedbackAddress & 0xff, feedbackAddress >> 8, ...info]),
+  /** value1/value2 raw as defined by LAN_CAN_DETECTOR */
+  canDetector: (nid: number, moduleAddress: number, port: number, type: number, value1: number, value2 = 0) => {
+    const b = Buffer.alloc(10);
+    b.writeUInt16LE(nid, 0);
+    b.writeUInt16LE(moduleAddress, 2);
+    b[4] = port;
+    b[5] = type;
+    b.writeUInt16LE(value1, 6);
+    b.writeUInt16LE(value2, 8);
+    return encodeFrame(0xc4, b);
   },
   systemState: (s: SystemState) => {
     const b = Buffer.alloc(16);

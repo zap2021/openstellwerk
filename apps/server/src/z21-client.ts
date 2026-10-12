@@ -15,6 +15,8 @@ export class Z21Client extends EventEmitter<{ message: [Message]; wire: [WireEve
   private keepalive?: NodeJS.Timeout;
   host?: string;
   port = Z21_PORT;
+  /** currently active broadcast subscription */
+  flags = 0;
 
   get connected() {
     return !!this.socket && !!this.host;
@@ -36,12 +38,22 @@ export class Z21Client extends EventEmitter<{ message: [Message]; wire: [WireEve
     s.on("error", () => this.disconnect());
     await new Promise<void>((resolve) => s.bind(0, resolve));
     // Probe first: fail fast if nothing answers.
-    await this.request(cmd.getSerialNumber(), (m) => m.type === "serial", 2000);
-    this.send(cmd.setBroadcastFlags(flags));
+    try {
+      await this.request(cmd.getSerialNumber(), (m) => m.type === "serial", 2000);
+    } catch (e) {
+      this.disconnect();
+      throw e;
+    }
+    this.setFlags(flags);
     this.send(cmd.getHwInfo());
     this.send(cmd.getStatus());
     this.send(cmd.getSystemState());
     this.keepalive = setInterval(() => this.send(cmd.getSystemState()), 20_000);
+  }
+
+  setFlags(flags: number) {
+    this.flags = flags;
+    this.send(cmd.setBroadcastFlags(flags));
   }
 
   disconnect() {
