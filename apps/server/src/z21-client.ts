@@ -1,0 +1,96 @@
+import dgram from "node:dgram";
+import { EventEmitter } from "node:events";
+import { Broadcast, cmd, decodeFrames, parseFrame, Z21_PORT, type Message } from "@z21/protocol";
+
+export interface WireEvent {
+  dir: "tx" | "rx";
+  hex: string;
+  message?: Message;
+  ts: number;
+}
+
+/** UDP session to one Z21. The Z21 drops clients after ~60 s of silence, so we ping every 20 s. */
+export class Z21Client extends EventEmitter<{ message: [Message]; wire: [WireEvent]; close: [] }> {
+  private socket?: dgram.Socket;
+  private keepalive?: NodeJS.Timeout;
+  host?: string;
+  port = Z21_PORT;
+
+  get connected() {
+    return !!this.socket && !!this.host;
+  }
+
+  async connect(host: string, port = Z21_PORT, flags = Broadcast.Basic | Broadcast.SystemState | Broadcast.AllLocos) {
+    this.disconnect();
+    this.host = host;
+    this.port = port;
+    const s = (this.socket = dgram.createSocket("udp4"));
+    s.on("message", (buf, rinfo) => {
+      if (rinfo.address !== this.host) return;
+      for (const f of decodeFrames(buf)) {
+        const message = parseFrame(f);
+        this.emit("wire", { dir: "rx", hex: buf.toString("hex"), message, ts: Date.now() });
+        this.emit("message", message);
+      }
+    });
+    s.on("error", () => this.disconnect());
+    await new Promise<void>((resolve) => s.bind(0, resolve));
+    // Probe first: fail fast if nothing answers.
+    await this.request(cmd.getSerialNumber(), (m) => m.type === "serial", 2000);
+    this.send(cmd.setBroadcastFlags(flags));
+    this.send(cmd.getHwInfo());
+    this.send(cmd.getStatus());
+    this.send(cmd.getSystemState());
+    this.keepalive = setInterval(() => this.send(cmd.getSystemState()), 20_000);
+  }
+
+  disconnect() {
+    if (!this.socket) return;
+    clearInterval(this.keepalive);
+    try { this.send(cmd.logoff()); } catch { /* socket already gone */ }
+    this.socket.close();
+    this.socket = undefined;
+    this.host = undefined;
+    this.emit("close");
+  }
+
+  send(buf: Buffer) {
+    if (!this.socket || !this.host) throw new Error("not connected");
+    this.emit("wire", { dir: "tx", hex: buf.toString("hex"), ts: Date.now() });
+    this.socket.send(buf, this.port, this.host);
+  }
+
+  request<T extends Message>(buf: Buffer, match: (m: Message) => m is T, timeoutMs?: number): Promise<T>;
+  request(buf: Buffer, match: (m: Message) => boolean, timeoutMs?: number): Promise<Message>;
+  request(buf: Buffer, match: (m: Message) => boolean, timeoutMs = 3000): Promise<Message> {
+    return new Promise((resolve, reject) => {
+      const done = (fn: () => void) => { clearTimeout(t); this.off("message", onMsg); fn(); };
+      const onMsg = (m: Message) => { if (match(m)) done(() => resolve(m)); };
+      const t = setTimeout(() => done(() => reject(new Error("timeout waiting for Z21"))), timeoutMs);
+      this.on("message", onMsg);
+      try { this.send(buf); } catch (e) { done(() => reject(e)); }
+    });
+  }
+}
+
+/** Broadcast GET_SERIAL_NUMBER and collect answering Z21s. */
+export function discover(timeoutMs = 1500): Promise<{ host: string; serial: number }[]> {
+  return new Promise((resolve) => {
+    const s = dgram.createSocket("udp4");
+    const found = new Map<string, number>();
+    s.on("message", (buf, rinfo) => {
+      for (const f of decodeFrames(buf)) {
+        const m = parseFrame(f);
+        if (m.type === "serial") found.set(rinfo.address, m.serial);
+      }
+    });
+    s.bind(0, () => {
+      s.setBroadcast(true);
+      s.send(cmd.getSerialNumber(), Z21_PORT, "255.255.255.255");
+      setTimeout(() => {
+        s.close();
+        resolve([...found].map(([host, serial]) => ({ host, serial })));
+      }, timeoutMs);
+    });
+  });
+}

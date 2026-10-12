@@ -1,0 +1,7 @@
+node_modules
+dist
+*.log
+.env
+
+# Proprietäres Original-Tool (nicht weiterverbreiten)
+Z21_Maintenance.exe

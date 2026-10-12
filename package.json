@@ -1,0 +1,20 @@
+{
+  "name": "z21-web",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "dev": "concurrently -n sim,server,web -c gray,blue,green \"npm run dev -w @z21/simulator\" \"npm run dev -w @z21/server\" \"npm run dev -w @z21/web\"",
+    "dev:server": "npm run dev -w @z21/server",
+    "dev:sim": "npm run dev -w @z21/simulator",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "concurrently": "^9.1.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.8"
+  }
+}
