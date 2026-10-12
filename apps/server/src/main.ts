@@ -51,13 +51,10 @@ app.post<{ Params: { addr: string }; Body: { output: 0 | 1 } }>("/api/turnout/:a
   return { ok: true };
 });
 
-app.put<{ Body: Partial<{ railcom: boolean; loconet: boolean; detectors: boolean }> }>("/api/monitors", async (req) => {
-  const { railcom, loconet, detectors } = req.body ?? {};
-  station.setMonitors({
-    ...(railcom !== undefined && { railcom: !!railcom }),
-    ...(loconet !== undefined && { loconet: !!loconet }),
-    ...(detectors !== undefined && { detectors: !!detectors }),
-  });
+app.put<{ Body: Partial<Record<"railcom" | "loconet" | "detectors" | "rmbus" | "boosters" | "clock", boolean>> }>("/api/monitors", async (req) => {
+  const patch: Record<string, boolean> = {};
+  for (const k of ["railcom", "loconet", "detectors", "rmbus", "boosters", "clock"] as const) if (req.body?.[k] !== undefined) patch[k] = !!req.body[k];
+  station.setMonitors(patch);
   return station.snapshot().monitors;
 });
 
@@ -90,6 +87,128 @@ app.get<{ Params: { cv: string } }>("/api/cv/:cv", async (req) => {
 app.put<{ Params: { cv: string }; Body: { value: number } }>("/api/cv/:cv", async (req) => {
   const cv = int(req.params.cv, 1, 1024, "cv");
   return { cv, value: await station.writeCv(cv, int(req.body.value, 0, 255, "value")) };
+});
+
+/* ---------- settings ---------- */
+const mode = (v: unknown) => {
+  if (v !== "dcc" && v !== "mm") throw Object.assign(new Error('mode must be "dcc" or "mm"'), { statusCode: 400 });
+  return v;
+};
+app.get<{ Params: { addr: string } }>("/api/loco/:addr/mode", async (req) => ({ mode: await station.readLocoMode(int(req.params.addr, 1, 9999, "address")) }));
+app.put<{ Params: { addr: string }; Body: { mode: string } }>("/api/loco/:addr/mode", async (req) => {
+  station.setLocoMode(int(req.params.addr, 1, 9999, "address"), mode(req.body?.mode));
+  return { ok: true };
+});
+app.get<{ Params: { addr: string } }>("/api/turnout/:addr/mode", async (req) => ({ mode: await station.readTurnoutMode(int(req.params.addr, 1, 16384, "address")) }));
+app.put<{ Params: { addr: string }; Body: { mode: string } }>("/api/turnout/:addr/mode", async (req) => {
+  station.setTurnoutMode(int(req.params.addr, 1, 16384, "address"), mode(req.body?.mode));
+  return { ok: true };
+});
+
+/* ---------- more driving ---------- */
+app.post<{ Params: { addr: string } }>("/api/loco/:addr/estop", async (req) => { station.locoEStop(int(req.params.addr, 1, 9999, "address")); return { ok: true }; });
+app.post<{ Params: { addr: string } }>("/api/loco/:addr/purge", async (req) => { station.purgeLoco(int(req.params.addr, 1, 9999, "address")); return { ok: true }; });
+app.post<{ Params: { addr: string }; Body: { group: number; bits: number } }>("/api/loco/:addr/function-group", async (req) => {
+  station.setFunctionGroup(int(req.params.addr, 1, 9999, "address"), int(req.body?.group, 0x20, 0x51, "group"), int(req.body?.bits, 0, 255, "bits"));
+  return { ok: true };
+});
+app.post<{ Params: { addr: string }; Body: { state: number; on: boolean } }>("/api/loco/:addr/binary-state", async (req) => {
+  station.setBinaryState(int(req.params.addr, 1, 9999, "address"), int(req.body?.state, 29, 32767, "state"), !!req.body?.on);
+  return { ok: true };
+});
+
+/* ---------- DCCext accessories / signals ---------- */
+app.post<{ Params: { addr: string }; Body: { value: number } }>("/api/accessory/:addr", async (req) => {
+  station.setExtAccessory(int(req.params.addr, 1, 2044, "address"), int(req.body?.value, 0, 255, "value"));
+  return { ok: true };
+});
+app.get<{ Params: { addr: string } }>("/api/accessory/:addr", async (req) => station.getExtAccessory(int(req.params.addr, 1, 2044, "address")));
+app.post("/api/accessory-estop", async () => { station.extAccessoryEStop(); return { ok: true }; });
+
+/* ---------- programming ---------- */
+app.get<{ Params: { addr: string; cv: string } }>("/api/pom/:addr/:cv", async (req) => {
+  const cv = int(req.params.cv, 1, 1024, "cv");
+  return { cv, value: await station.pomRead(int(req.params.addr, 1, 9999, "address"), cv) };
+});
+app.put<{ Params: { addr: string; cv: string }; Body: { value?: number; bit?: number; bitValue?: boolean } }>("/api/pom/:addr/:cv", async (req) => {
+  const addr = int(req.params.addr, 1, 9999, "address"), cv = int(req.params.cv, 1, 1024, "cv");
+  if (req.body?.bit !== undefined) station.pomWriteBit(addr, cv, int(req.body.bit, 0, 7, "bit"), !!req.body.bitValue);
+  else station.pomWrite(addr, cv, int(req.body?.value, 0, 255, "value"));
+  return { ok: true };
+});
+const accOutput = (v: unknown) => (v === undefined || v === null || v === "" ? undefined : int(v, 0, 7, "output"));
+app.get<{ Params: { dec: string; cv: string }; Querystring: { output?: string } }>("/api/pom-accessory/:dec/:cv", async (req) => {
+  const cv = int(req.params.cv, 1, 1024, "cv");
+  return { cv, value: await station.pomAccessoryRead(int(req.params.dec, 0, 511, "decoder"), accOutput(req.query.output), cv) };
+});
+app.put<{ Params: { dec: string; cv: string }; Body: { output?: number; value?: number; bit?: number; bitValue?: boolean } }>("/api/pom-accessory/:dec/:cv", async (req) => {
+  const dec = int(req.params.dec, 0, 511, "decoder"), cv = int(req.params.cv, 1, 1024, "cv"), out = accOutput(req.body?.output);
+  if (req.body?.bit !== undefined) station.pomAccessoryWriteBit(dec, out, cv, int(req.body.bit, 0, 7, "bit"), !!req.body.bitValue);
+  else station.pomAccessoryWrite(dec, out, cv, int(req.body?.value, 0, 255, "value"));
+  return { ok: true };
+});
+app.get<{ Params: { reg: string } }>("/api/register/:reg", async (req) => {
+  const reg = int(req.params.reg, 1, 8, "register");
+  return { register: reg, value: await station.readRegister(reg) };
+});
+app.put<{ Params: { reg: string }; Body: { value: number } }>("/api/register/:reg", async (req) => {
+  const reg = int(req.params.reg, 1, 8, "register");
+  return { register: reg, value: await station.writeRegister(reg, int(req.body?.value, 0, 255, "value")) };
+});
+app.put<{ Params: { reg: string }; Body: { value: number } }>("/api/mm-register/:reg", async (req) => {
+  await station.mmWrite(int(req.params.reg, 1, 79, "register"), int(req.body?.value, 0, 255, "value"));
+  return { ok: true, note: "finished; the decoder gives no feedback" };
+});
+
+/* ---------- R-BUS ---------- */
+app.post("/api/rmbus/poll", async () => { station.pollRmBus(); return { ok: true }; });
+app.post<{ Body: { address: number } }>("/api/rmbus/program", async (req) => {
+  station.rmbusProgramModule(int(req.body?.address, 0, 20, "address"));
+  return { ok: true };
+});
+
+/* ---------- fast clock ---------- */
+app.post("/api/clock/poll", async () => { station.getClock(); return { ok: true }; });
+app.post("/api/clock/start", async () => { station.startClock(); return { ok: true }; });
+app.post("/api/clock/stop", async () => { station.stopClock(); return { ok: true }; });
+app.put<{ Body: { weekday: number; hour: number; minute: number; rate: number } }>("/api/clock", async (req) => {
+  const b = req.body ?? ({} as never);
+  station.setClock(int(b.weekday, 0, 6, "weekday"), int(b.hour, 0, 23, "hour"), int(b.minute, 0, 59, "minute"), int(b.rate, 0, 63, "rate"));
+  return { ok: true };
+});
+app.put<{ Body: { settings: number; rate?: number; start?: { weekday: number; hour: number; minute: number } } }>("/api/clock/settings", async (req) => {
+  const b = req.body ?? ({} as never);
+  const start = b.start && { weekday: int(b.start.weekday, 0, 6, "weekday"), hour: int(b.start.hour, 0, 23, "hour"), minute: int(b.start.minute, 0, 59, "minute") };
+  station.setClockSettings(int(b.settings, 0, 255, "settings"), b.rate === undefined ? undefined : int(b.rate, 0, 63, "rate"), start);
+  return { ok: true };
+});
+
+/* ---------- CAN boosters (via Z21) ---------- */
+const nid = (v: unknown) => int(v, 0xc101, 0xc1ff, "nid");
+const name = (v: unknown) => {
+  if (typeof v !== "string") throw Object.assign(new Error("name must be a string"), { statusCode: 400 });
+  return v;
+};
+const bad = (e: unknown) => Object.assign(e as Error, { statusCode: 400 });
+app.post<{ Params: { nid: string } }>("/api/can-boosters/:nid/refresh", async (req) => { station.getCanBoosterName(nid(req.params.nid)); return { ok: true }; });
+app.put<{ Params: { nid: string }; Body: { name: string } }>("/api/can-boosters/:nid/name", async (req) => {
+  try { station.setCanBoosterName(nid(req.params.nid), name(req.body?.name)); } catch (e) { throw bad(e); }
+  return { ok: true };
+});
+app.put<{ Params: { nid: string }; Body: { power: number } }>("/api/can-boosters/:nid/power", async (req) => {
+  station.setCanBoosterPower(nid(req.params.nid), int(req.body?.power, 0, 255, "power"));
+  return { ok: true };
+});
+
+/* ---------- zLink devices ---------- */
+app.post("/api/device/refresh", async () => { station.refreshDevice(); return { ok: true }; });
+app.put<{ Body: { name: string } }>("/api/device/name", async (req) => {
+  try { station.setDeviceName(name(req.body?.name)); } catch (e) { throw bad(e); }
+  return { ok: true };
+});
+app.put<{ Body: { port: 1 | 2 | 3; on: boolean } }>("/api/device/booster-power", async (req) => {
+  station.setBoosterPower(int(req.body?.port, 1, 3, "port") as 1 | 2 | 3, !!req.body?.on);
+  return { ok: true };
 });
 
 app.get("/ws", { websocket: true }, (socket) => {

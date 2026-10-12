@@ -1,5 +1,11 @@
 import { ChecksumError, decodeX, encodeFrame, encodeX, type Frame } from "./frame.js";
 import { decodeLocoNet, type LocoNetDecoded } from "./loconet.js";
+import {
+  bcd, encodeName, parseBoosterState, parseCanBooster, parseDecoderState, parseFastClock, parseFastClockSettings,
+  parseName, parseRmBus, parseZLinkHwInfo,
+  type BoosterSystemState, type CanBoosterState, type DecoderState, type FastClockSettings, type FastClockTime,
+  type RmBusData, type ZLinkHwInfo,
+} from "./devices.js";
 
 export type TrackPower = "off" | "on" | "shortCircuit" | "programming" | "emergencyStop";
 
@@ -59,6 +65,21 @@ export interface CanDetectorValue {
 }
 
 export type Message =
+  | { type: "code"; code: "none" | "startLocked" | "startUnlocked" | number }
+  | { type: "firmwareVersion"; version: string }
+  | { type: "unknownCommand" }
+  | { type: "locoMode"; address: number; mode: "dcc" | "mm" }
+  | { type: "turnoutMode"; address: number; mode: "dcc" | "mm" }
+  | { type: "extAccessory"; address: number; value: number; valid: boolean }
+  | { type: "rmbus"; data: RmBusData }
+  | { type: "fastClock"; time: FastClockTime }
+  | { type: "fastClockSettings"; settings: FastClockSettings }
+  | { type: "canDeviceName"; nid: number; name: string }
+  | { type: "canBooster"; state: CanBoosterState }
+  | { type: "deviceName"; device: "booster" | "decoder"; name: string }
+  | { type: "boosterState"; state: BoosterSystemState }
+  | { type: "decoderState"; state: DecoderState }
+  | { type: "zlinkHwInfo"; info: ZLinkHwInfo }
   | { type: "railcom"; data: RailComData }
   | { type: "loconet"; direction: LocoNetDirection; bytes: number[]; decoded: LocoNetDecoded }
   | { type: "loconetDetector"; feedbackAddress: number; event: LocoNetDetectorEvent }
@@ -90,7 +111,6 @@ export const HW_TYPES: Record<number, string> = {
   0x302: "Z21 signal decoder",
 };
 
-const bcd = (b: number) => (b >> 4) * 10 + (b & 0x0f);
 const toBcd = (n: number) => ((Math.floor(n / 10) % 10) << 4) | n % 10;
 
 export function parseLocoInfo(db: number[]): LocoInfo {
@@ -101,6 +121,7 @@ export function parseLocoInfo(db: number[]): LocoInfo {
   const functions: boolean[] = [!!(db[4]! & 0x10)];
   for (let i = 0; i < 4; i++) functions.push(!!(db[4]! & (1 << i)));
   for (const byte of [db[5] ?? 0, db[6] ?? 0, db[7] ?? 0]) for (let i = 0; i < 8; i++) functions.push(!!(byte & (1 << i)));
+  if (db.length > 8) for (let i = 0; i < 3; i++) functions.push(!!(db[8]! & (1 << i))); // F29..F31, FW >= 1.42
   return {
     address,
     steps,
@@ -115,7 +136,13 @@ export function parseLocoInfo(db: number[]): LocoInfo {
 function parseX(data: Buffer): Message {
   const { xHeader, db } = decodeX(data);
   switch (xHeader) {
+    case 0xf3:
+      if (db[0] === 0x0a) return { type: "firmwareVersion", version: `${bcd(db[1]!)}.${bcd(db[2]!).toString().padStart(2, "0")}` };
+      break;
+    case 0x44:
+      return { type: "extAccessory", address: ((db[0]! << 8) | db[1]!) - 3, value: db[2]!, valid: db[3] === 0 };
     case 0x61:
+      if (db[0] === 0x82) return { type: "unknownCommand" };
       if (db[0] === 0x00) return { type: "trackPower", state: "off" };
       if (db[0] === 0x01) return { type: "trackPower", state: "on" };
       if (db[0] === 0x02) return { type: "trackPower", state: "programming" };
@@ -229,6 +256,35 @@ export function parseFrame(f: Frame): Message {
         };
       case 0x40:
         return parseX(d);
+      case 0x18:
+        return { type: "code", code: d[0] === 0 ? "none" : d[0] === 1 ? "startLocked" : d[0] === 2 ? "startUnlocked" : d[0]! };
+      case 0x60:
+      case 0x70:
+        return { type: f.header === 0x60 ? "locoMode" : "turnoutMode", address: ((d[0]! << 8) | d[1]!) + (f.header === 0x70 ? 1 : 0), mode: d[2] === 1 ? "mm" : "dcc" };
+      case 0x80:
+        return { type: "rmbus", data: parseRmBus(d) };
+      case 0xcd:
+        return { type: "fastClock", time: parseFastClock(d) };
+      case 0xce:
+        return { type: "fastClockSettings", settings: parseFastClockSettings(d) };
+      case 0xc8:
+        return { type: "canDeviceName", nid: d.readUInt16LE(0), name: parseName(d.subarray(2)) };
+      case 0xca:
+        return { type: "canBooster", state: parseCanBooster(d) };
+      case 0xb8:
+        return { type: "deviceName", device: "booster", name: parseName(d) };
+      case 0xd8:
+        return { type: "deviceName", device: "decoder", name: parseName(d) };
+      case 0xba:
+        return { type: "boosterState", state: parseBoosterState(d) };
+      case 0xda: {
+        const state = parseDecoderState(d);
+        if (state) return { type: "decoderState", state };
+        break;
+      }
+      case 0xe8:
+        if (d[0] === 0x06) return { type: "zlinkHwInfo", info: parseZLinkHwInfo(d) };
+        break;
       case 0x88:
         return { type: "railcom", data: parseRailCom(d) };
       case 0xa0:
@@ -289,6 +345,37 @@ export const reply = {
       (i.forward ? 0x80 : 0) | v,
       (i.functions[0] ? 0x10 : 0) | f(1, 4), f(5, 12), f(13, 20), f(21, 28),
     ]);
+  },
+  code: (code: number) => encodeFrame(0x18, [code]),
+  firmwareVersion: (major: number, minor: number) => encodeX(0xf3, [0x0a, toBcd(major), toBcd(minor)]),
+  unknownCommand: () => encodeX(0x61, [0x82]),
+  mode: (header: 0x60 | 0x70, wireAddr: number, mode: "dcc" | "mm") => encodeFrame(header, [wireAddr >> 8, wireAddr & 0xff, mode === "mm" ? 1 : 0]),
+  extAccessory: (addr: number, value: number, valid = true) =>
+    encodeX(0x44, [(addr + 3) >> 8, (addr + 3) & 0xff, value, valid ? 0 : 0xff]),
+  rmbus: (group: number, bytes: number[]) => encodeFrame(0x80, [group, ...Array.from({ length: 10 }, (_, i) => bytes[i] ?? 0)]),
+  fastClock: (t: { weekday: number; hour: number; minute: number; second: number; rate: number; stopped: boolean; halted: boolean; settings: number }) => {
+    const body = [0x66, 0x25, (t.weekday << 5) | t.hour, t.minute, (t.stopped ? 0x80 : 0) | (t.halted ? 0x40 : 0) | t.second, t.rate, t.settings];
+    return encodeFrame(0xcd, [...body, body.reduce((a, b) => a ^ b, 0)]);
+  },
+  fastClockSettings: (settings: number, rate: number, weekday: number, hour: number, minute: number) =>
+    encodeFrame(0xce, [settings, rate, (weekday << 5) | hour, minute]),
+  canDeviceName: (nid: number, name: string) => encodeFrame(0xc8, [nid & 0xff, nid >> 8, ...encodeName(name, 16)]),
+  canBooster: (nid: number, port: number, state: number, voltage: number, current: number) => {
+    const b = Buffer.alloc(10);
+    b.writeUInt16LE(nid, 0); b.writeUInt16LE(port, 2); b.writeUInt16LE(state, 4); b.writeUInt16LE(voltage, 6); b.writeUInt16LE(current, 8);
+    return encodeFrame(0xca, b);
+  },
+  deviceName: (device: "booster" | "decoder", name: string) => encodeFrame(device === "booster" ? 0xb8 : 0xd8, encodeName(name, 32)),
+  /** raw 24 byte BoosterSystemState */
+  boosterState: (b: Buffer) => encodeFrame(0xba, b),
+  /** raw 44 (switch) or 42 (signal) byte decoder state */
+  decoderState: (b: Buffer) => encodeFrame(0xda, b),
+  zlinkHwInfo: (hwId: number, major: number, minor: number, build: number, mac: string, name: string) => {
+    const b = Buffer.alloc(59);
+    b[0] = 0x06;
+    b.writeUInt16LE(hwId, 1); b[3] = major; b[4] = minor; b.writeUInt16LE(build, 5);
+    b.write(mac, 7, 18, "latin1"); b.write(name, 25, 33, "latin1");
+    return encodeFrame(0xe8, b);
   },
   railcom: (r: RailComData) => {
     const b = Buffer.alloc(13);

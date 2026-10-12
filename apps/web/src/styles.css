@@ -45,3 +45,14 @@ input.invalid { border-color: var(--danger); }
 td .cell { flex-direction: row; padding: 1px 10px; }
 details { margin-top: 12px; } summary { cursor: pointer; }
 button:disabled { opacity: .5; cursor: not-allowed; }
+.card { border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; margin: 12px 0; }
+.rmbus { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; margin-top: 8px; }
+.rmbus .module { margin: 0; border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; }
+.inputs, .leds { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+.led { min-width: 22px; text-align: center; font-size: 11px; padding: 1px 4px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); }
+.led.busy { color: var(--warn); border-color: var(--warn); font-weight: 600; } .led.free { color: var(--ok); }
+.clock { display: flex; flex-wrap: wrap; align-items: baseline; gap: 14px; margin: 10px 0; }
+.clock .time { font: 600 36px/1 ui-monospace, monospace; }
+.checks { display: grid; gap: 4px; margin: 8px 0; }
+select { font: inherit; color: inherit; background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; }
+.pill.off { color: var(--muted); }

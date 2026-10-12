@@ -1,57 +1,87 @@
 import { useState } from "react";
 import { api, useStation, type LocoNetLine, type StationState } from "./api";
+import { BoostersTab, ClockTab, DeviceTab, RmBusTab, SignalsTab } from "./devices";
 import { DetectorsTab, LocoNetTab, RailComTab } from "./monitors";
 
-type Tab = "station" | "drive" | "turnouts" | "cv" | "railcom" | "loconet" | "detectors" | "monitor";
-const TABS: [Tab, string][] = [
-  ["station", "Zentrale"], ["drive", "Fahren"], ["turnouts", "Weichen"], ["cv", "CV-Programmierung"],
+type Tab =
+  | "station" | "drive" | "turnouts" | "signals" | "cv" | "rmbus" | "clock" | "boosters" | "device"
+  | "railcom" | "loconet" | "detectors" | "monitor";
+
+const ALL_TABS: [Tab, string][] = [
+  ["station", "Zentrale"], ["drive", "Fahren"], ["turnouts", "Weichen"], ["signals", "Signale"], ["cv", "CV-Programmierung"],
+  ["rmbus", "R-BUS"], ["clock", "Uhr"], ["boosters", "Booster"], ["device", "Gerät"],
   ["railcom", "RailCom"], ["loconet", "LocoNet"], ["detectors", "Melder"], ["monitor", "Rohdaten"],
 ];
+
+/** A Z21 offers everything; zLink boosters/decoders (behind a 10838 Z21 pro LINK) only a small part of the protocol. */
+function visibleTabs(state?: StationState): [Tab, string][] {
+  const kind = state?.hw?.kind;
+  const keep = (ids: Tab[]) => ALL_TABS.filter(([id]) => ids.includes(id));
+  if (!state?.connected) return keep(["station", "monitor"]);
+  if (kind === "booster") return keep(["station", "device", "monitor"]);
+  if (kind === "decoder") return keep(["station", "device", "signals", "cv", "monitor"]);
+  return ALL_TABS.filter(([id]) => id !== "device");
+}
+
+type Run = (p: Promise<unknown>) => Promise<void>;
+const post = (url: string, body?: unknown) => api("POST", url, body);
+const put = (url: string, body?: unknown) => api("PUT", url, body);
 
 export function App() {
   const { state, wire, loconet, online, clearWire, clearLoconet } = useStation();
   const [tab, setTab] = useState<Tab>("station");
   const [error, setError] = useState<string>();
-  const run = async (p: Promise<unknown>) => { try { setError(undefined); await p; } catch (e) { setError((e as Error).message); } };
+  const run: Run = async (p) => { try { setError(undefined); await p; } catch (e) { setError((e as Error).message); } };
+
+  const tabs = visibleTabs(state);
+  const current: Tab = tabs.some(([id]) => id === tab) ? tab : "station";
+  const connected = !!state?.connected;
+  const kind = state?.hw?.kind;
 
   return (
     <div className="app">
       <header>
         <h1>Z21 Web</h1>
-        <span className={`dot ${state?.connected ? "ok" : online ? "warn" : "bad"}`} />
-        <span>{state?.connected ? `${state.hw?.hwName ?? "Z21"} @ ${state.host}` : online ? "nicht mit Zentrale verbunden" : "Server offline"}</span>
-        {state?.connected && <PowerBar state={state} run={run} />}
+        <span className={`dot ${connected ? "ok" : online ? "warn" : "bad"}`} />
+        <span>{connected ? `${state?.hw?.hwName ?? "Z21"} @ ${state?.host}` : online ? "nicht mit Zentrale verbunden" : "Server offline"}</span>
+        {connected && kind !== "decoder" && state && <PowerBar state={state} run={run} />}
       </header>
       <nav>
-        {TABS.map(([id, label]) => (
-          <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>{label}</button>
+        {tabs.map(([id, label]) => (
+          <button key={id} className={current === id ? "active" : ""} onClick={() => setTab(id)}>{label}</button>
         ))}
       </nav>
       {error && <div className="error" onClick={() => setError(undefined)}>{error}</div>}
       <main>
-        {tab === "station" && <StationTab state={state} run={run} />}
-        {!state?.connected && tab !== "station" && tab !== "monitor" && <p>Bitte zuerst mit einer Zentrale verbinden.</p>}
-        {state?.connected && tab === "drive" && <DriveTab state={state} run={run} />}
-        {state?.connected && tab === "turnouts" && <TurnoutsTab state={state} run={run} />}
-        {state?.connected && tab === "cv" && <CvTab run={run} />}
-        {state?.connected && tab === "railcom" && <RailComTab state={state} run={run} />}
-        {state?.connected && tab === "loconet" && <LocoNetTab state={state} lines={loconet as LocoNetLine[]} clear={clearLoconet} run={run} />}
-        {state?.connected && tab === "detectors" && <DetectorsTab state={state} run={run} />}
-        {tab === "monitor" && <Monitor wire={wire} clear={clearWire} />}
+        {current === "station" && <StationTab state={state} run={run} />}
+        {connected && state && (
+          <>
+            {current === "drive" && <DriveTab state={state} run={run} />}
+            {current === "turnouts" && <TurnoutsTab state={state} run={run} />}
+            {current === "signals" && <SignalsTab state={state} run={run} />}
+            {current === "cv" && <CvTab run={run} decoderOnly={kind === "decoder"} />}
+            {current === "rmbus" && <RmBusTab state={state} run={run} />}
+            {current === "clock" && <ClockTab state={state} run={run} />}
+            {current === "boosters" && <BoostersTab state={state} run={run} />}
+            {current === "device" && <DeviceTab state={state} run={run} />}
+            {current === "railcom" && <RailComTab state={state} run={run} />}
+            {current === "loconet" && <LocoNetTab state={state} lines={loconet as LocoNetLine[]} clear={clearLoconet} run={run} />}
+            {current === "detectors" && <DetectorsTab state={state} run={run} />}
+          </>
+        )}
+        {current === "monitor" && <Monitor wire={wire} clear={clearWire} />}
       </main>
     </div>
   );
 }
-
-type Run = (p: Promise<unknown>) => Promise<void>;
 
 function PowerBar({ state, run }: { state: StationState; run: Run }) {
   const on = state.power === "on";
   return (
     <div className="power">
       <span className={`pill ${state.power}`}>{state.power ?? "?"}</span>
-      <button onClick={() => run(api("POST", "/api/power", { on: !on }))}>{on ? "Gleisspannung aus" : "Gleisspannung ein"}</button>
-      <button className="danger" onClick={() => run(api("POST", "/api/estop"))}>NOT-HALT</button>
+      <button onClick={() => run(post("/api/power", { on: !on }))}>{on ? "Gleisspannung aus" : "Gleisspannung ein"}</button>
+      <button className="danger" onClick={() => run(post("/api/estop"))}>NOT-HALT</button>
     </div>
   );
 }
@@ -60,13 +90,14 @@ function StationTab({ state, run }: { state?: StationState; run: Run }) {
   const [host, setHost] = useState("192.168.0.111");
   const [found, setFound] = useState<{ host: string; serial: number }[]>();
   const s = state?.systemState;
+  const code = state?.unlockCode;
   return (
     <section>
       <h2>Verbindung</h2>
       <div className="row">
         <input value={host} onChange={(e) => setHost(e.target.value)} placeholder="IP der Z21" />
-        <button onClick={() => run(api("POST", "/api/connect", { host }))}>Verbinden</button>
-        <button onClick={() => run(api("POST", "/api/disconnect"))}>Trennen</button>
+        <button onClick={() => run(post("/api/connect", { host }))}>Verbinden</button>
+        <button onClick={() => run(post("/api/disconnect"))}>Trennen</button>
         <button onClick={() => run(api<typeof found>("GET", "/api/discover").then(setFound))}>Im Netz suchen</button>
       </div>
       {found && (found.length === 0 ? <p>Keine Zentrale gefunden.</p> : (
@@ -77,10 +108,17 @@ function StationTab({ state, run }: { state?: StationState; run: Run }) {
           <h2>Status</h2>
           <table>
             <tbody>
-              <tr><th>Typ</th><td>{state.hw?.hwName}</td><th>Firmware</th><td>{state.hw?.fwVersion}</td></tr>
-              <tr><th>Seriennummer</th><td>{state.serial}</td><th>Temperatur</th><td>{s?.temperature} °C</td></tr>
-              <tr><th>Gleisstrom</th><td>{s?.mainCurrent} mA</td><th>Progr.-Strom</th><td>{s?.progCurrent} mA</td></tr>
-              <tr><th>Versorgung</th><td>{s && (s.supplyVoltage / 1000).toFixed(1)} V</td><th>Gleisspannung</th><td>{s && (s.vccVoltage / 1000).toFixed(1)} V</td></tr>
+              <tr><th>Typ</th><td>{state.hw?.hwName}</td><th>Firmware</th><td>{state.hw?.fwVersion}{state.firmwareVersion && state.firmwareVersion !== state.hw?.fwVersion ? ` (X-Bus: ${state.firmwareVersion})` : ""}</td></tr>
+              <tr><th>Seriennummer</th><td>{state.serial}</td><th>Temperatur</th><td>{s ? `${s.temperature} °C` : "–"}</td></tr>
+              {state.hw?.kind === "z21" && (
+                <>
+                  <tr><th>Gleisstrom</th><td>{s?.mainCurrent} mA</td><th>Progr.-Strom</th><td>{s?.progCurrent} mA</td></tr>
+                  <tr><th>Versorgung</th><td>{s && (s.supplyVoltage / 1000).toFixed(1)} V</td><th>Gleisspannung</th><td>{s && (s.vccVoltage / 1000).toFixed(1)} V</td></tr>
+                </>
+              )}
+              {code !== undefined && code !== "none" && (
+                <tr><th>z21 start</th><td colSpan={3}>{code === "startLocked" ? "Fahren und Schalten gesperrt (Aktivierungscode fehlt)" : code === "startUnlocked" ? "freigeschaltet" : `Code ${code}`}</td></tr>
+              )}
             </tbody>
           </table>
         </>
@@ -89,30 +127,55 @@ function StationTab({ state, run }: { state?: StationState; run: Run }) {
   );
 }
 
+function ModeSelect({ value, onChange }: { value?: string; onChange: (m: "dcc" | "mm") => void }) {
+  return (
+    <select value={value ?? ""} onChange={(e) => onChange(e.target.value as "dcc" | "mm")}>
+      <option value="" disabled>–</option>
+      <option value="dcc">DCC</option>
+      <option value="mm">Motorola</option>
+    </select>
+  );
+}
+
 function DriveTab({ state, run }: { state: StationState; run: Run }) {
   const [addr, setAddr] = useState(3);
+  const [binary, setBinary] = useState(29);
   const loco = state.locos.find((l) => l.address === addr);
   const speed = loco?.speed ?? 0;
   const forward = loco?.forward ?? true;
-  const drive = (sp: number, fw: boolean) => run(api("POST", `/api/loco/${addr}/drive`, { speed: sp, forward: fw }));
+  const drive = (sp: number, fw: boolean) => run(post(`/api/loco/${addr}/drive`, { speed: sp, forward: fw }));
+  const fnCount = loco && loco.functions.length > 29 ? 32 : 29;
   return (
     <section>
       <div className="row">
         <label>Adresse <input type="number" min={1} max={9999} value={addr} onChange={(e) => setAddr(Number(e.target.value))} /></label>
         <button onClick={() => run(api("GET", `/api/loco/${addr}`))}>Lok abfragen</button>
+        <label>Format <ModeSelect value={addr >= 256 ? "dcc" : state.modes.loco[addr]} onChange={(m) => run(put(`/api/loco/${addr}/mode`, { mode: m }))} /></label>
+        <button onClick={() => run(api("GET", `/api/loco/${addr}/mode`))} title="Gespeichertes Format aus der Zentrale lesen">Format lesen</button>
       </div>
+      <p className="hint">Das Ausgabeformat (DCC/Motorola) wird dauerhaft in der Zentrale gespeichert. Adressen ab 256 sind immer DCC.</p>
       <div className="throttle">
         <input type="range" min={0} max={126} value={speed} onChange={(e) => drive(Number(e.target.value), forward)} />
         <strong>{speed}</strong>
         <button onClick={() => drive(0, forward)}>Stopp</button>
         <button onClick={() => drive(speed, !forward)}>{forward ? "→ vorwärts" : "← rückwärts"}</button>
-        <button className="danger" onClick={() => run(api("POST", `/api/loco/${addr}/stop`, { forward }))}>Lok-Nothalt</button>
+        <button className="danger" onClick={() => run(post(`/api/loco/${addr}/estop`))} title="DCC-Not-Halt nur für diese Lok (Firmware ab 1.43)">Lok-Nothalt</button>
+        <button onClick={() => window.confirm(`Lok ${addr} aus der Zentrale entfernen? Das Senden auf dem Gleis stoppt, bis ein neuer Fahr- oder Funktionsbefehl kommt.`) && run(post(`/api/loco/${addr}/purge`))}>Lok entfernen</button>
       </div>
       <div className="fns">
-        {Array.from({ length: 29 }, (_, n) => (
-          <button key={n} className={loco?.functions[n] ? "active" : ""} onClick={() => run(api("POST", `/api/loco/${addr}/function/${n}`, { action: "toggle" }))}>F{n}</button>
+        {Array.from({ length: fnCount }, (_, n) => (
+          <button key={n} className={loco?.functions[n] ? "active" : ""} onClick={() => run(post(`/api/loco/${addr}/function/${n}`, { action: "toggle" }))}>F{n}</button>
         ))}
       </div>
+      <details>
+        <summary>Binärzustand (F29…F32767, Firmware ab 1.42)</summary>
+        <div className="row">
+          <label>Adresse (29–32767) <input type="number" min={29} max={32767} value={binary} onChange={(e) => setBinary(Number(e.target.value))} /></label>
+          <button onClick={() => run(post(`/api/loco/${addr}/binary-state`, { state: binary, on: true }))}>Ein</button>
+          <button onClick={() => run(post(`/api/loco/${addr}/binary-state`, { state: binary, on: false }))}>Aus</button>
+        </div>
+        <p className="hint">Wird dreimal auf das Gleis gesendet, es gibt keine Rückmeldung. Nur wenige Decoder verstehen das.</p>
+      </details>
     </section>
   );
 }
@@ -123,26 +186,108 @@ function TurnoutsTab({ state, run }: { state: StationState; run: Run }) {
     <section>
       <div className="row">
         <label>Weichenadresse <input type="number" min={1} value={addr} onChange={(e) => setAddr(Number(e.target.value))} /></label>
-        <button onClick={() => run(api("POST", `/api/turnout/${addr}`, { output: 0 }))}>Gerade / rot (0)</button>
-        <button onClick={() => run(api("POST", `/api/turnout/${addr}`, { output: 1 }))}>Abzweig / grün (1)</button>
+        <button onClick={() => run(post(`/api/turnout/${addr}`, { output: 0 }))}>Ausgang 1 (0)</button>
+        <button onClick={() => run(post(`/api/turnout/${addr}`, { output: 1 }))}>Ausgang 2 (1)</button>
+        <label>Format <ModeSelect value={addr >= 257 ? "dcc" : state.modes.turnout[addr]} onChange={(m) => run(put(`/api/turnout/${addr}/mode`, { mode: m }))} /></label>
+        <button onClick={() => run(api("GET", `/api/turnout/${addr}/mode`))}>Format lesen</button>
       </div>
       <p>Letzter bekannter Stand: {state.turnouts[addr] ?? "–"}</p>
+      <p className="hint">Welcher Ausgang „gerade“ oder „abzweigend“ ist, hängt von der Verdrahtung ab – die Zentrale weiß das nicht. Adressen ab 257 sind immer DCC.</p>
     </section>
   );
 }
 
-function CvTab({ run }: { run: Run }) {
+function NumberField({ label, value, set, min, max }: { label: string; value: number; set: (n: number) => void; min: number; max: number }) {
+  return <label>{label} <input type="number" min={min} max={max} value={value} onChange={(e) => set(Number(e.target.value))} /></label>;
+}
+
+function CvTab({ run, decoderOnly }: { run: Run; decoderOnly: boolean }) {
+  const [mode, setMode] = useState<"service" | "pom" | "accessory" | "register" | "mm">("service");
   const [cv, setCv] = useState(1);
   const [value, setValue] = useState(0);
+  const [addr, setAddr] = useState(3);
+  const [dec, setDec] = useState(0);
+  const [output, setOutput] = useState("");
+  const [reg, setReg] = useState(1);
+  const [bit, setBit] = useState(0);
+  const [bitValue, setBitValue] = useState(true);
+  const read = (url: string) => run(api<{ value: number }>("GET", url).then((r) => setValue(r.value)));
+
+  const modes: [typeof mode, string][] = decoderOnly
+    ? [["service", "Direkt (Programmiergleis)"]]
+    : [["service", "Programmiergleis"], ["pom", "Hauptgleis (POM) Lok"], ["accessory", "Hauptgleis (POM) Zubehör"], ["register", "Register (alte DCC)"], ["mm", "Motorola"]];
   return (
     <section>
-      <p>Hauptgleis-Programmierung ist hier nicht enthalten – es wird auf dem Programmiergleis gelesen/geschrieben.</p>
       <div className="row">
-        <label>CV <input type="number" min={1} max={1024} value={cv} onChange={(e) => setCv(Number(e.target.value))} /></label>
-        <label>Wert <input type="number" min={0} max={255} value={value} onChange={(e) => setValue(Number(e.target.value))} /></label>
-        <button onClick={() => run(api<{ value: number }>("GET", `/api/cv/${cv}`).then((r) => setValue(r.value)))}>Lesen</button>
-        <button onClick={() => run(api("PUT", `/api/cv/${cv}`, { value }))}>Schreiben</button>
+        {modes.map(([id, l]) => <button key={id} className={mode === id ? "active" : ""} onClick={() => setMode(id)}>{l}</button>)}
       </div>
+
+      {mode === "service" && (
+        <>
+          <p className="hint">{decoderOnly ? "CVs des Decoders lesen/schreiben." : "Lesen/Schreiben auf dem Programmiergleis. Das Auslesen kann lange dauern."}</p>
+          <div className="row">
+            <NumberField label="CV" value={cv} set={setCv} min={1} max={1024} />
+            <NumberField label="Wert" value={value} set={setValue} min={0} max={255} />
+            <button onClick={() => read(`/api/cv/${cv}`)}>Lesen</button>
+            <button onClick={() => run(put(`/api/cv/${cv}`, { value }))}>Schreiben</button>
+          </div>
+        </>
+      )}
+
+      {mode === "pom" && (
+        <>
+          <p className="hint">Programmieren auf dem Hauptgleis bei eingeschalteter Gleisspannung. Schreiben hat keine Rückmeldung. Lesen braucht RailCom (in der Z21 aktiviert; im Decoder CV 28 Bit 0/1 und CV 29 Bit 3).</p>
+          <div className="row">
+            <NumberField label="Lokadresse" value={addr} set={setAddr} min={1} max={9999} />
+            <NumberField label="CV" value={cv} set={setCv} min={1} max={1024} />
+            <NumberField label="Wert" value={value} set={setValue} min={0} max={255} />
+            <button onClick={() => read(`/api/pom/${addr}/${cv}`)}>Lesen (RailCom)</button>
+            <button onClick={() => run(put(`/api/pom/${addr}/${cv}`, { value }))}>Schreiben</button>
+          </div>
+          <div className="row">
+            <NumberField label="Bit (0–7)" value={bit} set={setBit} min={0} max={7} />
+            <select value={String(bitValue)} onChange={(e) => setBitValue(e.target.value === "true")}><option value="true">1</option><option value="false">0</option></select>
+            <button onClick={() => run(put(`/api/pom/${addr}/${cv}`, { bit, bitValue }))}>Einzelnes Bit schreiben</button>
+          </div>
+        </>
+      )}
+
+      {mode === "accessory" && (
+        <>
+          <p className="hint">Zubehördecoder auf dem Hauptgleis (NMRA S-9.2.1 Abschnitt D). Ausgang leer lassen = ganzer Decoder.</p>
+          <div className="row">
+            <NumberField label="Decoderadresse (0–511)" value={dec} set={setDec} min={0} max={511} />
+            <label>Ausgang <input value={output} placeholder="0–7" style={{ width: 70 }} onChange={(e) => setOutput(e.target.value)} /></label>
+            <NumberField label="CV" value={cv} set={setCv} min={1} max={1024} />
+            <NumberField label="Wert" value={value} set={setValue} min={0} max={255} />
+            <button onClick={() => read(`/api/pom-accessory/${dec}/${cv}?output=${encodeURIComponent(output)}`)}>Lesen (RailCom)</button>
+            <button onClick={() => run(put(`/api/pom-accessory/${dec}/${cv}`, { output: output === "" ? undefined : Number(output), value }))}>Schreiben</button>
+          </div>
+        </>
+      )}
+
+      {mode === "register" && (
+        <>
+          <p className="hint">Registermodus auf dem Programmiergleis, nur für sehr alte DCC-Decoder. Bevorzugt die direkte CV-Programmierung.</p>
+          <div className="row">
+            <NumberField label="Register (1–8)" value={reg} set={setReg} min={1} max={8} />
+            <NumberField label="Wert" value={value} set={setValue} min={0} max={255} />
+            <button onClick={() => read(`/api/register/${reg}`)}>Lesen</button>
+            <button onClick={() => run(put(`/api/register/${reg}`, { value }))}>Schreiben</button>
+          </div>
+        </>
+      )}
+
+      {mode === "mm" && (
+        <>
+          <p className="hint">Motorola-Decoder (6021-Programmiermodus) schreiben. Es gibt kein Lesen und keine Erfolgsmeldung – „fertig“ heißt nur, dass der Vorgang durchlief. Nicht jeder Decoder lässt sich so programmieren.</p>
+          <div className="row">
+            <NumberField label="Register (1–79)" value={reg} set={setReg} min={1} max={79} />
+            <NumberField label="Wert" value={value} set={setValue} min={0} max={255} />
+            <button onClick={() => run(put(`/api/mm-register/${reg}`, { value }))}>Schreiben</button>
+          </div>
+        </>
+      )}
     </section>
   );
 }
@@ -152,7 +297,7 @@ function Monitor({ wire, clear }: { wire: { dir: string; hex: string; message?: 
     <section>
       <button onClick={clear}>Leeren</button>
       <pre className="log">
-        {wire.map((w, i) => `${new Date(w.ts).toLocaleTimeString()} ${w.dir === "tx" ? "→" : "←"} ${w.hex}${w.message ? `  ${w.message.type}` : ""}`).join("\n")}
+        {wire.map((w) => `${new Date(w.ts).toLocaleTimeString()} ${w.dir === "tx" ? "→" : "←"} ${w.hex}${w.message ? `  ${w.message.type}` : ""}`).join("\n")}
       </pre>
     </section>
   );

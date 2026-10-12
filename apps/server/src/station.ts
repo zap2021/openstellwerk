@@ -1,10 +1,15 @@
 import { EventEmitter } from "node:events";
 import {
   Broadcast, cmd, LocoNetDetectorPoll,
-  type CanDetectorValue, type LocoInfo, type LocoNetDecoded, type LocoNetDetectorEvent, type LocoNetDirection,
+  type BoosterSystemState, type CanBoosterState, type DecoderState, type FastClockSettings, type FastClockTime,
+  type ZLinkHwInfo, type CanDetectorValue, type LocoInfo, type LocoNetDecoded, type LocoNetDetectorEvent, type LocoNetDirection,
   type Message, type RailComData, type SystemState, type TrackPower,
 } from "@z21/protocol";
 import { Z21Client } from "./z21-client.js";
+
+/** A programming failure is a normal outcome (nothing on the track, short circuit), not a server error. */
+const cvFailure = (reason: "noAck" | "shortCircuit") =>
+  Object.assign(new Error(reason === "noAck" ? "No decoder acknowledge" : "Short circuit on programming track"), { statusCode: 422 });
 
 /** Flags that are always on. Monitors add their own on demand, because they can create a lot of traffic. */
 const BASE_FLAGS = Broadcast.Basic | Broadcast.SystemState | Broadcast.AllLocos;
@@ -13,6 +18,21 @@ export interface Monitors {
   railcom: boolean;
   loconet: boolean;
   detectors: boolean;
+  rmbus: boolean;
+  boosters: boolean;
+  clock: boolean;
+}
+
+const NO_MONITORS: Monitors = { railcom: false, loconet: false, detectors: false, rmbus: false, boosters: false, clock: false };
+
+export type DeviceKind = "z21" | "booster" | "decoder";
+const kindOf = (hwType: number): DeviceKind =>
+  hwType === 0x205 || hwType === 0x206 || hwType === 0x212 ? "booster" : hwType === 0x301 || hwType === 0x302 ? "decoder" : "z21";
+
+export interface CanBoosterEntry {
+  nid: number;
+  name?: string;
+  outputs: (CanBoosterState & { ts: number })[];
 }
 
 export interface LocoNetLine {
@@ -46,8 +66,11 @@ export interface CanDetectorState {
 export interface StationState {
   connected: boolean;
   host?: string;
-  hw?: { hwName: string; fwVersion: string };
+  hw?: { hwName: string; fwVersion: string; hwType: number; kind: DeviceKind };
   serial?: number;
+  /** from LAN_X_GET_FIRMWARE_VERSION */
+  firmwareVersion?: string;
+  unlockCode?: string | number;
   power?: TrackPower;
   systemState?: SystemState;
   locos: LocoInfo[];
@@ -56,6 +79,13 @@ export interface StationState {
   railcom: RailComEntry[];
   loconetDetectors: LocoNetDetectorState[];
   canDetectors: CanDetectorState[];
+  rmbus: { module: number; inputs: boolean[] }[];
+  clock?: { time?: FastClockTime; settings?: FastClockSettings };
+  canBoosters: CanBoosterEntry[];
+  /** zLink device (booster / decoder behind a 10838 Z21 pro LINK) */
+  device?: { name?: string; link?: ZLinkHwInfo; boosterState?: BoosterSystemState; decoderState?: DecoderState };
+  extAccessories: Record<number, number>;
+  modes: { loco: Record<number, string>; turnout: Record<number, string> };
 }
 
 /** Holds the live model of the connected command station and exposes high-level operations. */
@@ -67,7 +97,15 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
   private systemState?: SystemState;
   private locos = new Map<number, LocoInfo>();
   private turnouts: Record<number, string> = {};
-  private monitors: Monitors = { railcom: false, loconet: false, detectors: false };
+  private monitors: Monitors = { ...NO_MONITORS };
+  private firmwareVersion?: string;
+  private unlockCode?: string | number;
+  private rmbus = new Map<number, boolean[]>();
+  private clock?: { time?: FastClockTime; settings?: FastClockSettings };
+  private canBoosters = new Map<number, CanBoosterEntry>();
+  private device: NonNullable<StationState["device"]> = {};
+  private extAccessories: Record<number, number> = {};
+  private modes: StationState["modes"] = { loco: {}, turnout: {} };
   private railcom = new Map<number, RailComEntry>();
   private loconetDetectors = new Map<number, LocoNetDetectorState>();
   private canDetectors = new Map<string, CanDetectorState>();
@@ -78,7 +116,7 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
     super();
     this.client.on("message", (m) => this.apply(m));
     this.client.on("close", () => {
-      this.monitors = { railcom: false, loconet: false, detectors: false };
+      this.monitors = { ...NO_MONITORS };
       this.emit("state", this.snapshot());
     });
   }
@@ -89,6 +127,8 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
       host: this.client.host,
       hw: this.hw,
       serial: this.serial,
+      firmwareVersion: this.firmwareVersion,
+      unlockCode: this.unlockCode,
       power: this.power,
       systemState: this.systemState,
       locos: [...this.locos.values()],
@@ -97,6 +137,12 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
       railcom: [...this.railcom.values()].sort((a, b) => b.ts - a.ts),
       loconetDetectors: [...this.loconetDetectors.values()].sort((a, b) => a.feedbackAddress - b.feedbackAddress),
       canDetectors: [...this.canDetectors.values()].sort((a, b) => a.nid - b.nid),
+      rmbus: [...this.rmbus].sort(([a], [b]) => a - b).map(([module, inputs]) => ({ module, inputs })),
+      clock: this.clock,
+      canBoosters: [...this.canBoosters.values()].sort((a, b) => a.nid - b.nid),
+      device: Object.keys(this.device).length ? this.device : undefined,
+      extAccessories: this.extAccessories,
+      modes: this.modes,
     };
   }
 
@@ -104,7 +150,30 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
     const ts = Date.now();
     switch (m.type) {
       case "serial": this.serial = m.serial; break;
-      case "hwinfo": this.hw = { hwName: m.hwName, fwVersion: m.fwVersion }; break;
+      case "hwinfo": {
+        const kind = kindOf(m.hwType);
+        this.hw = { hwName: m.hwName, fwVersion: m.fwVersion, hwType: m.hwType, kind };
+        this.queryDevice(kind);
+        break;
+      }
+      case "firmwareVersion": this.firmwareVersion = m.version; break;
+      case "code": this.unlockCode = m.code; break;
+      case "rmbus": for (const mod of m.data.modules) this.rmbus.set(mod.module, mod.inputs); break;
+      case "fastClock": this.clock = { ...this.clock, time: m.time }; break;
+      case "fastClockSettings": this.clock = { ...this.clock, settings: m.settings }; break;
+      case "canDeviceName": this.canBooster(m.nid).name = m.name; break;
+      case "canBooster": {
+        const b = this.canBooster(m.state.nid);
+        b.outputs[m.state.outputPort - 1] = { ...m.state, ts };
+        break;
+      }
+      case "deviceName": this.device = { ...this.device, name: m.name }; break;
+      case "boosterState": this.device = { ...this.device, boosterState: m.state }; break;
+      case "decoderState": this.device = { ...this.device, decoderState: m.state }; break;
+      case "zlinkHwInfo": this.device = { ...this.device, link: m.info }; break;
+      case "extAccessory": if (m.valid) this.extAccessories = { ...this.extAccessories, [m.address]: m.value }; break;
+      case "locoMode": this.modes = { ...this.modes, loco: { ...this.modes.loco, [m.address]: m.mode } }; break;
+      case "turnoutMode": this.modes = { ...this.modes, turnout: { ...this.modes.turnout, [m.address]: m.mode } }; break;
       case "trackPower": this.power = m.state; break;
       case "status":
         this.power = m.emergencyStop ? "emergencyStop" : m.shortCircuit ? "shortCircuit"
@@ -166,6 +235,27 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
     this.canDetectors.set(key, mod);
   }
 
+  private canBooster(nid: number): CanBoosterEntry {
+    let b = this.canBoosters.get(nid);
+    if (!b) {
+      this.canBoosters.set(nid, (b = { nid, outputs: [] }));
+      // the status broadcast carries no name: ask for it once, spaced out (the spec warns against back-to-back requests)
+      setTimeout(() => { try { this.getCanBoosterName(nid); } catch { /* disconnected */ } }, 100 * this.canBoosters.size);
+    }
+    return b;
+  }
+
+  /** Ask a freshly connected device for the data its panel needs. */
+  private queryDevice(kind: DeviceKind) {
+    try {
+      this.client.send(cmd.getFirmwareVersion());
+      this.client.send(cmd.getCode());
+      if (kind === "booster") { this.client.send(cmd.boosterGetDescription()); this.client.send(cmd.boosterGetSystemState()); }
+      if (kind === "decoder") { this.client.send(cmd.decoderGetDescription()); this.client.send(cmd.decoderGetSystemState()); }
+      if (kind !== "z21") this.client.send(cmd.zlinkGetHwInfo());
+    } catch { /* disconnected meanwhile */ }
+  }
+
   async connect(host: string, port?: number) {
     this.locos.clear();
     this.turnouts = {};
@@ -173,7 +263,17 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
     this.loconetDetectors.clear();
     this.canDetectors.clear();
     this.canLocoChunks.clear();
-    this.monitors = { railcom: false, loconet: false, detectors: false };
+    this.monitors = { ...NO_MONITORS };
+    this.firmwareVersion = undefined;
+    this.unlockCode = undefined;
+    this.clock = undefined;
+    this.rmbus.clear();
+    this.canBoosters.clear();
+    this.device = {};
+    this.extAccessories = {};
+    this.modes = { loco: {}, turnout: {} };
+    this.hw = undefined;
+    this.serial = undefined;
     await this.client.connect(host, port, BASE_FLAGS);
     this.emit("state", this.snapshot());
   }
@@ -185,6 +285,9 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
     if (this.monitors.railcom) flags |= Broadcast.RailComSubscribed | Broadcast.AllRailCom;
     if (this.monitors.loconet) flags |= Broadcast.LocoNet | Broadcast.LocoNetLocos | Broadcast.LocoNetSwitches;
     if (this.monitors.detectors) flags |= Broadcast.LocoNetDetector | Broadcast.CanDetector;
+    if (this.monitors.rmbus) flags |= Broadcast.RMBus;
+    if (this.monitors.boosters) flags |= Broadcast.CanBooster;
+    if (this.monitors.clock) flags |= Broadcast.FastClock;
     this.client.setFlags(flags);
     this.emit("state", this.snapshot());
   }
@@ -204,6 +307,97 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
   }
   pollCanDetectors(nid?: number) { this.client.send(cmd.canDetector(nid)); }
 
+  /* ---- settings ---- */
+  async readLocoMode(addr: number) {
+    const m = await this.client.request(cmd.getLocoMode(addr), (m) => m.type === "locoMode" && m.address === addr);
+    return m.type === "locoMode" ? m.mode : "dcc";
+  }
+  setLocoMode(addr: number, mode: "dcc" | "mm") {
+    this.client.send(cmd.setLocoMode(addr, mode));
+    this.modes = { ...this.modes, loco: { ...this.modes.loco, [addr]: mode } };
+    this.emit("state", this.snapshot());
+  }
+  async readTurnoutMode(addr: number) {
+    const m = await this.client.request(cmd.getTurnoutMode(addr), (m) => m.type === "turnoutMode" && m.address === addr);
+    return m.type === "turnoutMode" ? m.mode : "dcc";
+  }
+  setTurnoutMode(addr: number, mode: "dcc" | "mm") {
+    this.client.send(cmd.setTurnoutMode(addr, mode));
+    this.modes = { ...this.modes, turnout: { ...this.modes.turnout, [addr]: mode } };
+    this.emit("state", this.snapshot());
+  }
+
+  /* ---- more driving ---- */
+  locoEStop(addr: number) { this.client.send(cmd.locoEStop(addr)); }
+  purgeLoco(addr: number) {
+    this.client.send(cmd.purgeLoco(addr));
+    this.locos.delete(addr);
+    this.emit("state", this.snapshot());
+  }
+  setFunctionGroup(addr: number, group: number, bits: number) { this.client.send(cmd.setLocoFunctionGroup(addr, group, bits)); }
+  setBinaryState(addr: number, stateAddr: number, on: boolean) { this.client.send(cmd.setLocoBinaryState(addr, stateAddr, on)); }
+
+  /* ---- accessories / signals (DCCext) ---- */
+  setExtAccessory(addr: number, value: number) { this.client.send(cmd.setExtAccessory(addr, value)); }
+  extAccessoryEStop() { this.client.send(cmd.extAccessoryEStop()); }
+  async getExtAccessory(addr: number) {
+    const m = await this.client.request(cmd.getExtAccessoryInfo(addr), (m) => m.type === "extAccessory" && m.address === addr);
+    return m.type === "extAccessory" ? { address: m.address, value: m.value, valid: m.valid } : undefined;
+  }
+
+  /* ---- programming ---- */
+  private async cvReply(frame: Buffer, cv: number, timeout = 10_000) {
+    const m = await this.client.request(frame, (m) => (m.type === "cv" && m.cv === cv) || m.type === "cvError", timeout);
+    if (m.type === "cvError") throw cvFailure(m.reason);
+    return m.type === "cv" ? m.value : 0;
+  }
+  /** Read a loco CV on the main track via RailCom (needs a RailCom decoder and RailCom enabled in the Z21). */
+  pomRead(addr: number, cv: number) { return this.cvReply(cmd.pomReadByte(addr, cv), cv); }
+  pomWrite(addr: number, cv: number, value: number) { this.client.send(cmd.pomWriteByte(addr, cv, value)); }
+  pomWriteBit(addr: number, cv: number, bit: number, value: boolean) { this.client.send(cmd.pomWriteBit(addr, cv, bit, value)); }
+  pomAccessoryRead(dec: number, output: number | undefined, cv: number) { return this.cvReply(cmd.pomAccessoryReadByte(dec, output, cv), cv); }
+  pomAccessoryWrite(dec: number, output: number | undefined, cv: number, value: number) {
+    this.client.send(cmd.pomAccessoryWriteByte(dec, output, cv, value));
+  }
+  pomAccessoryWriteBit(dec: number, output: number | undefined, cv: number, bit: number, value: boolean) {
+    this.client.send(cmd.pomAccessoryWriteBit(dec, output, cv, bit, value));
+  }
+  readRegister(reg: number) { return this.cvReply(cmd.dccReadRegister(reg), reg); }
+  writeRegister(reg: number, value: number) { return this.cvReply(cmd.dccWriteRegister(reg, value), reg); }
+  /** Motorola 6021 programming: the reply only means "finished", not "successful" */
+  mmWrite(reg: number, value: number) { return this.cvReply(cmd.mmWriteByte(reg, value), reg); }
+
+  /* ---- R-BUS ---- */
+  pollRmBus() { this.client.send(cmd.rmbusGetData(0)); this.client.send(cmd.rmbusGetData(1)); }
+  /** 1..20 starts programming a single connected module, 0 ends the sequence */
+  rmbusProgramModule(address: number) { this.client.send(cmd.rmbusProgramModule(address)); }
+
+  /* ---- fast clock ---- */
+  getClock() { this.client.send(cmd.fastClockGet()); this.client.send(cmd.fastClockSettingsGet()); }
+  startClock() { this.client.send(cmd.fastClockStart()); }
+  stopClock() { this.client.send(cmd.fastClockStop()); }
+  setClock(weekday: number, hour: number, minute: number, rate: number) { this.client.send(cmd.fastClockSet(weekday, hour, minute, rate)); }
+  setClockSettings(settings: number, rate?: number, start?: { weekday: number; hour: number; minute: number }) {
+    this.client.send(cmd.fastClockSettingsSet(settings, rate, start));
+    this.client.send(cmd.fastClockSettingsGet());
+  }
+
+  /* ---- CAN boosters (via Z21) ---- */
+  getCanBoosterName(nid: number) { this.client.send(cmd.canDeviceGetDescription(nid)); }
+  setCanBoosterName(nid: number, name: string) {
+    this.client.send(cmd.canDeviceSetDescription(nid, name));
+    setTimeout(() => { try { this.getCanBoosterName(nid); } catch { /* disconnected */ } }, 200);
+  }
+  setCanBoosterPower(nid: number, power: number) { this.client.send(cmd.canBoosterSetTrackPower(nid, power)); }
+
+  /* ---- zLink devices ---- */
+  refreshDevice() { if (this.hw) this.queryDevice(this.hw.kind); }
+  setDeviceName(name: string) {
+    this.client.send(this.hw?.kind === "booster" ? cmd.boosterSetDescription(name) : cmd.decoderSetDescription(name));
+    setTimeout(() => this.refreshDevice(), 300);
+  }
+  setBoosterPower(port: 1 | 2 | 3, on: boolean) { this.client.send(cmd.boosterSetPower(port, on)); }
+
   setPower(on: boolean) { this.client.send(on ? cmd.trackPowerOn() : cmd.trackPowerOff()); }
   emergencyStop() { this.client.send(cmd.emergencyStop()); }
 
@@ -222,12 +416,12 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
 
   async readCv(cv: number) {
     const m = await this.client.request(cmd.cvRead(cv), (m) => (m.type === "cv" && m.cv === cv) || m.type === "cvError", 10_000);
-    if (m.type === "cvError") throw new Error(m.reason === "noAck" ? "No decoder acknowledge" : "Short circuit on programming track");
+    if (m.type === "cvError") throw cvFailure(m.reason);
     return m.type === "cv" ? m.value : 0;
   }
   async writeCv(cv: number, value: number) {
     const m = await this.client.request(cmd.cvWrite(cv, value), (m) => (m.type === "cv" && m.cv === cv) || m.type === "cvError", 10_000);
-    if (m.type === "cvError") throw new Error(m.reason === "noAck" ? "No decoder acknowledge" : "Short circuit on programming track");
+    if (m.type === "cvError") throw cvFailure(m.reason);
     return m.type === "cv" ? m.value : 0;
   }
 }

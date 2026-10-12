@@ -78,7 +78,7 @@ export class Z21Client extends EventEmitter<{ message: [Message]; wire: [WireEve
     return new Promise((resolve, reject) => {
       const done = (fn: () => void) => { clearTimeout(t); this.off("message", onMsg); fn(); };
       const onMsg = (m: Message) => { if (match(m)) done(() => resolve(m)); };
-      const t = setTimeout(() => done(() => reject(new Error("timeout waiting for Z21"))), timeoutMs);
+      const t = setTimeout(() => done(() => reject(Object.assign(new Error("timeout waiting for Z21"), { statusCode: 504 }))), timeoutMs);
       this.on("message", onMsg);
       try { this.send(buf); } catch (e) { done(() => reject(e)); }
     });

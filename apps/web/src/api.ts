@@ -1,15 +1,40 @@
 import { useEffect, useState } from "react";
 
+export type MonitorKind = "railcom" | "loconet" | "detectors" | "rmbus" | "boosters" | "clock";
+
+export interface BoosterOutput {
+  nid: number; outputPort: number; shortCircuit: boolean; trackVoltageOff: boolean; outputDisabled: boolean;
+  railComActive: boolean; brakeGenerator: boolean; voltage: number; current: number; ts: number;
+}
+
+export interface BoosterSystemState {
+  current: [number, number]; temperature: [number, number]; supplyVoltage: number; voltage: [number, number];
+  trackVoltageOff: boolean; shortCircuit: [boolean, boolean]; outputDisabled: [boolean, boolean]; railComActive: [boolean, boolean];
+}
+
+export type DecoderState =
+  | {
+      kind: "switch"; voltage: number; current: number; address: number; address2: number; trackVoltageOff: boolean; shortCircuit: boolean; configMode: boolean;
+      outputs: { state: string; config: string; dimm: number }[];
+    }
+  | {
+      kind: "signal"; voltage: number; address: number; signalCount: number; trackVoltageOff: boolean; shortCircuit: boolean; configMode: boolean;
+      outputsOn: boolean[]; outputsBlinking: boolean[];
+      signals: { dccExt: number; aspectIndex: number; signalId: number; initAspect: number }[];
+    };
+
 export interface StationState {
   connected: boolean;
   host?: string;
-  hw?: { hwName: string; fwVersion: string };
+  hw?: { hwName: string; fwVersion: string; hwType: number; kind: "z21" | "booster" | "decoder" };
   serial?: number;
+  firmwareVersion?: string;
+  unlockCode?: string | number;
   power?: "off" | "on" | "shortCircuit" | "programming" | "emergencyStop";
   systemState?: { mainCurrent: number; progCurrent: number; temperature: number; supplyVoltage: number; vccVoltage: number };
   locos: { address: number; speed: number; forward: boolean; functions: boolean[]; emergencyStop: boolean }[];
   turnouts: Record<number, string>;
-  monitors: { railcom: boolean; loconet: boolean; detectors: boolean };
+  monitors: Record<MonitorKind, boolean>;
   railcom: { address: number; receiveCounter: number; errorCounter: number; speed?: number; qos?: number; ts: number }[];
   loconetDetectors: { feedbackAddress: number; occupied: boolean; locoAddress?: number; forward?: boolean; speed?: number; ts: number }[];
   canDetectors: {
@@ -18,6 +43,15 @@ export interface StationState {
     ports: { port: number; occupied: boolean; voltage: boolean; overload: number; locos: { address: number; direction: string }[] }[];
     ts: number;
   }[];
+  rmbus: { module: number; inputs: boolean[] }[];
+  clock?: {
+    time?: { weekday: number; hour: number; minute: number; second: number; rate: number; stopped: boolean; halted: boolean; settings: number };
+    settings?: { settings: number; rate: number; startWeekday: number; startHour: number; startMinute: number };
+  };
+  canBoosters: { nid: number; name?: string; outputs: BoosterOutput[] }[];
+  device?: { name?: string; link?: { hwId: number; fwVersion: string; mac: string; name: string }; boosterState?: BoosterSystemState; decoderState?: DecoderState };
+  extAccessories: Record<number, number>;
+  modes: { loco: Record<number, string>; turnout: Record<number, string> };
 }
 
 export interface LocoNetLine {

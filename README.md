@@ -35,30 +35,35 @@ npm test           # Protokoll- und Integrationstests (Simulator ↔ Server)
 npm run typecheck
 ```
 
-## Stand und Fahrplan
+## Stand
 
-Phase 1 (fertig): öffentliches Z21-LAN-Protokoll – Suche im Netz, Status/Systemzustand, Gleisspannung, Nothalt, Lokfahren und Funktionen F0–F28, Weichen, CV lesen/schreiben (Programmiergleis), Rohdaten-Monitor.
+Umgesetzt ist das **gesamte öffentliche Z21-LAN-Protokoll** (Spezifikation V1.13, Kap. 2–12), gebaut und getestet gegen die offiziellen Beispiel-Frames und gegen den Simulator:
 
-Phase 2 (fertig): Monitore, gebaut gegen die offizielle Spezifikation „Z21 LAN Protocol Specification“ V1.13 (Kap. 2.16, 8, 9, 10):
-- **RailCom** (`0x88`/`0x89`): Loks mit Geschwindigkeit, QoS, Empfangs- und Fehlerzähler.
-- **LocoNet** (`0xA0`–`0xA4`): Mitschnitt mit dekodierten Opcodes (Weichen, Lok-Befehle, Sensoren, Slots, Gleisspannung), Prüfsummenkontrolle, Filter, Pause, Rohnachricht senden (mit Bestätigung).
-- **Melder**: LocoNet-Gleisbesetztmelder (SIC-/Report-Adress-Abfrage, Transponder-Loks) und CAN-Melder 10808 inkl. RailCom-Lokliste je Port.
-Die Monitore sind abschaltbar und standardmäßig aus, weil sie viel Netzwerkverkehr erzeugen; der Server aktiviert die zugehörigen Broadcast-Flags nur, solange der Reiter offen ist.
-
-Funktionen von `Z21_Maintenance.exe` (anhand der Ressourcen der EXE) und ihr Stand:
-
-| Bereich in der EXE | Technik | Status |
+| Reiter | Inhalt | Spez.-Kapitel |
 |---|---|---|
-| Z21-Status / Einstellungen, Lok-Liste, Weichen | öffentliches LAN-Protokoll | teilweise (Status, Lok, Weiche) |
-| CV-Programmierung | LAN-Protokoll | Grundfunktion fertig |
-| RailCom-Monitor, LocoNet-Monitor, LocoNet-/CAN-Melder | LAN-Protokoll (0x88/0x89, 0xA0–0xA4, 0xC4) | fertig (Phase 2) |
-| LNCV lesen/schreiben | LocoNet-Programmiernachrichten über 0xA2 | geplant |
-| IP-/WLAN-Einstellungen | teils proprietär | zu klären |
-| Z21 Booster / Weichen- und Signaldecoder 10836/10837, Signal Box | CAN, teils proprietär | Phase 3 |
-| Firmware-Updates (Z21, Booster 10806/7, 10808, Multimaus, LocoNet-Adapter) | proprietärer Bootloader, LAN bzw. zLink-USB seriell | Phase 4 |
-| Zimo-MX/MS-Decoder-Update (MDU), Sound-/SUSI-Update | seriell über zLink | Phase 4 |
+| Zentrale | Suche im Netz, Status, Firmware (BCD), Seriennummer, z21-start-Sperre, Strom/Spannung/Temperatur | 2 |
+| Fahren | Geschwindigkeit, Richtung, F0–F31, Lok-Nothalt, Lok entfernen, Ausgabeformat DCC/Motorola, Binärzustände | 3, 4 |
+| Weichen | Schalten, Ausgabeformat DCC/Motorola | 3, 5 |
+| Signale | DCCext (RCN-213): Signalbilder 10837, Weichen mit Schaltzeit 10836, Zubehör-Nothalt | 5.4–5.6 |
+| CV-Programmierung | Programmiergleis (direkt), POM Lok (Byte/Bit/Lesen per RailCom), POM Zubehör, Registermodus, Motorola | 6 |
+| R-BUS | Rückmeldemodule 1–20, Modul-Adresse programmieren | 7 |
+| Uhr | Modellbahn-Uhr: Anzeige, Start/Stopp, Zeit/Faktor, dauerhafte Einstellungen | 12 |
+| Booster | CAN-Booster 10806/7/9 an der Z21: Status, Namen, Ausgänge einzeln schalten | 10.2 |
+| Gerät | zLink-Booster und -Decoder 10836/10837 hinter einem 10838 Z21 pro LINK: Status, Namen, Ausgänge | 11 |
+| RailCom, LocoNet, Melder | Monitore, LocoNet-Rohnachrichten, LocoNet-/CAN-Gleisbesetztmelder | 8, 9, 10.1 |
 
-Phase 4 setzt Analyse des Bootloader-Protokolls voraus (die EXE meldet u. a. Flash-/EEPROM-/IAP-Fehlercodes, Firmware-Dateien `.bin`/`.hex`, Signatur- und Verifizierungsschritte). Fehlerhafte Flash-Vorgänge können ein Gerät unbrauchbar machen – das wird erst mit Testgerät und mit Sicherheitsabfragen umgesetzt, nicht blind.
+Die Monitore (RailCom, LocoNet, Melder, R-BUS, Booster, Uhr) sind standardmäßig aus, weil sie viel Netzwerkverkehr erzeugen; der Server aktiviert die Broadcast-Flags nur, solange der Reiter offen ist.
+
+### Noch nicht enthalten
+
+| Funktion der `Z21_Maintenance.exe` | Grund |
+|---|---|
+| **Firmware-Updates** (Z21, Booster, Decoder, Multimaus, LocoNet-Adapter, Zimo MX/MS inkl. Sound/SUSI) | Proprietärer Bootloader, nicht öffentlich dokumentiert. Erfordert Reverse Engineering und ein Testgerät; ein Fehler beim Flashen kann das Gerät unbrauchbar machen. Bewusst nicht „blind“ gebaut. |
+| LNCV lesen/schreiben (Uhlenbrock) | Nicht in der Z21-Spezifikation; das Bitpacking der LocoNet-Nachrichten ist hier nicht verifiziert. |
+| IP-/WLAN-Einstellungen, Signaltyp/Signal Box, Decoder-Konfiguration über die EXE-Oberfläche | Teils proprietär bzw. nur über CV-Zugriff möglich (CV-Reiter funktioniert auch an den zLink-Decodern). |
+| Zimo-Decoder-Updates, Multimaus-Update, CAN-Detektor-Firmware | siehe Firmware-Updates |
+
+Diese Teile sind als nächste Phase vorgesehen, sobald Testhardware vorhanden ist. Danach folgt der Ausbau zur Modellbahnsteuerung (Fahrstraßen, Blocksicherung, Fahrplan, Gleisbild).
 
 ## Hinweise zum Protokoll
 
@@ -66,6 +71,7 @@ Phase 4 setzt Analyse des Bootloader-Protokolls voraus (die EXE meldet u. a. Fla
 - Adressen in der API sind benutzerfreundlich 1-basiert (Weiche, CV); auf dem Draht sind sie 0-basiert. Die Umrechnung steckt ausschließlich in `commands.ts`/`messages.ts`.
 - Die Z21 trennt Clients nach ca. 60 s Stille; der Server fragt alle 20 s den Systemzustand ab.
 - Lok-Geschwindigkeit wird bisher nur mit 128 Fahrstufen gesendet; 14/28 Stufen werden empfangen, aber nicht umgerechnet.
-- Der Simulator spielt im Dev-Modus Demo-Verkehr (Melder wechseln alle 4 s). Abschalten mit `Z21_SIM_DEMO=0`.
+- Der Simulator spielt im Dev-Modus Demo-Verkehr (Melder wechseln alle 4 s). Abschalten mit `Z21_SIM_DEMO=0`. Als zLink-Gerät starten: `Z21_SIM_PORT=21201 Z21_SIM_DEVICE=booster npm run dev:sim` (auch `switchDecoder`, `signalDecoder`), dann per API `POST /api/connect {"host":"127.0.0.1","port":21201}`.
 - LISSY-Abfragen (Typ 0x82) und LocoNet-Dispatch sind im Protokoll vorhanden, aber im Simulator nicht nachgebildet.
+- Fehlgeschlagene Programmierungen (kein Decoder-ACK, Kurzschluss) liefern HTTP 422, ausbleibende Antworten der Zentrale HTTP 504.
 - Ungeprüft an echter Hardware: bitte beim ersten Test Gleisspannung, Lokfahren und CV-Lesen am Programmiergleis mit einer Zentrale kontrollieren. Die Bytecodes folgen der öffentlichen Spezifikation, sind aber bisher nur gegen den eigenen Simulator getestet.

@@ -1,4 +1,5 @@
 import dgram from "node:dgram";
+import { SimExtras, type SimDevice } from "./extras.js";
 import {
   Broadcast, CAN_ALL_DETECTORS, decodeFrames, encodeFrame, decodeX, locoNetChecksum, reply, Z21_PORT,
   type LocoInfo, type SystemState, type TrackPower,
@@ -36,7 +37,19 @@ export class Z21Simulator {
   private railcomTimer?: NodeJS.Timeout;
   private railcomCounter = new Map<number, number>();
 
-  constructor(private serial = 0x00c0ffee, private log: (s: string) => void = () => {}) {
+  readonly extras: SimExtras;
+  private device: SimDevice;
+
+  /** device: behave as the Z21 itself (default) or as a zLink booster/decoder behind a 10838 Z21 pro LINK. */
+  constructor(private serial = 0x00c0ffee, private log: (s: string) => void = () => {}, opts: { device?: SimDevice } = {}) {
+    this.device = opts.device ?? "z21";
+    this.extras = new SimExtras({
+      device: this.device,
+      broadcast: (b, flag) => this.broadcast(b, flag),
+      cvs: this.cvs,
+      locos: this.locos,
+      pushLoco: (addr) => { const l = this.locos.get(addr); if (l) this.broadcast(reply.locoInfo(l), Broadcast.AllLocos); },
+    });
     this.socket.on("message", (msg, rinfo) => this.onDatagram(msg, rinfo.address, rinfo.port));
   }
 
@@ -44,7 +57,7 @@ export class Z21Simulator {
     return new Promise((resolve) => {
       this.socket.bind(port, host, () => {
         this.timer = setInterval(() => this.expire(), 5000);
-        this.railcomTimer = setInterval(() => this.railcomTick(), 1000);
+        this.railcomTimer = setInterval(() => { this.railcomTick(); this.extras.tick(); }, 1000);
         resolve();
       });
     });
@@ -89,6 +102,7 @@ export class Z21Simulator {
 
   private setPower(p: TrackPower) {
     this.power = p;
+    this.extras.setEmergencyHalt(p === "emergencyStop" || p === "shortCircuit");
     this.broadcast(reply.trackPower(p), Broadcast.Basic);
     this.broadcast(reply.systemState(this.systemState), Broadcast.SystemState);
     if (p === "on" || p === "off") this.loconet("tx", [p === "on" ? 0x83 : 0x82], Broadcast.LocoNet);
@@ -158,7 +172,7 @@ export class Z21Simulator {
     for (const f of decodeFrames(msg)) {
       switch (f.header) {
         case 0x10: out(reply.serial(this.serial)); break;
-        case 0x1a: out(reply.hwinfo(0x211, 1, 43)); break;
+        case 0x1a: out(reply.hwinfo({ z21: 0x211, booster: 0x205, switchDecoder: 0x301, signalDecoder: 0x302 }[this.device], 1, 43)); break;
         case 0x30: this.clients.delete(key); break;
         case 0x50: client.flags = f.data.readUInt32LE(0); break;
         case 0x51: out(reply.broadcastFlags(client.flags)); break;
@@ -176,7 +190,8 @@ export class Z21Simulator {
         case 0xa3: out(encodeFrame(0xa3, [f.data[0]!, f.data[1]!, 1])); break; // dispatch always succeeds, slot 1
         case 0xa4: this.onLocoNetDetectorPoll(f.data[0]!, out); break;
         case 0xc4: this.onCanPoll(f.data.readUInt16LE(1), out); break;
-        default: this.log(`unhandled header 0x${f.header.toString(16)}`);
+        default:
+          if (!this.extras.handleFrame(f, out)) this.log(`unhandled header 0x${f.header.toString(16)}`);
       }
     }
   }
@@ -241,7 +256,10 @@ export class Z21Simulator {
       const cv = ((db[1]! << 8) | db[2]!) + 1;
       this.cvs.set(cv, db[3]!);
       out(reply.cv(cv, db[3]!));
-    } else this.log(`unhandled X 0x${xHeader.toString(16)}`);
+    } else if (!this.extras.handleX(xHeader, db, out)) {
+      out(reply.unknownCommand());
+      this.log(`unhandled X 0x${xHeader.toString(16)}`);
+    }
   }
 
   private pushLoco(l: LocoInfo, from: Client) {

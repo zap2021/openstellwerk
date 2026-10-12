@@ -16,7 +16,7 @@ const until = async (cond: () => boolean) => {
 it("connects and reads hardware info", async () => {
   await station.connect("127.0.0.1", 21555);
   await until(() => !!station.snapshot().hw);
-  expect(station.snapshot().hw).toEqual({ hwName: "Z21 XL", fwVersion: "1.43" });
+  expect(station.snapshot().hw).toMatchObject({ hwName: "Z21 XL", fwVersion: "1.43", kind: "z21" });
 });
 
 it("switches track power and receives the broadcast", async () => {

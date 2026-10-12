@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, type LocoNetLine, type StationState } from "./api";
+import { api, type LocoNetLine, type MonitorKind, type StationState } from "./api";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
-type Kind = "railcom" | "loconet" | "detectors";
 
 /** Monitors create traffic on the layout network, so they are opt-in and switched off again when the tab closes. */
-function useMonitor(kind: Kind, state: StationState, run: Run) {
+export function useMonitor(kind: MonitorKind, state: StationState, run: Run) {
   const on = state.monitors[kind];
   const set = (v: boolean) => run(api("PUT", "/api/monitors", { [kind]: v }));
   useEffect(() => {
@@ -16,18 +15,18 @@ function useMonitor(kind: Kind, state: StationState, run: Run) {
   return { on, set };
 }
 
-const age = (ts: number, now: number) => {
+export const age = (ts: number, now: number) => {
   const s = Math.max(0, Math.round((now - ts) / 1000));
   return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min`;
 };
 
-function useNow(ms = 1000) {
+export function useNow(ms = 1000) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), ms); return () => clearInterval(t); }, [ms]);
   return now;
 }
 
-function MonitorSwitch({ on, set, label }: { on: boolean; set: (v: boolean) => void; label: string }) {
+export function MonitorSwitch({ on, set, label }: { on: boolean; set: (v: boolean) => void; label: string }) {
   return (
     <label className="switch">
       <input type="checkbox" checked={on} onChange={(e) => set(e.target.checked)} /> {label}
