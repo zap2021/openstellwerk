@@ -1,0 +1,15 @@
+{"cols":16,"rows":6,"tiles":[
+{"id":"a1","x":1,"y":2,"kind":"bufferStop","rot":4},
+{"id":"a2","x":2,"y":2,"kind":"straight","rot":0,"feedback":{"bus":"rbus","module":1,"input":1}},
+{"id":"s1","x":3,"y":2,"kind":"signal","rot":0,"address":30,"label":"A"},
+{"id":"w1","x":4,"y":2,"kind":"turnoutRight","rot":0,"address":1,"label":"W1"},
+{"id":"b1","x":5,"y":2,"kind":"straight","rot":0},
+{"id":"b2","x":6,"y":2,"kind":"straight","rot":0,"label":"Gleis 1"},
+{"id":"b3","x":7,"y":2,"kind":"straight","rot":0},
+{"id":"w2","x":8,"y":2,"kind":"turnoutLeft","rot":4,"address":2,"label":"W2"},
+{"id":"b4","x":9,"y":2,"kind":"straight","rot":0},
+{"id":"c1","x":5,"y":3,"kind":"curve","rot":4},
+{"id":"c2","x":6,"y":3,"kind":"straight","rot":0,"label":"Gleis 2"},
+{"id":"c3","x":7,"y":3,"kind":"curve","rot":3},
+{"id":"t1","x":6,"y":0,"kind":"text","rot":0,"label":"Bahnhof"}
+],"routes":[{"id":"r1","name":"Gleis 1","steps":[{"tileId":"w1","state":0},{"tileId":"w2","state":0},{"tileId":"s1","state":1}]},{"id":"r2","name":"Gleis 2","steps":[{"tileId":"w1","state":1},{"tileId":"w2","state":1},{"tileId":"s1","state":1}]}]}

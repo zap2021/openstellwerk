@@ -73,6 +73,7 @@ Umgesetzt ist das **gesamte öffentliche Z21-LAN-Protokoll** (Spezifikation V1.1
 |---|---|---|
 | Zentrale | Suche im Netz, Status, Firmware (BCD), Seriennummer, z21-start-Sperre, Strom/Spannung/Temperatur | 2 |
 | Fahren | Geschwindigkeit, Richtung, F0–F31, Lok-Nothalt, Lok entfernen, Ausgabeformat DCC/Motorola, Binärzustände | 3, 4 |
+| Stellwerk | Gleisbild-Editor auf Kachelraster, verknüpft mit Weichen, Signalen (Weichenadresse oder DCCext) und Besetztmeldern (R-BUS, LocoNet, CAN); Fahrstraßen ohne Verriegelung. Beispiel zum Importieren: `docs/beispiel-gleisbild.json` | 5, 7–10 |
 | Weichen | Schalten, Ausgabeformat DCC/Motorola | 3, 5 |
 | Signale | DCCext (RCN-213): Signalbilder 10837, Weichen mit Schaltzeit 10836, Zubehör-Nothalt | 5.4–5.6 |
 | CV-Programmierung | Programmiergleis (direkt), POM Lok (Byte/Bit/Lesen per RailCom), POM Zubehör, Registermodus, Motorola | 6 |

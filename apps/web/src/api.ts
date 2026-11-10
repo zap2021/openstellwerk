@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { Layout } from "@z21/protocol/layout";
 
 export type MonitorKind = "railcom" | "loconet" | "detectors" | "rmbus" | "boosters" | "clock";
 
@@ -53,6 +54,8 @@ export interface StationState {
   extAccessories: Record<number, number>;
   modes: { loco: Record<number, string>; turnout: Record<number, string> };
   garage: GarageLoco[];
+  layout?: Layout;
+  routeRun?: { routeId: string; done: number; total: number; running: boolean; error?: string };
   scan?: { running: boolean; from: number; to: number; current: number; found: number[]; error?: string };
 }
 

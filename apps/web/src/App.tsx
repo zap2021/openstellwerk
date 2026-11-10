@@ -5,14 +5,15 @@ import { DetectorsTab, LocoNetTab, RailComTab } from "./monitors";
 import { DriveTab, ModeSelect } from "./drive";
 import { NetworkTab } from "./network";
 import { Login, useSession } from "./login";
+import { LayoutTab } from "./layout";
 import { CameraSidebar, CamerasTab, useCameras } from "./camera";
 
 type Tab =
-  | "station" | "cameras" | "network" | "drive" | "turnouts" | "signals" | "cv" | "rmbus" | "clock" | "boosters" | "device"
+  | "station" | "cameras" | "network" | "drive" | "layout" | "turnouts" | "signals" | "cv" | "rmbus" | "clock" | "boosters" | "device"
   | "railcom" | "loconet" | "detectors" | "monitor";
 
 const ALL_TABS: [Tab, string][] = [
-  ["station", "Zentrale"], ["network", "Netzwerk"], ["cameras", "Kamera"], ["drive", "Fahren"], ["turnouts", "Weichen"], ["signals", "Signale"], ["cv", "CV-Programmierung"],
+  ["station", "Zentrale"], ["network", "Netzwerk"], ["cameras", "Kamera"], ["drive", "Fahren"], ["layout", "Stellwerk"], ["turnouts", "Weichen"], ["signals", "Signale"], ["cv", "CV-Programmierung"],
   ["rmbus", "R-BUS"], ["clock", "Uhr"], ["boosters", "Booster"], ["device", "Gerät"],
   ["railcom", "RailCom"], ["loconet", "LocoNet"], ["detectors", "Melder"], ["monitor", "Rohdaten"],
 ];
@@ -65,6 +66,7 @@ function Main({ logout }: { logout?: () => void }) {
           <>
             {current === "network" && <NetworkTab state={state} run={run} />}
             {current === "drive" && <DriveTab state={state} run={run} />}
+            {current === "layout" && <LayoutTab state={state} run={run} />}
             {current === "turnouts" && <TurnoutsTab state={state} run={run} />}
             {current === "signals" && <SignalsTab state={state} run={run} />}
             {current === "cv" && <CvTab run={run} decoderOnly={kind === "decoder"} />}

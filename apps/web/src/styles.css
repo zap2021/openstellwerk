@@ -109,3 +109,26 @@ select { font: inherit; color: inherit; background: transparent; border: 1px sol
 .login { max-width: 320px; margin: 15vh auto 0; padding: 0 16px; display: flex; flex-direction: column; gap: 12px; }
 .login label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 13px; } .login input { color: var(--fg); }
 header .push { margin-left: auto; }
+
+/* ---- Stellwerk ---- */
+.grow { flex: 1; margin: 0; }
+.diagram { overflow: auto; border: 1px solid var(--line); border-radius: 8px; padding: 6px; max-width: 100%; }
+.diagram svg { display: block; touch-action: manipulation; }
+.gridline { fill: none; stroke: var(--line); stroke-width: 1; }
+.trk { fill: none; stroke: var(--fg); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+.trk.idle { stroke: var(--muted); stroke-width: 3; opacity: .45; }
+.trk.set { stroke: var(--accent); }
+.trk.occ { stroke: var(--danger); }
+.trk.unknown { stroke: var(--muted); stroke-width: 3; stroke-dasharray: 4 5; }
+.tile.wanted .trk.set, .tile.wanted .lamp { filter: drop-shadow(0 0 3px var(--warn)); }
+.mast { stroke: var(--muted); stroke-width: 2; }
+.lamp { stroke: var(--bg); stroke-width: 1.5; } .lamp.stop { fill: var(--danger); } .lamp.go { fill: var(--ok); } .lamp.unknown { fill: var(--muted); }
+.lbl { fill: var(--muted); font-size: 9px; text-anchor: middle; pointer-events: none; } .lbl.big { fill: var(--fg); font-size: 13px; }
+.adr { fill: var(--warn); font-size: 9px; pointer-events: none; } .fb { fill: var(--ok); }
+.sel { fill: color-mix(in srgb, var(--accent) 15%, transparent); stroke: var(--accent); stroke-width: 1.5; }
+.palette .pal { padding: 2px 4px; line-height: 0; } .palette .pal.active .trk { stroke: #fff; } .palette .pal.active .lbl { fill: #fff; }
+.editor { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; align-items: start; }
+.editor .inspector .panel { margin: 0 0 12px; } .editor .form { grid-template-columns: 1fr; }
+.editor textarea { font: inherit; color: var(--fg); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+@media (max-width: 900px) { .editor { grid-template-columns: 1fr; } }
+.form label.check { flex-direction: row; align-items: center; gap: 6px; }
