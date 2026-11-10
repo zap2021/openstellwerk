@@ -96,13 +96,21 @@ export function discover(timeoutMs = 1500): Promise<{ host: string; serial: numb
         if (m.type === "serial") found.set(rinfo.address, m.serial);
       }
     });
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      try { s.close(); } catch { /* already closed */ }
+      resolve([...found].map(([host, serial]) => ({ host, serial })));
+    };
+    // Broadcast can fail (e.g. over a VPN/utun interface): never crash the server, just report what we found.
+    s.on("error", finish);
     s.bind(0, () => {
-      s.setBroadcast(true);
-      s.send(cmd.getSerialNumber(), Z21_PORT, "255.255.255.255");
-      setTimeout(() => {
-        s.close();
-        resolve([...found].map(([host, serial]) => ({ host, serial })));
-      }, timeoutMs);
+      try {
+        s.setBroadcast(true);
+        s.send(cmd.getSerialNumber(), Z21_PORT, "255.255.255.255", (err) => { if (err) finish(); });
+      } catch { finish(); return; }
+      setTimeout(finish, timeoutMs);
     });
   });
 }

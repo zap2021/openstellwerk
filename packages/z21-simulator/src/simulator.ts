@@ -221,8 +221,7 @@ export class Z21Simulator {
     else if (xHeader === 0x80) this.setPower("emergencyStop");
     else if (xHeader === 0xe3 && db[0] === 0xf0) {
       const addr = ((db[1]! & 0x3f) << 8) | db[2]!;
-      const l = this.loco(addr);
-      l.busy = true;
+      const l = this.loco(addr); // a mere query does not take the loco over
       out(reply.locoInfo(l));
     } else if (xHeader === 0xe4 && (db[0]! & 0xf0) === 0x10) {
       const addr = ((db[1]! & 0x3f) << 8) | db[2]!;

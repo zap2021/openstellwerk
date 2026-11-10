@@ -25,7 +25,7 @@ Spätere Steuerungsfunktionen (Fahrstraßen, Blocksicherung, Fahrplan/Automatik,
 
 ```bash
 npm install
-npm run dev        # Simulator + Server (:3000) + Web (:5173)
+npm run dev        # Simulator + Server (:3001) + Web (:5173)
 ```
 
 Dann <http://localhost:5173> öffnen und mit `127.0.0.1` (Simulator) oder der IP der echten Z21 verbinden. Der Server bindet standardmäßig nur an `127.0.0.1`; es gibt noch keine Authentifizierung. Zum Freigeben im LAN `HOST=0.0.0.0` setzen, nur in vertrauenswürdigen Netzen.

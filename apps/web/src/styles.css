@@ -56,3 +56,32 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .checks { display: grid; gap: 4px; margin: 8px 0; }
 select { font: inherit; color: inherit; background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; }
 .pill.off { color: var(--muted); }
+
+/* ---- Fahren: Lokliste, Fahrpult, Funktionen ---- */
+.drive { display: grid; grid-template-columns: minmax(250px, 320px) 1fr; gap: 16px; align-items: start; }
+@media (max-width: 800px) { .drive { grid-template-columns: 1fr; } }
+.panel { border: 1px solid var(--line); border-radius: 10px; padding: 4px 16px 14px; margin: 12px 0; }
+.controls { display: flex; flex-direction: column; }
+.panel h2 { font-size: 16px; margin: 12px 0 8px; } .panel h3 { font-size: 12px; margin: 12px 0 6px; color: var(--muted); font-weight: 600; }
+.panel .head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; } .panel .head h2 { margin-right: auto; }
+.row.tight { margin: 6px 0; gap: 6px; } .row.tight input[type=number] { width: 80px; }
+.spacer { flex: 1; }
+.check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; } .check input { padding: 0; }
+.scan { display: flex; flex-direction: column; gap: 2px; margin: 6px 0; } .scan progress { width: 100%; }
+.loco-list { list-style: none; margin: 10px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.loco-list li { display: flex; gap: 4px; align-items: stretch; } .loco-list .empty { color: var(--muted); font-size: 13px; }
+.loco-item { flex: 1; display: flex; align-items: center; gap: 10px; text-align: left; padding: 8px 10px; }
+.loco-item .addr { font-size: 20px; font-weight: 600; min-width: 48px; font-variant-numeric: tabular-nums; }
+.loco-item .meta { display: flex; flex-direction: column; flex: 1; min-width: 0; } .loco-item small { color: var(--muted); }
+.loco-item small.ok { color: var(--ok); } .loco-item small.warn { color: var(--warn); }
+.loco-item.active small { color: #fff; opacity: .85; } .loco-item .speed { font-variant-numeric: tabular-nums; font-size: 13px; }
+.loco-list .x { padding: 0 10px; color: var(--muted); }
+.head input.name { flex: 1 1 180px; max-width: 260px; }
+.speedo { display: flex; align-items: baseline; gap: 12px; margin-top: 6px; } .speedo .big { font-size: 44px; line-height: 1; font-variant-numeric: tabular-nums; min-width: 80px; }
+.speedo .dir { color: var(--muted); }
+.slider { width: 100%; height: 36px; padding: 0; margin: 8px 0; }
+.big-stop { min-width: 120px; padding: 12px 20px; font-weight: 600; }
+.fn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+.fn { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px; min-height: 58px; }
+.fn .fn-no { font-weight: 600; } .fn .fn-name { font-size: 12px; opacity: .85; min-height: 1em; overflow: hidden; text-overflow: ellipsis; max-width: 100%; white-space: nowrap; }
+.fn-edit { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); } .fn-edit input { width: 100%; box-sizing: border-box; padding: 5px 8px; }

@@ -32,7 +32,7 @@ export interface StationState {
   unlockCode?: string | number;
   power?: "off" | "on" | "shortCircuit" | "programming" | "emergencyStop";
   systemState?: { mainCurrent: number; progCurrent: number; temperature: number; supplyVoltage: number; vccVoltage: number };
-  locos: { address: number; speed: number; forward: boolean; functions: boolean[]; emergencyStop: boolean }[];
+  locos: { address: number; speed: number; forward: boolean; functions: boolean[]; emergencyStop: boolean; busy: boolean }[];
   turnouts: Record<number, string>;
   monitors: Record<MonitorKind, boolean>;
   railcom: { address: number; receiveCounter: number; errorCounter: number; speed?: number; qos?: number; ts: number }[];
@@ -52,6 +52,16 @@ export interface StationState {
   device?: { name?: string; link?: { hwId: number; fwVersion: string; mac: string; name: string }; boosterState?: BoosterSystemState; decoderState?: DecoderState };
   extAccessories: Record<number, number>;
   modes: { loco: Record<number, string>; turnout: Record<number, string> };
+  garage: GarageLoco[];
+  scan?: { running: boolean; from: number; to: number; current: number; found: number[]; error?: string };
+}
+
+export interface GarageLoco {
+  address: number;
+  name?: string;
+  sources: ("scan" | "prog" | "manual")[];
+  functionNames: Record<number, string>;
+  lastSeen?: number;
 }
 
 export interface LocoNetLine {

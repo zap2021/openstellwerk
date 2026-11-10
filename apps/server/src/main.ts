@@ -5,13 +5,16 @@ import Fastify from "fastify";
 import websocket from "@fastify/websocket";
 import fastifyStatic from "@fastify/static";
 import { Station } from "./station.js";
+import { Garage } from "./garage.js";
+import { readNetworkSettings } from "./maintenance.js";
 import { discover } from "./z21-client.js";
 
-const PORT = Number(process.env.PORT ?? 3000);
+const PORT = Number(process.env.PORT ?? 3001);
 const HOST = process.env.HOST ?? "127.0.0.1"; // no auth yet: stay local unless explicitly opened up
 
 const app = Fastify({ logger: { level: "info" } });
-const station = new Station();
+const garageFile = process.env.GARAGE_FILE ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../data/garage.json");
+const station = new Station(new Garage(garageFile));
 await app.register(websocket);
 
 const int = (v: unknown, min: number, max: number, name: string) => {
@@ -106,6 +109,30 @@ app.put<{ Params: { addr: string }; Body: { mode: string } }>("/api/turnout/:add
 });
 
 /* ---------- more driving ---------- */
+/* ---------- network settings (read-only) ---------- */
+app.get("/api/network", async () => {
+  if (!station.client.host) throw Object.assign(new Error("not connected"), { statusCode: 409 });
+  return readNetworkSettings(station.client.host);
+});
+
+/* ---------- garage: known locos, discovery ---------- */
+app.post<{ Body: { from?: number; to?: number } }>("/api/garage/scan", async (req) => {
+  const from = int(req.body?.from ?? 1, 1, 9999, "from");
+  const to = int(req.body?.to ?? from + 49, from, 9999, "to");
+  station.startScan(from, to);
+  return { ok: true };
+});
+app.delete("/api/garage/scan", async () => { station.stopScan(); return { ok: true }; });
+app.post("/api/garage/read-prog", async () => station.readProgrammedAddress());
+app.post<{ Body: { address: number; name?: string } }>("/api/garage", async (req) =>
+  station.setGarageEntry(int(req.body?.address, 1, 9999, "address"), { name: req.body?.name === undefined ? undefined : String(req.body.name), source: "manual" }));
+app.put<{ Params: { addr: string }; Body: { name?: string; functionNames?: Record<number, string> } }>("/api/garage/:addr", async (req) =>
+  station.setGarageEntry(int(req.params.addr, 1, 9999, "address"), {
+    name: req.body?.name === undefined ? undefined : String(req.body.name),
+    functionNames: req.body?.functionNames && typeof req.body.functionNames === "object" ? req.body.functionNames : undefined,
+  }));
+app.delete<{ Params: { addr: string } }>("/api/garage/:addr", async (req) => ({ removed: station.removeGarageEntry(int(req.params.addr, 1, 9999, "address")) }));
+
 app.post<{ Params: { addr: string } }>("/api/loco/:addr/estop", async (req) => { station.locoEStop(int(req.params.addr, 1, 9999, "address")); return { ok: true }; });
 app.post<{ Params: { addr: string } }>("/api/loco/:addr/purge", async (req) => { station.purgeLoco(int(req.params.addr, 1, 9999, "address")); return { ok: true }; });
 app.post<{ Params: { addr: string }; Body: { group: number; bits: number } }>("/api/loco/:addr/function-group", async (req) => {

@@ -2,13 +2,15 @@ import { useState } from "react";
 import { api, useStation, type LocoNetLine, type StationState } from "./api";
 import { BoostersTab, ClockTab, DeviceTab, RmBusTab, SignalsTab } from "./devices";
 import { DetectorsTab, LocoNetTab, RailComTab } from "./monitors";
+import { DriveTab, ModeSelect } from "./drive";
+import { NetworkTab } from "./network";
 
 type Tab =
-  | "station" | "drive" | "turnouts" | "signals" | "cv" | "rmbus" | "clock" | "boosters" | "device"
+  | "station" | "network" | "drive" | "turnouts" | "signals" | "cv" | "rmbus" | "clock" | "boosters" | "device"
   | "railcom" | "loconet" | "detectors" | "monitor";
 
 const ALL_TABS: [Tab, string][] = [
-  ["station", "Zentrale"], ["drive", "Fahren"], ["turnouts", "Weichen"], ["signals", "Signale"], ["cv", "CV-Programmierung"],
+  ["station", "Zentrale"], ["network", "Netzwerk"], ["drive", "Fahren"], ["turnouts", "Weichen"], ["signals", "Signale"], ["cv", "CV-Programmierung"],
   ["rmbus", "R-BUS"], ["clock", "Uhr"], ["boosters", "Booster"], ["device", "Gerät"],
   ["railcom", "RailCom"], ["loconet", "LocoNet"], ["detectors", "Melder"], ["monitor", "Rohdaten"],
 ];
@@ -56,6 +58,7 @@ export function App() {
         {current === "station" && <StationTab state={state} run={run} />}
         {connected && state && (
           <>
+            {current === "network" && <NetworkTab state={state} run={run} />}
             {current === "drive" && <DriveTab state={state} run={run} />}
             {current === "turnouts" && <TurnoutsTab state={state} run={run} />}
             {current === "signals" && <SignalsTab state={state} run={run} />}
@@ -123,59 +126,6 @@ function StationTab({ state, run }: { state?: StationState; run: Run }) {
           </table>
         </>
       )}
-    </section>
-  );
-}
-
-function ModeSelect({ value, onChange }: { value?: string; onChange: (m: "dcc" | "mm") => void }) {
-  return (
-    <select value={value ?? ""} onChange={(e) => onChange(e.target.value as "dcc" | "mm")}>
-      <option value="" disabled>–</option>
-      <option value="dcc">DCC</option>
-      <option value="mm">Motorola</option>
-    </select>
-  );
-}
-
-function DriveTab({ state, run }: { state: StationState; run: Run }) {
-  const [addr, setAddr] = useState(3);
-  const [binary, setBinary] = useState(29);
-  const loco = state.locos.find((l) => l.address === addr);
-  const speed = loco?.speed ?? 0;
-  const forward = loco?.forward ?? true;
-  const drive = (sp: number, fw: boolean) => run(post(`/api/loco/${addr}/drive`, { speed: sp, forward: fw }));
-  const fnCount = loco && loco.functions.length > 29 ? 32 : 29;
-  return (
-    <section>
-      <div className="row">
-        <label>Adresse <input type="number" min={1} max={9999} value={addr} onChange={(e) => setAddr(Number(e.target.value))} /></label>
-        <button onClick={() => run(api("GET", `/api/loco/${addr}`))}>Lok abfragen</button>
-        <label>Format <ModeSelect value={addr >= 256 ? "dcc" : state.modes.loco[addr]} onChange={(m) => run(put(`/api/loco/${addr}/mode`, { mode: m }))} /></label>
-        <button onClick={() => run(api("GET", `/api/loco/${addr}/mode`))} title="Gespeichertes Format aus der Zentrale lesen">Format lesen</button>
-      </div>
-      <p className="hint">Das Ausgabeformat (DCC/Motorola) wird dauerhaft in der Zentrale gespeichert. Adressen ab 256 sind immer DCC.</p>
-      <div className="throttle">
-        <input type="range" min={0} max={126} value={speed} onChange={(e) => drive(Number(e.target.value), forward)} />
-        <strong>{speed}</strong>
-        <button onClick={() => drive(0, forward)}>Stopp</button>
-        <button onClick={() => drive(speed, !forward)}>{forward ? "→ vorwärts" : "← rückwärts"}</button>
-        <button className="danger" onClick={() => run(post(`/api/loco/${addr}/estop`))} title="DCC-Not-Halt nur für diese Lok (Firmware ab 1.43)">Lok-Nothalt</button>
-        <button onClick={() => window.confirm(`Lok ${addr} aus der Zentrale entfernen? Das Senden auf dem Gleis stoppt, bis ein neuer Fahr- oder Funktionsbefehl kommt.`) && run(post(`/api/loco/${addr}/purge`))}>Lok entfernen</button>
-      </div>
-      <div className="fns">
-        {Array.from({ length: fnCount }, (_, n) => (
-          <button key={n} className={loco?.functions[n] ? "active" : ""} onClick={() => run(post(`/api/loco/${addr}/function/${n}`, { action: "toggle" }))}>F{n}</button>
-        ))}
-      </div>
-      <details>
-        <summary>Binärzustand (F29…F32767, Firmware ab 1.42)</summary>
-        <div className="row">
-          <label>Adresse (29–32767) <input type="number" min={29} max={32767} value={binary} onChange={(e) => setBinary(Number(e.target.value))} /></label>
-          <button onClick={() => run(post(`/api/loco/${addr}/binary-state`, { state: binary, on: true }))}>Ein</button>
-          <button onClick={() => run(post(`/api/loco/${addr}/binary-state`, { state: binary, on: false }))}>Aus</button>
-        </div>
-        <p className="hint">Wird dreimal auf das Gleis gesendet, es gibt keine Rückmeldung. Nur wenige Decoder verstehen das.</p>
-      </details>
     </section>
   );
 }

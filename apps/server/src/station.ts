@@ -6,6 +6,22 @@ import {
   type Message, type RailComData, type SystemState, type TrackPower,
 } from "@z21/protocol";
 import { Z21Client } from "./z21-client.js";
+import { Garage, type GarageLoco } from "./garage.js";
+
+/** Progress of the address scan that looks for locos the command station already knows about. */
+export interface ScanState {
+  running: boolean;
+  from: number;
+  to: number;
+  current: number;
+  found: number[];
+  error?: string;
+}
+
+/** A queried address always gets an answer; only a non-idle state tells that someone actually uses this loco. */
+export const isActiveLoco = (l: LocoInfo) => l.busy || l.speed > 0 || l.emergencyStop || l.functions.some(Boolean);
+
+const MAX_SCAN = 500;
 
 /** A programming failure is a normal outcome (nothing on the track, short circuit), not a server error. */
 const cvFailure = (reason: "noAck" | "shortCircuit") =>
@@ -86,6 +102,8 @@ export interface StationState {
   device?: { name?: string; link?: ZLinkHwInfo; boosterState?: BoosterSystemState; decoderState?: DecoderState };
   extAccessories: Record<number, number>;
   modes: { loco: Record<number, string>; turnout: Record<number, string> };
+  garage: GarageLoco[];
+  scan?: ScanState;
 }
 
 /** Holds the live model of the connected command station and exposes high-level operations. */
@@ -112,7 +130,10 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
   /** CAN loco lists arrive in chunks (type 0x11..0x1F); collected per port until the terminating 0 */
   private canLocoChunks = new Map<string, { type: number; address: number; direction: string }[]>();
 
-  constructor() {
+  private scanState?: ScanState;
+  private scanAbort = false;
+
+  constructor(readonly garage = new Garage()) {
     super();
     this.client.on("message", (m) => this.apply(m));
     this.client.on("close", () => {
@@ -143,6 +164,8 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
       device: Object.keys(this.device).length ? this.device : undefined,
       extAccessories: this.extAccessories,
       modes: this.modes,
+      garage: this.garage.list(),
+      scan: this.scanState,
     };
   }
 
@@ -257,6 +280,8 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
   }
 
   async connect(host: string, port?: number) {
+    this.scanAbort = true;
+    this.scanState = undefined;
     this.locos.clear();
     this.turnouts = {};
     this.railcom.clear();
@@ -401,9 +426,68 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
   setPower(on: boolean) { this.client.send(on ? cmd.trackPowerOn() : cmd.trackPowerOff()); }
   emergencyStop() { this.client.send(cmd.emergencyStop()); }
 
-  async getLoco(addr: number) {
-    const m = await this.client.request(cmd.getLocoInfo(addr), (m) => m.type === "locoInfo" && m.info.address === addr);
+  async getLoco(addr: number, timeoutMs?: number) {
+    const m = await this.client.request(cmd.getLocoInfo(addr), (m) => m.type === "locoInfo" && m.info.address === addr, timeoutMs);
     return m.type === "locoInfo" ? m.info : undefined;
+  }
+
+  /**
+   * Ask the command station for the state of every address in from..to (read-only: nothing is sent to the track).
+   * Addresses with a non-idle state (used by a handheld/app, speed, lights on) are added to the garage.
+   * Runs in the background; progress is part of the state snapshot.
+   */
+  startScan(from: number, to: number) {
+    if (this.scanState?.running) throw Object.assign(new Error("A scan is already running"), { statusCode: 409 });
+    if (!this.client.connected) throw Object.assign(new Error("not connected"), { statusCode: 409 });
+    if (to < from || to - from + 1 > MAX_SCAN) throw Object.assign(new Error(`range must be 1..${MAX_SCAN} addresses`), { statusCode: 400 });
+    this.scanAbort = false;
+    const s: ScanState = (this.scanState = { running: true, from, to, current: from, found: [] });
+    const publish = () => this.emit("state", this.snapshot());
+    void (async () => {
+      let misses = 0;
+      for (let addr = from; addr <= to && !this.scanAbort && this.client.connected; addr++) {
+        s.current = addr;
+        try {
+          const info = await this.getLoco(addr, 600);
+          misses = 0;
+          if (info && isActiveLoco(info)) {
+            s.found = [...s.found, addr];
+            this.garage.upsert(addr, { source: "scan" });
+          }
+        } catch {
+          if (++misses >= 5) { s.error = "Zentrale antwortet nicht"; break; }
+        }
+        if (addr % 5 === 0) publish();
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      this.scanState = { ...s, running: false };
+      publish();
+    })();
+    publish();
+  }
+
+  stopScan() { this.scanAbort = true; }
+
+  /** Read the loco address from a decoder on the programming track (CV29 decides short CV1 or long CV17/18). */
+  async readProgrammedAddress() {
+    const cv29 = await this.readCv(29);
+    const long = !!(cv29 & 0x20);
+    const address = long ? ((((await this.readCv(17)) & 0x3f) << 8) | (await this.readCv(18))) : await this.readCv(1);
+    if (address < 1 || address > 9999) throw Object.assign(new Error(`decoder reports invalid address ${address}`), { statusCode: 422 });
+    this.garage.upsert(address, { source: "prog" });
+    this.emit("state", this.snapshot());
+    return { address, long, cv29 };
+  }
+
+  setGarageEntry(address: number, patch: Parameters<Garage["upsert"]>[1]) {
+    const e = this.garage.upsert(address, patch);
+    this.emit("state", this.snapshot());
+    return e;
+  }
+  removeGarageEntry(address: number) {
+    const ok = this.garage.remove(address);
+    this.emit("state", this.snapshot());
+    return ok;
   }
   drive(addr: number, speed: number, forward: boolean) { this.client.send(cmd.setLocoDrive(addr, speed, forward)); }
   stopLoco(addr: number, forward: boolean) { this.client.send(cmd.setLocoDrive(addr, 0, forward, 128, true)); }
