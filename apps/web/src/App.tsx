@@ -4,13 +4,14 @@ import { BoostersTab, ClockTab, DeviceTab, RmBusTab, SignalsTab } from "./device
 import { DetectorsTab, LocoNetTab, RailComTab } from "./monitors";
 import { DriveTab, ModeSelect } from "./drive";
 import { NetworkTab } from "./network";
+import { CameraSidebar, CamerasTab, useCameras } from "./camera";
 
 type Tab =
-  | "station" | "network" | "drive" | "turnouts" | "signals" | "cv" | "rmbus" | "clock" | "boosters" | "device"
+  | "station" | "cameras" | "network" | "drive" | "turnouts" | "signals" | "cv" | "rmbus" | "clock" | "boosters" | "device"
   | "railcom" | "loconet" | "detectors" | "monitor";
 
 const ALL_TABS: [Tab, string][] = [
-  ["station", "Zentrale"], ["network", "Netzwerk"], ["drive", "Fahren"], ["turnouts", "Weichen"], ["signals", "Signale"], ["cv", "CV-Programmierung"],
+  ["station", "Zentrale"], ["network", "Netzwerk"], ["cameras", "Kamera"], ["drive", "Fahren"], ["turnouts", "Weichen"], ["signals", "Signale"], ["cv", "CV-Programmierung"],
   ["rmbus", "R-BUS"], ["clock", "Uhr"], ["boosters", "Booster"], ["device", "Gerät"],
   ["railcom", "RailCom"], ["loconet", "LocoNet"], ["detectors", "Melder"], ["monitor", "Rohdaten"],
 ];
@@ -19,9 +20,9 @@ const ALL_TABS: [Tab, string][] = [
 function visibleTabs(state?: StationState): [Tab, string][] {
   const kind = state?.hw?.kind;
   const keep = (ids: Tab[]) => ALL_TABS.filter(([id]) => ids.includes(id));
-  if (!state?.connected) return keep(["station", "monitor"]);
-  if (kind === "booster") return keep(["station", "device", "monitor"]);
-  if (kind === "decoder") return keep(["station", "device", "signals", "cv", "monitor"]);
+  if (!state?.connected) return keep(["station", "cameras", "monitor"]);
+  if (kind === "booster") return keep(["station", "device", "cameras", "monitor"]);
+  if (kind === "decoder") return keep(["station", "device", "signals", "cv", "cameras", "monitor"]);
   return ALL_TABS.filter(([id]) => id !== "device");
 }
 
@@ -32,6 +33,7 @@ const put = (url: string, body?: unknown) => api("PUT", url, body);
 export function App() {
   const { state, wire, loconet, online, clearWire, clearLoconet } = useStation();
   const [tab, setTab] = useState<Tab>("station");
+  const { cameras, reload: reloadCameras } = useCameras();
   const [error, setError] = useState<string>();
   const run: Run = async (p) => { try { setError(undefined); await p; } catch (e) { setError((e as Error).message); } };
 
@@ -41,6 +43,7 @@ export function App() {
   const kind = state?.hw?.kind;
 
   return (
+    <div className="shell">
     <div className="app">
       <header>
         <h1>Z21 Web</h1>
@@ -72,8 +75,11 @@ export function App() {
             {current === "detectors" && <DetectorsTab state={state} run={run} />}
           </>
         )}
+        {current === "cameras" && <CamerasTab cameras={cameras} reload={reloadCameras} run={run} />}
         {current === "monitor" && <Monitor wire={wire} clear={clearWire} />}
       </main>
+    </div>
+      <CameraSidebar cameras={cameras} onConfigure={() => setTab("cameras")} />
     </div>
   );
 }

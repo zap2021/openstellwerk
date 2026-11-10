@@ -55,3 +55,12 @@ it("removes entries", () => {
   expect(station.removeGarageEntry(7)).toBe(true);
   expect(station.snapshot().garage.some((g) => g.address === 7)).toBe(false);
 });
+
+it("keeps locos that were reported once, even after the signal goes quiet", async () => {
+  station.pollRailCom(0);
+  station.drive(2222, 25, true);
+  await until(() => station.snapshot().garage.some((g) => g.address === 2222 && g.sources.includes("active")));
+  station.drive(2222, 0, true); // loco stops and becomes idle again
+  await new Promise((r) => setTimeout(r, 200));
+  expect(station.snapshot().garage.some((g) => g.address === 2222)).toBe(true);
+});

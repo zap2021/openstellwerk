@@ -59,7 +59,7 @@ export interface StationState {
 export interface GarageLoco {
   address: number;
   name?: string;
-  sources: ("scan" | "prog" | "manual")[];
+  sources: ("scan" | "prog" | "manual" | "railcom" | "detector" | "active")[];
   functionNames: Record<number, string>;
   lastSeen?: number;
 }
@@ -114,4 +114,15 @@ export function useStation() {
   }, []);
 
   return { state, wire, loconet, online, clearWire: () => setWire([]), clearLoconet: () => setLoconet([]) };
+}
+
+export interface Camera {
+  id: string;
+  name: string;
+  kind: "mjpeg" | "snapshot" | "iframe";
+  url: string;
+  username?: string;
+  hasPassword: boolean;
+  refreshMs?: number;
+  insecureTls?: boolean;
 }

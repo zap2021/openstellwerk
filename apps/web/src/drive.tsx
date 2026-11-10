@@ -80,7 +80,7 @@ function status(c: Candidate) {
   if (c.onTrack) return { text: "auf dem Gleis erkannt", cls: "ok" };
   if (c.busy) return { text: "belegt (anderer Regler)", cls: "warn" };
   if (c.active) return { text: "in der Zentrale aktiv", cls: "ok" };
-  return { text: "nicht erkannt", cls: "" };
+  return { text: "gespeichert, aktuell nicht gemeldet", cls: "" };
 }
 
 const remembered = () => { try { return Number(localStorage.getItem("z21.loco")) || 0; } catch { return 0; } };
@@ -280,9 +280,10 @@ function Throttle({ addr, state, run, garage }: { addr: number; state: StationSt
 function Functions({ addr, state, run, garage }: { addr: number; state: StationState; run: Run; garage?: GarageLoco }) {
   const loco = state.locos.find((l) => l.address === addr);
   const [edit, setEdit] = useState(false);
-  const [onlyNamed, setOnlyNamed] = useState(false);
+  const [onlyNamed, setOnlyNamed] = useState(true);
   const names = { ...DEFAULT_FN_NAMES, ...(garage?.functionNames ?? {}) };
   const maxFn = loco && loco.functions.length > 29 ? 31 : 28;
+  const hiddenCount = Array.from({ length: maxFn + 1 }, (_, n) => n).filter((n) => !names[n]).length;
   const saveName = (n: number, text: string) => {
     if ((garage?.functionNames?.[n] ?? "") === text) return;
     void run(put(`/api/garage/${addr}`, { functionNames: { ...(garage?.functionNames ?? {}), [n]: text } }));
@@ -295,6 +296,9 @@ function Functions({ addr, state, run, garage }: { addr: number; state: StationS
         <label className="check"><input type="checkbox" checked={onlyNamed} onChange={(e) => setOnlyNamed(e.target.checked)} /> nur beschriftete</label>
         <button className={edit ? "active" : ""} onClick={() => setEdit(!edit)}>{edit ? "Fertig" : "Beschriften"}</button>
       </div>
+      {onlyNamed && !edit && hiddenCount > 0 && (
+        <p className="hint">{hiddenCount} unbeschriftete Funktionen ausgeblendet – „Beschriften“ wählen oder den Haken „nur beschriftete“ entfernen.</p>
+      )}
       {FUNCTION_GROUPS.filter((g) => g.from <= maxFn).map((g) => {
         const nums = Array.from({ length: Math.min(g.to, maxFn) - g.from + 1 }, (_, i) => g.from + i).filter((n) => edit || !onlyNamed || names[n]);
         if (nums.length === 0) return null;

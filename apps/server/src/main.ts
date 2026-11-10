@@ -7,6 +7,7 @@ import fastifyStatic from "@fastify/static";
 import { Station } from "./station.js";
 import { Garage } from "./garage.js";
 import { readNetworkSettings } from "./maintenance.js";
+import { CameraStore, registerCameraRoutes } from "./cameras.js";
 import { discover } from "./z21-client.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -109,6 +110,9 @@ app.put<{ Params: { addr: string }; Body: { mode: string } }>("/api/turnout/:add
 });
 
 /* ---------- more driving ---------- */
+/* ---------- cameras ---------- */
+registerCameraRoutes(app, new CameraStore(path.resolve(path.dirname(garageFile), "cameras.json")));
+
 /* ---------- network settings (read-only) ---------- */
 app.get("/api/network", async () => {
   if (!station.client.host) throw Object.assign(new Error("not connected"), { statusCode: 409 });

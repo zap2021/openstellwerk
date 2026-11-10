@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-export type GarageSource = "scan" | "prog" | "manual";
+export type GarageSource = "scan" | "prog" | "manual" | "railcom" | "detector" | "active";
 
 /** A loco the user (or the discovery) knows about. Live state stays in Station; this is what must survive a restart. */
 export interface GarageLoco {

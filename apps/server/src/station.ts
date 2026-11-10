@@ -6,7 +6,7 @@ import {
   type Message, type RailComData, type SystemState, type TrackPower,
 } from "@z21/protocol";
 import { Z21Client } from "./z21-client.js";
-import { Garage, type GarageLoco } from "./garage.js";
+import { Garage, type GarageLoco, type GarageSource } from "./garage.js";
 
 /** Progress of the address scan that looks for locos the command station already knows about. */
 export interface ScanState {
@@ -203,9 +203,9 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
           : m.programmingMode ? "programming" : m.trackVoltageOff ? "off" : "on";
         break;
       case "systemState": this.systemState = m.state; break;
-      case "locoInfo": this.locos.set(m.info.address, m.info); break;
+      case "locoInfo": this.locos.set(m.info.address, m.info); if (isActiveLoco(m.info)) this.remember(m.info.address, "active"); break;
       case "turnoutInfo": this.turnouts[m.address] = m.position; break;
-      case "railcom": this.railcom.set(m.data.address, { ...m.data, ts }); break;
+      case "railcom": this.railcom.set(m.data.address, { ...m.data, ts }); this.remember(m.data.address, "railcom"); break;
       case "loconet":
         this.emit("loconet", { ts, direction: m.direction, bytes: m.bytes, decoded: m.decoded });
         return; // log only, no state change
@@ -216,13 +216,19 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
     this.emit("state", this.snapshot());
   }
 
+  /** Keep every loco that was ever seen in use, so the list does not shrink when a signal goes quiet. */
+  private remember(address: number, source: GarageSource) {
+    if (address < 1 || address > 9999 || this.garage.get(address)?.sources.includes(source)) return;
+    this.garage.upsert(address, { source });
+  }
+
   private applyLocoNetDetector(feedbackAddress: number, e: LocoNetDetectorEvent, ts: number) {
     const cur = this.loconetDetectors.get(feedbackAddress) ?? { feedbackAddress, occupied: false, ts };
     const next = { ...cur, ts };
     switch (e.kind) {
       case "occupancy": case "lissyBlock": next.occupied = e.occupied; break;
-      case "transponder": next.occupied = e.present; next.locoAddress = e.locoAddress; break;
-      case "lissyLoco": next.locoAddress = e.locoAddress; next.forward = e.forward; break;
+      case "transponder": next.occupied = e.present; next.locoAddress = e.locoAddress; this.remember(e.locoAddress, "detector"); break;
+      case "lissyLoco": next.locoAddress = e.locoAddress; next.forward = e.forward; this.remember(e.locoAddress, "detector"); break;
       case "lissySpeed": next.speed = e.speed; break;
       default: return;
     }
@@ -252,6 +258,7 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
       this.canLocoChunks.set(k, acc);
       if (v.locos.some((l) => l.address === 0)) {
         port.locos = acc.filter((l) => l.address !== 0).map(({ address, direction }) => ({ address, direction }));
+        for (const l of port.locos) this.remember(l.address, "detector");
         this.canLocoChunks.delete(k);
       }
     }
