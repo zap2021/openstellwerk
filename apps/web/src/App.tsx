@@ -4,6 +4,7 @@ import { BoostersTab, ClockTab, DeviceTab, RmBusTab, SignalsTab } from "./device
 import { DetectorsTab, LocoNetTab, RailComTab } from "./monitors";
 import { DriveTab, ModeSelect } from "./drive";
 import { NetworkTab } from "./network";
+import { Login, useSession } from "./login";
 import { CameraSidebar, CamerasTab, useCameras } from "./camera";
 
 type Tab =
@@ -30,7 +31,7 @@ type Run = (p: Promise<unknown>) => Promise<void>;
 const post = (url: string, body?: unknown) => api("POST", url, body);
 const put = (url: string, body?: unknown) => api("PUT", url, body);
 
-export function App() {
+function Main({ logout }: { logout?: () => void }) {
   const { state, wire, loconet, online, clearWire, clearLoconet } = useStation();
   const [tab, setTab] = useState<Tab>("station");
   const { cameras, reload: reloadCameras } = useCameras();
@@ -50,6 +51,7 @@ export function App() {
         <span className={`dot ${connected ? "ok" : online ? "warn" : "bad"}`} />
         <span>{connected ? `${state?.hw?.hwName ?? "Z21"} @ ${state?.host}` : online ? "nicht mit Zentrale verbunden" : "Server offline"}</span>
         {connected && kind !== "decoder" && state && <PowerBar state={state} run={run} />}
+        {logout && <button className={connected ? "" : "push"} onClick={logout} title="Abmelden">Abmelden</button>}
       </header>
       <nav>
         {tabs.map(([id, label]) => (
@@ -82,6 +84,14 @@ export function App() {
       <CameraSidebar cameras={cameras} onConfigure={() => setTab("cameras")} />
     </div>
   );
+}
+
+/** Shows the login form when the server asks for a password, the application otherwise. */
+export function App() {
+  const session = useSession();
+  if (!session.known) return null;
+  if (!session.authenticated) return <Login onDone={session.refresh} />;
+  return <Main logout={session.required ? session.logout : undefined} />;
 }
 
 function PowerBar({ state, run }: { state: StationState; run: Run }) {

@@ -1,7 +1,8 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
-import Fastify from "fastify";
+import type { Server as HttpsServer } from "node:https";
+import Fastify, { type FastifyServerOptions } from "fastify";
 import websocket from "@fastify/websocket";
 import fastifyStatic from "@fastify/static";
 import { Station } from "./station.js";
@@ -9,14 +10,30 @@ import { Garage } from "./garage.js";
 import { readNetworkSettings } from "./maintenance.js";
 import { CameraStore, registerCameraRoutes } from "./cameras.js";
 import { discover } from "./z21-client.js";
+import { exposureProblem, registerAuth } from "./auth.js";
+import { readTls, tlsFilesFromEnv, watchTls } from "./tls.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
-const HOST = process.env.HOST ?? "127.0.0.1"; // no auth yet: stay local unless explicitly opened up
+const HOST = process.env.HOST ?? "127.0.0.1"; // local unless explicitly opened up (then a password is required)
+const PASSWORD = process.env.Z21_PASSWORD || undefined;
 
-const app = Fastify({ logger: { level: "info" } });
-const garageFile = process.env.GARAGE_FILE ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../data/garage.json");
+const problem = exposureProblem({ host: HOST, password: PASSWORD, allowOpen: process.env.Z21_ALLOW_OPEN === "1" });
+if (problem) { console.error(problem); process.exit(1); }
+
+const tlsFiles = tlsFilesFromEnv(process.env);
+const app = Fastify({
+  // "warn" in production: one log line per request would wear the Pi's SD card (the camera polls every second)
+  logger: { level: process.env.LOG_LEVEL ?? (process.env.NODE_ENV === "production" ? "warn" : "info") },
+  trustProxy: process.env.TRUST_PROXY === "1",
+  ...(tlsFiles ? { https: readTls(tlsFiles) } : {}),
+} as FastifyServerOptions);
+if (tlsFiles) watchTls(app.server as unknown as HttpsServer, tlsFiles, (err) => (err ? app.log.error(err, "TLS reload failed") : app.log.warn("TLS certificate reloaded")));
+
+const dataDir = process.env.DATA_DIR ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../data");
+const garageFile = process.env.GARAGE_FILE ?? path.join(dataDir, "garage.json");
 const station = new Station(new Garage(garageFile));
 await app.register(websocket);
+registerAuth(app, { password: PASSWORD, requireHttps: process.env.Z21_REQUIRE_HTTPS === "1" });
 
 const int = (v: unknown, min: number, max: number, name: string) => {
   const n = Number(v);
@@ -111,7 +128,7 @@ app.put<{ Params: { addr: string }; Body: { mode: string } }>("/api/turnout/:add
 
 /* ---------- more driving ---------- */
 /* ---------- cameras ---------- */
-registerCameraRoutes(app, new CameraStore(path.resolve(path.dirname(garageFile), "cameras.json")));
+registerCameraRoutes(app, new CameraStore(path.join(dataDir, "cameras.json")));
 
 /* ---------- network settings (read-only) ---------- */
 app.get("/api/network", async () => {
@@ -258,3 +275,4 @@ const webDist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../.
 if (existsSync(webDist)) await app.register(fastifyStatic, { root: webDist });
 
 await app.listen({ port: PORT, host: HOST });
+app.log.warn(`Z21 Web: ${tlsFiles ? "https" : "http"}://${HOST}:${PORT} – Anmeldung ${PASSWORD ? "aktiv" : "aus"}`);

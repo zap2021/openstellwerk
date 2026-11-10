@@ -80,6 +80,7 @@ export async function api<T = unknown>(method: string, url: string, body?: unkno
     body: body ? JSON.stringify(body) : undefined,
   });
   const json = await res.json().catch(() => ({}));
+  if (res.status === 401 && !url.startsWith("/api/login")) window.dispatchEvent(new Event("z21-unauthorized"));
   if (!res.ok) throw new Error(json.message ?? res.statusText);
   return json as T;
 }

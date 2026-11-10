@@ -28,7 +28,37 @@ npm install
 npm run dev        # Simulator + Server (:3001) + Web (:5173)
 ```
 
-Dann <http://localhost:5173> öffnen und mit `127.0.0.1` (Simulator) oder der IP der echten Z21 verbinden. Der Server bindet standardmäßig nur an `127.0.0.1`; es gibt noch keine Authentifizierung. Zum Freigeben im LAN `HOST=0.0.0.0` setzen, nur in vertrauenswürdigen Netzen.
+Dann <http://localhost:5173> öffnen und mit `127.0.0.1` (Simulator) oder der IP der echten Z21 verbinden. Der Server bindet standardmäßig nur an `127.0.0.1` und fragt dann kein Passwort ab. Für den Zugriff aus dem Netz siehe „Dauerbetrieb“.
+
+## Dauerbetrieb (z. B. Raspberry Pi 3 ohne Bildschirm)
+
+```bash
+npm ci
+npm run build                                   # Oberfläche einmal bauen (apps/web/dist)
+NODE_ENV=production HOST=0.0.0.0 Z21_PASSWORD='…' npm start
+```
+
+Ein einziger Node-Prozess liefert Oberfläche, API und WebSocket auf Port 3001 aus (rund 90 MB RAM). Bedient wird im Browser eines anderen Geräts: `http://<adresse-des-pi>:3001`.
+
+| Variable | Bedeutung |
+|---|---|
+| `HOST`, `PORT` | Bindeadresse und Port (Standard `127.0.0.1:3001`) |
+| `Z21_PASSWORD` | Gemeinsames Passwort. **Pflicht**, sobald `HOST` nicht `127.0.0.1` ist – ohne startet der Server nicht (bewusst offen: `Z21_ALLOW_OPEN=1`) |
+| `DATA_DIR` | Ordner für Lokliste, Kameras und Gleisbild (Standard `apps/server/data`) |
+| `LOG_LEVEL` | Standard `warn` bei `NODE_ENV=production` (schont die SD-Karte), sonst `info` |
+| `TLS_CERT`, `TLS_KEY` | Pfade zu Zertifikat und Schlüssel: der Server spricht dann selbst HTTPS und lädt erneuerte Dateien ohne Neustart nach |
+| `TRUST_PROXY=1` | Hinter einem Proxy (Caddy, nginx): `X-Forwarded-*` auswerten |
+| `Z21_REQUIRE_HTTPS=1` | Anmeldung über unverschlüsseltes HTTP ablehnen |
+
+**Raspberry Pi:** Raspberry Pi OS Lite (64 Bit) und Node.js ≥ 22 für ARM64 installieren, Projekt nach `/opt/z21-web` legen, Benutzer `z21` anlegen, dann `deploy/z21-web.service` einrichten (Anleitung steht in der Datei). `npm ci` und der Build dauern auf dem Pi 3 einige Minuten; der Ordner `apps/web/dist` kann auch am PC gebaut und kopiert werden. Bei Netzwerkkameras einen kleinen Stream (Substream) wählen, jedes Bild läuft durch den Pi.
+
+**HTTPS (optional):** Ohne HTTPS ist das Passwort im Netz mitlesbar. Let's Encrypt stellt nur für einen öffentlichen Domainnamen aus, nicht für `192.168.x.x`.
+- *Empfohlen:* Caddy davor, siehe `deploy/Caddyfile`. Caddy holt und erneuert das Zertifikat selbst; mit der DNS-Bestätigung (DNS-01) muss kein Port aus dem Internet erreichbar sein.
+- *Ohne Proxy:* Zertifikat z. B. mit certbot holen und `TLS_CERT=/etc/letsencrypt/live/<domain>/fullchain.pem`, `TLS_KEY=…/privkey.pem` setzen (der Dienst-Benutzer braucht Leserechte). Geht auch mit einem selbst erstellten Zertifikat.
+
+Getestet ist der Produktionsstart bisher nur auf dem Entwicklungsrechner, nicht auf einem echten Pi.
+
+## Tests
 
 ```bash
 npm test           # Protokoll- und Integrationstests (Simulator ↔ Server)
