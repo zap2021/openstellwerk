@@ -3,7 +3,7 @@ import {
   Broadcast, cmd, LocoNetDetectorPoll,
   type BoosterSystemState, type CanBoosterState, type DecoderState, type FastClockSettings, type FastClockTime,
   type ZLinkHwInfo, type CanDetectorValue, type LocoInfo, type LocoNetDecoded, type LocoNetDetectorEvent, type LocoNetDirection,
-  type Message, type RailComData, type SystemState, type TrackPower,
+  type Layout, type Message, type RailComData, type SystemState, type TrackPower,
 } from "@z21/protocol";
 import { Z21Client } from "./z21-client.js";
 import { Garage, type GarageLoco, type GarageSource } from "./garage.js";
@@ -104,10 +104,19 @@ export interface StationState {
   modes: { loco: Record<number, string>; turnout: Record<number, string> };
   garage: GarageLoco[];
   scan?: ScanState;
+  layout?: Layout;
+  routeRun?: RouteRun;
 }
 
+/** Progress of a route that is being set. */
+export interface RouteRun { routeId: string; done: number; total: number; running: boolean; error?: string }
+
 /** Holds the live model of the connected command station and exposes high-level operations. */
-export class Station extends EventEmitter<{ state: [StationState]; loconet: [LocoNetLine] }> {
+export class Station extends EventEmitter<{ state: [StationState]; loconet: [LocoNetLine]; connected: [] }> {
+  /** Lets other modules (signal box) add their part to the snapshot that every browser receives. */
+  extra: () => Pick<StationState, "layout" | "routeRun"> = () => ({});
+  /** Monitors that must stay on no matter which tab is open (the track diagram needs its detectors). */
+  private pinned: Partial<Monitors> = {};
   readonly client = new Z21Client();
   private hw?: StationState["hw"];
   private serial?: number;
@@ -166,6 +175,7 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
       modes: this.modes,
       garage: this.garage.list(),
       scan: this.scanState,
+      ...this.extra(),
     };
   }
 
@@ -308,18 +318,33 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
     this.serial = undefined;
     await this.client.connect(host, port, BASE_FLAGS);
     this.emit("state", this.snapshot());
+    this.emit("connected");
+  }
+
+  /** Publish the snapshot again (after something outside the station changed, e.g. the track diagram). */
+  notify() { this.emit("state", this.snapshot()); }
+
+  pinMonitors(pinned: Partial<Monitors>) {
+    this.pinned = pinned;
+    if (this.client.connected) this.setMonitors({});
+  }
+
+  /** Ask for the position of these turnouts; the answers arrive as normal turnout messages. */
+  refreshTurnouts(addresses: number[]) {
+    addresses.forEach((addr, i) => setTimeout(() => { try { this.client.send(cmd.getTurnoutInfo(addr)); } catch { /* disconnected */ } }, i * 25));
   }
 
   /** Switch the optional (traffic-heavy) subscriptions on or off. */
   setMonitors(patch: Partial<Monitors>) {
     this.monitors = { ...this.monitors, ...patch };
+    const on = (k: keyof Monitors) => this.monitors[k] || !!this.pinned[k];
     let flags = BASE_FLAGS;
-    if (this.monitors.railcom) flags |= Broadcast.RailComSubscribed | Broadcast.AllRailCom;
-    if (this.monitors.loconet) flags |= Broadcast.LocoNet | Broadcast.LocoNetLocos | Broadcast.LocoNetSwitches;
-    if (this.monitors.detectors) flags |= Broadcast.LocoNetDetector | Broadcast.CanDetector;
-    if (this.monitors.rmbus) flags |= Broadcast.RMBus;
-    if (this.monitors.boosters) flags |= Broadcast.CanBooster;
-    if (this.monitors.clock) flags |= Broadcast.FastClock;
+    if (on("railcom")) flags |= Broadcast.RailComSubscribed | Broadcast.AllRailCom;
+    if (on("loconet")) flags |= Broadcast.LocoNet | Broadcast.LocoNetLocos | Broadcast.LocoNetSwitches;
+    if (on("detectors")) flags |= Broadcast.LocoNetDetector | Broadcast.CanDetector;
+    if (on("rmbus")) flags |= Broadcast.RMBus;
+    if (on("boosters")) flags |= Broadcast.CanBooster;
+    if (on("clock")) flags |= Broadcast.FastClock;
     this.client.setFlags(flags);
     this.emit("state", this.snapshot());
   }

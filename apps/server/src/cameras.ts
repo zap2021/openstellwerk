@@ -1,6 +1,5 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
-import path from "node:path";
+import { JsonFile } from "./json-file.js";
 import http from "node:http";
 import https from "node:https";
 import type { FastifyInstance } from "fastify";
@@ -39,13 +38,12 @@ function checkUrl(raw: unknown, kind: CameraKind) {
 /** Small JSON-file store for configured cameras. Without a file it lives in memory (tests). */
 export class CameraStore {
   private map = new Map<string, Camera>();
-  private timer?: NodeJS.Timeout;
+  private store: JsonFile<Camera[]>;
 
-  constructor(private file?: string) {
-    if (!file) return;
-    try {
-      for (const c of JSON.parse(readFileSync(file, "utf8")) as Camera[]) if (c?.id && c.url) this.map.set(c.id, c);
-    } catch { /* none yet */ }
+  constructor(file?: string) {
+    this.store = new JsonFile(file, { mode: 0o600, delayMs: 200 }); // holds camera passwords
+    const raw = this.store.read();
+    for (const c of Array.isArray(raw) ? raw : []) if (c?.id && c.url) this.map.set(c.id, c);
   }
 
   list(): Camera[] { return [...this.map.values()]; }
@@ -81,17 +79,7 @@ export class CameraStore {
     return ok;
   }
 
-  private persist() {
-    if (!this.file) return;
-    clearTimeout(this.timer);
-    this.timer = setTimeout(() => {
-      try {
-        mkdirSync(path.dirname(this.file!), { recursive: true });
-        writeFileSync(this.file!, JSON.stringify(this.list(), null, 2), { mode: 0o600 });
-      } catch (e) { console.error("cameras: could not save", (e as Error).message); }
-    }, 200);
-    this.timer.unref();
-  }
+  private persist() { this.store.write(() => this.list()); }
 }
 
 export const toPublic = ({ password, ...rest }: Camera): PublicCamera => ({ ...rest, hasPassword: !!password });

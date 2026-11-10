@@ -11,6 +11,7 @@ import { readNetworkSettings } from "./maintenance.js";
 import { CameraStore, registerCameraRoutes } from "./cameras.js";
 import { discover } from "./z21-client.js";
 import { exposureProblem, registerAuth } from "./auth.js";
+import { registerLayoutRoutes, SignalBox } from "./layout.js";
 import { readTls, tlsFilesFromEnv, watchTls } from "./tls.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -127,6 +128,9 @@ app.put<{ Params: { addr: string }; Body: { mode: string } }>("/api/turnout/:add
 });
 
 /* ---------- more driving ---------- */
+/* ---------- signal box: track diagram, routes ---------- */
+registerLayoutRoutes(app, new SignalBox(station, path.join(dataDir, "layout.json")));
+
 /* ---------- cameras ---------- */
 registerCameraRoutes(app, new CameraStore(path.join(dataDir, "cameras.json")));
 

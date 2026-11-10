@@ -1,5 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import path from "node:path";
+import { JsonFile } from "./json-file.js";
 
 export type GarageSource = "scan" | "prog" | "manual" | "railcom" | "detector" | "active";
 
@@ -16,18 +15,18 @@ export interface GarageLoco {
 /** Small JSON-file backed registry of known locos. Without a file it only lives in memory (tests). */
 export class Garage {
   private map = new Map<number, GarageLoco>();
-  private timer?: NodeJS.Timeout;
+  private store: JsonFile<GarageLoco[]>;
 
-  constructor(private file?: string) {
-    if (!file) return;
-    try {
-      const raw = JSON.parse(readFileSync(file, "utf8")) as GarageLoco[];
-      for (const l of raw) {
+  constructor(file?: string) {
+    this.store = new JsonFile(file);
+    {
+      const raw = this.store.read();
+      for (const l of Array.isArray(raw) ? raw : []) {
         if (Number.isInteger(l.address) && l.address >= 1 && l.address <= 9999) {
           this.map.set(l.address, { address: l.address, name: l.name, sources: l.sources ?? [], functionNames: l.functionNames ?? {}, lastSeen: l.lastSeen });
         }
       }
-    } catch { /* no file yet or unreadable: start empty */ }
+    }
   }
 
   list(): GarageLoco[] {
@@ -57,20 +56,7 @@ export class Garage {
     return had;
   }
 
-  /** Debounced write; a failing disk must never take the server down. */
-  private save() {
-    if (!this.file) return;
-    clearTimeout(this.timer);
-    this.timer = setTimeout(() => {
-      try {
-        mkdirSync(path.dirname(this.file!), { recursive: true });
-        writeFileSync(this.file!, JSON.stringify(this.list(), null, 2));
-      } catch (e) {
-        console.error("garage: could not save", (e as Error).message);
-      }
-    }, 300);
-    this.timer.unref();
-  }
+  private save() { this.store.write(() => this.list()); }
 }
 
 function cleanNames(names: Record<number, string>) {
