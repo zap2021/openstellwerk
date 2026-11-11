@@ -36,8 +36,6 @@ export class TimetableRunner {
   private clock: ClockState = { ...DEFAULT_CLOCK };
   private dispatcher = new Dispatcher();
   private instances: Instance[] = [];
-  /** Answers to requests made in the second step of a tick; delivered in the first step of the next one. */
-  private pendingResults: RouteResult[] = [];
   private lastView = "";
   private timer?: NodeJS.Timeout;
   private store: JsonFile<Stored>;
@@ -182,14 +180,14 @@ export class TimetableRunner {
     const routes = new Map<string, RouteInfo>(layout.routes.map((r) => [r.id, { from: r.from, to: r.to }]));
     const base = { now, clock: this.clock, lateLimit: this.lateLimit, trips: this.trips, routes, connected: true };
     const ended = this.box.drainEnded();
-    const first = this.dispatcher.step({ ...base, trains: this.trains.list(), interlocking: this.box.routeStates(), ended, results: this.pendingResults });
-    this.pendingResults = [];
-    let results = this.execute(first.actions);
+    const first = this.dispatcher.step({ ...base, trains: this.trains.list(), interlocking: this.box.routeStates(), ended, results: [] });
+    const results = this.execute(first.actions);
     let out = first;
     if (results.length) {
       out = this.dispatcher.step({ ...base, trains: this.trains.list(), interlocking: this.box.routeStates(), ended: [], results });
-      // A rejected request is retried by the dispatcher in the same step; its answer goes to the next tick.
-      this.pendingResults = this.execute(out.actions);
+      // The answers are delivered right here. A refused instance retries in the next tick's first step, so
+      // requests from this step are never sent (defensive: the dispatcher does not emit any here).
+      this.execute(out.actions.filter((a) => a.type !== "request"));
     }
     this.instances = out.instances;
     this.detect();

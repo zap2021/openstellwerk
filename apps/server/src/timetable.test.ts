@@ -127,6 +127,57 @@ it("(b) a refused route keeps the instance waiting without bypassing the interlo
   await settle();
 });
 
+it("(b2) a permanently refused route is tried once per tick, and the waiting instance can be cancelled", async () => {
+  trains.setLocation(t2, "b3");
+  await occupy(2, true);
+  at("11:10", false);
+  const trip = runner.saveTrip({ trainId: t2, routeId: "r2", departure: 671 });
+  const id = `${trip.id}#0`;
+  at("11:11");
+  await until(() => inst(id)?.status === "waiting" && /besetzt/.test(inst(id)?.reason ?? ""));
+  const r = runner as unknown as { step(): void };
+  const origStep = r.step.bind(runner);
+  const origReq = box.tryRequestRoute.bind(box);
+  let ticks = 0, requests = 0;
+  r.step = () => { ticks++; origStep(); };
+  box.tryRequestRoute = (routeId: string) => { requests++; return origReq(routeId); };
+  await sleep(400);
+  r.step = origStep;
+  box.tryRequestRoute = origReq;
+  expect(ticks).toBeGreaterThan(5);
+  expect(requests).toBeGreaterThanOrEqual(ticks - 2);
+  expect(requests).toBeLessThanOrEqual(ticks + 1); // once per tick, not twice
+
+  const res = await app.inject({ method: "POST", url: `/api/timetable/instances/${encodeURIComponent(id)}/cancel` });
+  expect(res.statusCode).toBe(200);
+  expect(inst(id)).toMatchObject({ status: "cancelled", reason: "vom Bediener" });
+  await occupy(2, false);
+  expect(runner.removeTrip(trip.id)).toBe(true);
+});
+
+it("(h) a route that completed just before a layout save still ends the trip as done", async () => {
+  trains.setLocation(t1, "b1");
+  at("11:30", false);
+  const trip = runner.saveTrip({ trainId: t1, routeId: "r1", departure: 691 });
+  const id = `${trip.id}#0`;
+  at("11:31");
+  await until(() => inst(id)?.status === "set");
+  await until(() => route("r1") === "set");
+  await occupy(1, true);
+  await until(() => inst(id)?.status === "running");
+  await occupy(2, true);
+  await occupy(1, false);
+  runner.stop(); // no tick between the end of the route and the save
+  await occupy(2, false);
+  await until(() => route("r1") === undefined);
+  box.save(layout);
+  runner.start();
+  await until(() => inst(id)?.status !== "running");
+  expect(inst(id)?.status).toBe("done");
+  expect(trains.get(t1)?.location).toMatchObject({ blockId: "b2", source: "carried" });
+  await settle();
+});
+
 it("(d) a route deleted after the trip was created fails the instance", async () => {
   at("12:00", false);
   const trip = runner.saveTrip({ trainId: t2, routeId: "r2", departure: 721 });

@@ -73,13 +73,18 @@ export class Dispatcher {
     this.sync(input.trips, day);
 
     const wasActive = new Set(this.recs.filter((r) => this.isActive(r.inst.status)));
+    // Refused in this step: the next attempt is made in the next step (at most one attempt per runner tick).
+    const refused = new Set<Rec>();
     for (const res of input.results) {
       const rec = [...this.requested].find((r) => r.inst.id === res.instanceId);
       if (!rec) continue;
       this.requested.delete(rec);
       if (rec.inst.status !== "waiting") continue;
       if (res.ok) this.change(rec, "set");
-      else rec.inst.reason = res.reason ?? "Fahrstraße abgelehnt";
+      else {
+        rec.inst.reason = res.reason ?? "Fahrstraße abgelehnt";
+        refused.add(rec);
+      }
     }
     // A request without an answer in the following connected step counts as lost: retry next step.
     const unanswered = new Set(this.requested);
@@ -134,7 +139,7 @@ export class Dispatcher {
         this.change(rec, "failed", `Verspätungsgrenze überschritten: ${inst.reason ?? "unbekannt"}`);
         continue;
       }
-      if (unanswered.has(rec)) continue;
+      if (unanswered.has(rec) || refused.has(rec)) continue;
       const route = input.routes.get(rec.trip.routeId);
       if (!route) {
         this.change(rec, "failed", "Fahrstraße nicht mehr vorhanden");

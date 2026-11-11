@@ -146,6 +146,25 @@ it("tryRequestRoute reports instead of throwing", async () => {
   await until(() => !(box as unknown as { draining: boolean }).draining);
 });
 
+it("keeps a completed end event across a layout save before it was drained", async () => {
+  await until(() => !(box as unknown as { draining: boolean }).draining);
+  box.drainEnded();
+  expect((await post("/api/interlocking/r1/request")).statusCode).toBe(200);
+  await until(() => status("r1") === "set");
+  const rm = (i: number) => station.snapshot().rmbus.find((m) => m.module === 1)?.inputs[i - 1];
+  const occupy = async (i: number, on: boolean) => { sim.extras.setRmBus(1, i, on); await until(() => rm(i) === on); };
+  await occupy(1, true);
+  await until(() => status("r1") === "running");
+  await occupy(2, true);
+  await occupy(1, false);
+  await occupy(2, false);
+  await until(() => status("r1") === undefined);
+  box.save(layout); // replaces the interlocking before anyone drained
+  expect(box.drainEnded()).toEqual([{ routeId: "r1", reason: "completed" }]);
+  expect(box.drainEnded()).toEqual([]);
+  await until(() => !(box as unknown as { draining: boolean }).draining);
+});
+
 it("puts the route signals to Halt on the first connect only", async () => {
   const sim2 = new Z21Simulator();
   await sim2.listen(21573, "127.0.0.1");

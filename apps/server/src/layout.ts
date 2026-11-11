@@ -24,6 +24,8 @@ export class SignalBox {
   private il: Interlocking;
   private ticker?: NodeJS.Timeout;
   private haltedOnce = false;
+  /** End events of an interlocking that was replaced by save(); handed out by the next drainEnded(). */
+  private endedBuffer: EndedRoute[] = [];
 
   constructor(private station: Station, file?: string, private gapMs = 250) {
     this.file = new JsonFile(file);
@@ -48,6 +50,7 @@ export class SignalBox {
   save(input: unknown): Layout {
     if (this.il.states().length) throw httpError(409, "Es sind noch Fahrstraßen angefordert; zuerst auflösen");
     try { this.layout = validateLayout(input); } catch (e) { throw httpError(400, (e as Error).message); }
+    this.endedBuffer.push(...this.il.drainEnded()); // a route that just completed must not get lost with the old interlocking
     this.il = new Interlocking(this.layout);
     this.file.write(() => this.layout);
     this.pin();
@@ -172,7 +175,11 @@ export class SignalBox {
   }
 
   /** Routes that ended since the last call, with the reason. */
-  drainEnded(): EndedRoute[] { return this.il.drainEnded(); }
+  drainEnded(): EndedRoute[] {
+    const out = [...this.endedBuffer, ...this.il.drainEnded()];
+    this.endedBuffer = [];
+    return out;
+  }
 
   /** Once after the first connect: signals of routes between blocks go to Halt, whatever the last session left. */
   private haltRouteSignals() {

@@ -126,18 +126,25 @@ describe("Dispatcher", () => {
     expect(r.actions).toEqual([{ type: "location", trainId: "z1", blockId: "b2" }]);
   });
 
-  it("(d) rejection keeps waiting with reason, retries, fails after the late limit", () => {
+  it("(d) rejection keeps waiting with reason, retries in the next step, fails after the late limit", () => {
     const d = new Dispatcher();
     d.step(input(T10));
     const reason = "Block „Gleis 2“ ist besetzt";
-    let r = d.step(input(T10 + 1, { results: [{ instanceId: "t1#0", ok: false, reason }] }));
+    const refuse = { results: [{ instanceId: "t1#0", ok: false, reason }] };
+    const request = [{ type: "request", instanceId: "t1#0", routeId: "r1" }];
+    let r = d.step(input(T10 + 1, refuse));
     expect(r.instances[0]).toMatchObject({ status: "waiting", reason });
-    expect(r.actions).toEqual([{ type: "request", instanceId: "t1#0", routeId: "r1" }]);
-    r = d.step(input(T10 + 2, { results: [{ instanceId: "t1#0", ok: false, reason }] }));
-    expect(r.actions).toHaveLength(1);
-    r = d.step(input(T10 + 5 * M, { results: [{ instanceId: "t1#0", ok: false, reason }] }));
+    expect(r.actions).toEqual([]); // no second attempt in the step that brought the refusal
+    r = d.step(input(T10 + 2));
+    expect(r.actions).toEqual(request); // next step: try again
+    expect(r.instances[0].reason).toBe(reason);
+    r = d.step(input(T10 + 3, refuse));
+    expect(r.actions).toEqual([]);
+    r = d.step(input(T10 + 5 * M - 1));
+    expect(r.actions).toEqual(request);
+    r = d.step(input(T10 + 5 * M, refuse));
     expect(r.instances[0].status).toBe("waiting");
-    r = d.step(input(T10 + 5 * M + 1, { results: [{ instanceId: "t1#0", ok: false, reason }] }));
+    r = d.step(input(T10 + 5 * M + 1));
     expect(r.instances[0].status).toBe("failed");
     expect(r.instances[0].reason).toBe(`Verspätungsgrenze überschritten: ${reason}`);
     expect(r.actions).toEqual([]);
