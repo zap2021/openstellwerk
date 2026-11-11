@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { formatHHMM, parseHHMM, type Train, type Trip } from "@z21/timetable";
-import type { Route } from "@z21/protocol/layout";
+import { formatHHMM, modelNow, parseHHMM, statusText, timeOfDay, type ClockState, type Instance, type Status, type Train, type Trip } from "@z21/timetable";
+import type { Layout, Route } from "@z21/protocol/layout";
 import { api, type StationState } from "./api";
 import { ifSure } from "./confirm";
 
@@ -139,5 +139,176 @@ export function TimetableAdmin({ state, run }: { state: StationState; run: Run }
         </div>
       </div>
     </section>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Operation (tab "Fahrplan") and departure board
+
+/** Model time in whole seconds; ticks every second while the clock runs, stays put when it is stopped. */
+export function useModelTime(clock: ClockState): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    setNow(Date.now());
+    if (!clock.running) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [clock.running, clock.factor, clock.baseModel, clock.baseReal]);
+  return Math.floor(modelNow(clock, now));
+}
+
+export interface BoardRow {
+  id: string; trainId: string; time: string; number: string; destination: string; platform: string;
+  status: Status; label: string; reason?: string;
+}
+
+const FINISHED: Status[] = ["done", "failed", "cancelled"];
+const KEEP_FINISHED = 3;
+
+/** Rows of the departure board: open departures first-come by due, only the last few finished ones, cut to `limit` (open ones win). */
+export function boardRows(instances: Instance[], trips: Trip[], trains: Train[], layout: Layout | undefined, limit: number): BoardRow[] {
+  const sorted = [...instances].sort((a, b) => a.day - b.day || a.due - b.due || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const rows: { row: BoardRow; open: boolean }[] = [];
+  for (const i of sorted) {
+    const trip = trips.find((t) => t.id === i.tripId);
+    const train = trip && trains.find((t) => t.id === trip.trainId);
+    if (!trip || !train) continue;
+    const route = layout?.routes.find((r) => r.id === trip.routeId);
+    const target = route?.to ? (layout?.blocks ?? []).find((b) => b.id === route.to)?.name ?? "" : "";
+    rows.push({
+      open: !FINISHED.includes(i.status),
+      row: {
+        id: i.id, trainId: train.id, time: formatHHMM(Math.floor(i.due / 60)), number: train.number ?? train.name,
+        destination: trip.destination ?? target, platform: target, status: i.status, label: statusText(i.status), reason: i.reason,
+      },
+    });
+  }
+  const open = rows.filter((r) => r.open).slice(0, limit);
+  const finished = rows.filter((r) => !r.open).slice(-KEEP_FINISHED).slice(-Math.max(0, limit - open.length));
+  const keep = new Set([...open, ...finished]);
+  return rows.filter((r) => keep.has(r)).map((r) => r.row);
+}
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+export function formatHMS(model: number): string {
+  const t = timeOfDay(model);
+  return `${pad2(Math.floor(t / 3600))}:${pad2(Math.floor(t / 60) % 60)}:${pad2(t % 60)}`;
+}
+
+/** Loads the trips; the board has no other trigger, so it can refresh them periodically. */
+export function useTrips(everyMs?: number): Trip[] {
+  const [trips, setTrips] = useState<Trip[]>([]);
+  useEffect(() => {
+    let alive = true;
+    const load = () => { api<{ trips: Trip[] }>("GET", "/api/timetable").then((d) => { if (alive) setTrips(d.trips); }, () => undefined); };
+    load();
+    const t = everyMs ? setInterval(load, everyMs) : undefined;
+    return () => { alive = false; if (t) clearInterval(t); };
+  }, [everyMs]);
+  return trips;
+}
+
+/** Operation: model clock, the next departures with "cancel", and where the trains stand. */
+export function TimetableOperate({ state, run }: { state: StationState; run: Run }) {
+  const tt = state.timetable;
+  const clock = tt?.clock ?? { running: false, factor: 1, baseModel: 0, baseReal: 0 };
+  const model = useModelTime(clock);
+  const trips = useTrips();
+  const [factor, setFactor] = useState(clock.factor);
+  const [time, setTime] = useState("08:00");
+  const [error, setError] = useState<string>();
+  useEffect(() => setFactor(clock.factor), [clock.factor]);
+
+  if (!tt) return <p className="hint">Der Fahrplan ist noch nicht verfügbar (Server zu alt oder noch nicht bereit).</p>;
+
+  const change = async (request: Promise<unknown>) => {
+    setError(undefined);
+    await run(request.then(() => undefined, (e) => { setError((e as Error).message); }));
+  };
+  const layout = state.layout;
+  const blocks = layout?.blocks ?? [];
+  const rows = boardRows(tt.instances, trips, tt.trains, layout, 12);
+  const clockPost = (body: unknown) => change(api("POST", "/api/timetable/clock", body));
+  const hhmm = formatHHMM(Math.floor(timeOfDay(model) / 60));
+  const factorOk = Number.isInteger(factor) && factor >= 1 && factor <= 120;
+  const timeOk = parseHHMM(time) !== undefined;
+
+  return (
+    <section className="drive">
+      <div className="panel">
+        <h2>Fahrplanuhr</h2>
+        <div className="clock">
+          <span className="big">{formatHMS(model)}</span>
+          {clock.factor > 1 && <small>×{clock.factor}</small>}
+          {!clock.running && <span className="pill">angehalten</span>}
+        </div>
+        <div className="row tight">
+          <button className={clock.running ? "danger" : "active"} onClick={() => void clockPost({ action: clock.running ? "stop" : "start" })}>{clock.running ? "Stopp" : "Start"}</button>
+          <label>Faktor <input type="number" min={1} max={120} value={factor} onChange={(e) => setFactor(Number(e.target.value))} /></label>
+          <button disabled={!factorOk} onClick={() => void clockPost({ action: "set", time: hhmm, factor })}>Setzen</button>
+        </div>
+        <div className="row tight">
+          <label>Uhrzeit (HH:MM) <input value={time} placeholder="08:00" onChange={(e) => setTime(e.target.value)} /></label>
+          <button disabled={!timeOk} onClick={() => void clockPost({ action: "set", time })}>Uhr stellen</button>
+        </div>
+        {error && <p className="hint warn">{error}</p>}
+        <h2>Nächste Abfahrten</h2>
+        {rows.length === 0 && <p className="hint">Keine Abfahrten geplant.</p>}
+        <ul className="loco-list">
+          {rows.map((r) => (
+            <li key={r.id} className="departure">
+              <span className="addr">{r.time}</span>
+              <span className="meta">
+                <strong>{r.number} · {r.destination || "–"}{r.platform ? ` · ${r.platform}` : ""}</strong>
+                <small><span className={`st ${r.status}`}>{r.label}</span>{r.reason ? ` – ${r.reason}` : ""}</small>
+              </span>
+              {(r.status === "planned" || r.status === "waiting") && (
+                <button onClick={() => void change(api("POST", `/api/timetable/instances/${encodeURIComponent(r.id)}/cancel`))}>Entfallen lassen</button>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="panel">
+        <h2>Standorte der Züge</h2>
+        {tt.trains.length === 0 && <p className="hint">Noch keine Züge angelegt.</p>}
+        <ul className="loco-list">
+          {tt.trains.map((t) => (
+            <li key={t.id} className="departure">
+              <span className="meta"><strong>{t.name}{t.number ? ` (${t.number})` : ""}</strong></span>
+              {t.location?.uncertain && <span className="pill warn">unsicher</span>}
+              <select value={t.location?.blockId ?? ""} onChange={(e) => void change(api("PUT", `/api/trains/${encodeURIComponent(t.id)}/location`, { blockId: e.target.value || null }))}>
+                <option value="">kein Standort</option>
+                {blocks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                {t.location && !blocks.some((b) => b.id === t.location!.blockId) && <option value={t.location.blockId}>(fehlt)</option>}
+              </select>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+/** Read-only departure board for the display page. */
+export function DepartureBoard({ state, trips }: { state: StationState; trips?: Trip[] }) {
+  const tt = state.timetable;
+  const fetched = useTrips(trips ? undefined : 60_000);
+  if (!tt) return null;
+  const all = trips ?? fetched;
+  const rows = boardRows(tt.instances, all, tt.trains, state.layout, 8);
+  return (
+    <table className="board">
+      <thead><tr><th>Zeit</th><th>Zug</th><th>Ziel</th><th>Gleis</th><th>Status</th></tr></thead>
+      <tbody>
+        {rows.length === 0 && <tr><td colSpan={5} className="muted">Keine Abfahrten</td></tr>}
+        {rows.map((r) => (
+          <tr key={r.id} className={FINISHED.includes(r.status) ? "past" : undefined}>
+            <td className="time">{r.time}</td><td>{r.number}</td><td>{r.destination}</td><td>{r.platform}</td>
+            <td><span className={`st ${r.status}`}>{r.label}</span>{r.reason && <small className="reason"> {r.reason}</small>}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }

@@ -193,3 +193,19 @@ header .status { color: var(--muted); }
 .shell.wide { grid-template-columns: minmax(0, 1500px); padding-right: 0; }
 @media (max-width: 1100px) { .shell.wide { grid-template-columns: minmax(0, 1fr); } }
 .diagram { scrollbar-color: var(--line) transparent; }
+
+/* Fahrplan: operation and departure board */
+.clock .big { font: 600 32px/1 ui-monospace, "SF Mono", monospace; }
+.departure { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.departure .addr { font-variant-numeric: tabular-nums; }
+.departure .meta { display: flex; flex-direction: column; flex: 1; min-width: 0; } .departure small { color: var(--muted); }
+.pill.warn { color: var(--warn); border-color: var(--warn); }
+.st.set { color: var(--ok); } .st.running { color: var(--accent); } .st.failed { color: var(--danger); } .st.waiting { color: var(--warn); }
+.st.done, .st.cancelled { color: var(--muted); }
+.display-clock-title { display: block; font: 500 14px/1.2 system-ui, sans-serif; letter-spacing: 0; color: var(--muted); }
+.board { width: 100%; margin-top: 18px; font-size: 28px; }
+.board th { font-size: 16px; text-transform: uppercase; letter-spacing: 1px; padding-bottom: 8px; }
+.board td { padding: 8px 24px 8px 0; border-top: 1px solid var(--line); }
+.board td.time { font: 600 28px ui-monospace, "SF Mono", monospace; }
+.board tr.past { opacity: .55; }
+.board .reason { font-size: 16px; color: var(--muted); }

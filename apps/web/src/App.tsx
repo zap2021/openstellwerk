@@ -6,6 +6,7 @@ import { DriveTab, ModeSelect } from "./drive";
 import { Login, useSession } from "./login";
 import { DisplayView, LayoutTab } from "./layout";
 import { CameraSidebar, useCameras } from "./camera";
+import { TimetableOperate } from "./timetable";
 import { useRoute, type Route } from "./route";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
@@ -13,8 +14,8 @@ const post = (url: string, body?: unknown) => api("POST", url, body);
 const put = (url: string, body?: unknown) => api("PUT", url, body);
 
 /** Everyday operation. Everything else is in the administration (admin.tsx). */
-type OperatePage = "drive" | "layout" | "turnouts" | "signals";
-const OPERATE: [OperatePage, string][] = [["drive", "Fahren"], ["layout", "Stellwerk"], ["turnouts", "Weichen"], ["signals", "Signale"]];
+type OperatePage = "drive" | "layout" | "timetable" | "turnouts" | "signals";
+const OPERATE: [OperatePage, string][] = [["drive", "Fahren"], ["layout", "Stellwerk"], ["timetable", "Fahrplan"], ["turnouts", "Weichen"], ["signals", "Signale"]];
 
 /** A Z21 offers everything; a zLink decoder only its signals, a booster nothing to operate. */
 function operatePages(state?: StationState): [OperatePage, string][] {
@@ -79,6 +80,7 @@ function Operate({ state, online, run, go }: { state?: StationState; online: boo
       <main>
         {current === "drive" && <DriveTab state={state} run={run} />}
         {current === "layout" && <LayoutTab state={state} run={run} />}
+        {current === "timetable" && <TimetableOperate state={state} run={run} />}
         {current === "turnouts" && <TurnoutsTab state={state} run={run} />}
         {current === "signals" && <SignalsTab state={state} run={run} />}
       </main>

@@ -5,6 +5,7 @@ import {
   type Block, type FeedbackRef, type Layout, type Route, type Tile, type TileKind,
 } from "@z21/protocol/layout";
 import { api, type StationState } from "./api";
+import { DepartureBoard, formatHMS, useModelTime } from "./timetable";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
 type Tool = "select" | "erase" | TileKind;
@@ -195,13 +196,14 @@ export function DisplayView({ state }: { state?: StationState }) {
   const z = state?.clock?.time;
   const pad = (n: number) => String(n).padStart(2, "0");
   const time = z ? `${pad(z.hour)}:${pad(z.minute)}` : `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const tt = state?.timetable;
   const layout = state?.layout;
   const il = new Map((state?.interlocking ?? []).map((r) => [r.routeId, r]));
   const active = (layout?.routes ?? []).filter((r) => il.has(r.id));
   return (
     <div className="display">
       <header className="display-head">
-        <div className="display-clock" title={z ? "Modellbahn-Uhr der Z21" : "Uhrzeit dieses Geräts (keine Modellbahn-Uhr gemeldet)"}>{time}{z && z.rate > 1 ? <small>×{z.rate}</small> : null}</div>
+        {tt ? <ModelClock clock={tt.clock} /> : <div className="display-clock" title={z ? "Modellbahn-Uhr der Z21" : "Uhrzeit dieses Geräts (keine Modellbahn-Uhr gemeldet)"}>{time}{z && z.rate > 1 ? <small>×{z.rate}</small> : null}</div>}
         <div className="display-routes">
           {active.length === 0 ? <span className="muted">Keine Fahrstraße eingestellt</span> : active.map((r) => <span key={r.id} className={`chip ${il.get(r.id)!.status}`}>{r.name} · {STATUS[il.get(r.id)!.status]}</span>)}
         </div>
@@ -211,6 +213,19 @@ export function DisplayView({ state }: { state?: StationState }) {
       {layout && layout.tiles.length > 0
         ? <Diagram layout={layout} live={state!} onCell={() => undefined} />
         : <p className="muted">Noch kein Gleisbild vorhanden.</p>}
+      {state && tt && <DepartureBoard state={state} />}
+    </div>
+  );
+}
+
+/** The timetable clock of the display: HH:MM large, stopped state and speed visible. */
+function ModelClock({ clock }: { clock: NonNullable<StationState["timetable"]>["clock"] }) {
+  const model = useModelTime(clock);
+  return (
+    <div className="display-clock" title="Fahrplanuhr">
+      <span className="display-clock-title">Fahrplanuhr</span>
+      {formatHMS(model).slice(0, 5)}
+      {clock.running ? (clock.factor > 1 ? <small>×{clock.factor}</small> : null) : <small>angehalten</small>}
     </div>
   );
 }
