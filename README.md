@@ -112,14 +112,15 @@ Die Sicherung braucht Belegtmelder. Ohne sie lassen sich Fahrstraßen nicht eins
 
 Diese Teile sind als nächste Phase vorgesehen, sobald Testhardware vorhanden ist. Danach folgt der Ausbau zur Modellbahnsteuerung (Fahrstraßen, Blocksicherung, Fahrplan, Gleisbild).
 
-## Sicherung und Wiederherstellung
+## Datensicherung
 
-Die Stellwerksansicht bietet Funktionen zur sicheren Datensicherung:
+Unter **Verwaltung → Datensicherung** lädst du alles herunter, was du in der Oberfläche pflegst und was nicht in der Z21 gespeichert ist:
 
-- **Sichern (Backup)**: Speichert das aktuelle Gleisbild, Fahrstraßen und Blockkonfiguration als JSON-Datei
-- **Wiederherstellen aus Backup**: Importiert eine zuvor gespeicherte Konfiguration
+- **Loks:** Namen, Funktionsbezeichnungen und von Hand ergänzte Loks
+- **Gleisbild:** Felder, Blöcke und Fahrstraßen
+- **Kameras:** Kamera-Passwörter nur, wenn du sie ausdrücklich einschließt (sie stehen dann im Klartext in der Datei)
 
-Diese Funktionen sind nützlich zum Abspeichern von bevorzugten Anlagenkonfigurationen oder zum einfachen Austausch von Gleisbildern. Die Datensicherung ist vollständig in der Web-Oberfläche implementiert.
+Beim Wiederherstellen wählst du die Teile einzeln aus. Alles wird vorher geprüft; ist ein Teil fehlerhaft, ändert sich nichts. Das Gleisbild lässt sich nicht ersetzen, solange Fahrstraßen angefordert sind. Fahrzustand, Weichenlagen, CVs, Uhr und Netzwerk-Einstellungen liegen in der Z21 selbst und gehören nicht dazu. Das Gleisbild allein kannst du weiter im Editor exportieren und importieren.
 
 ## Hinweise zum Protokoll
 

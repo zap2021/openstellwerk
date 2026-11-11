@@ -476,20 +476,6 @@ function Editor({ saved, state, run, close }: { saved: Layout; state: StationSta
               <button onClick={() => fileInput.current?.click()}>Importieren</button>
               <input ref={fileInput} type="file" accept="application/json,.json" hidden onChange={(e) => { void importFile(e.target.files?.[0]); e.target.value = ""; }} />
             </div>
-            <div className="row tight">
-              <button onClick={() => {
-                const a = document.createElement("a");
-                const dataStr = JSON.stringify(draft, null, 2);
-                const dataUri = "data:application/json;charset=utf-8,"+ encodeURIComponent(dataStr);
-                a.href = dataUri;
-                a.download = `z21-layout-${new Date().toISOString().slice(0, 10)}.json`;
-                a.click();
-              }}>Sichern (Backup)</button>
-              <button onClick={() => {
-                if (!window.confirm("Wollen Sie wirklich alle aktuellen Einstellungen überschreiben? Alle nicht gespeicherten Änderungen gehen verloren.")) return;
-                fileInput.current?.click();
-              }}>Wiederherstellen aus Backup</button>
-            </div>
           </div>
         </div>
       </div>
