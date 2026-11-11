@@ -20,7 +20,7 @@ Ein Browser kann weder UDP noch zuverlässig serielle Ports ansprechen (Web Seri
 | `apps/server` | UDP-Client mit Keepalive, `Station`-Modell (Zustand der Zentrale), REST- und WebSocket-API. |
 | `apps/web` | Oberfläche: Zentrale, Fahren, Weichen, CV-Programmierung, Protokoll-Monitor. |
 
-Die Sicherung (`packages/interlocking`) läuft im Server oberhalb von `Station` und nutzt die Schaltqueue der `SignalBox`. Fahrplan und Zugfahrten (Automatik) folgen darauf aufbauend als weitere Module. `Station` ist die einzige Stelle, die Hardware-Zustand besitzt.
+Die Sicherung (`packages/interlocking`) läuft im Server oberhalb von `Station` und nutzt die Schaltqueue der `SignalBox`. Der Fahrplan (`packages/timetable`, Automatik Stufe 1) baut darauf auf und fordert die gesicherten Fahrstraßen zur Abfahrtszeit an. `Station` ist die einzige Stelle, die Hardware-Zustand besitzt.
 
 ## Starten
 
@@ -108,10 +108,14 @@ Die Sicherung braucht Belegtmelder. Ohne sie lassen sich Fahrstraßen nicht eins
 - **Fahrplanuhr** (Bedienen → Fahrplan): eigene Modellzeit, unabhängig von der Z21-Uhr. Start/Stopp, Faktor (1 bis 120) und „Uhr stellen“. Sie läuft nur bei bestehender Verbindung.
 - **Automatik (Stufe 1):** Zur Abfahrtszeit fordert der Server die gesicherte Fahrstraße an und stellt Weichen und Signal. Die Lok fährt sie nicht automatisch (das tust du am Fahrregler, im Demo-Modus der virtuelle Zug). Lehnt die Sicherung die Fahrstraße ab (z. B. Block belegt), wartet die Abfahrt und versucht es erneut; ist die **Verspätungsgrenze** (Minuten, Standard 5) überschritten, geht sie in Störung. Erreicht der Zug den Zielblock, steht er dort als „mitgeführt“.
 - **Abfahrtstafel:** `#/anzeige` zeigt die nächsten Abfahrten mit Fahrplanuhr statt Z21-Uhr.
-- **Nach einem Neustart:** Fahrplanuhr gestoppt, alle Standorte unsicher, und die Signale gesicherter Fahrstraßen gehen beim ersten Verbinden auf Halt.
+- **Nach einem Neustart:** Fahrplanuhr gestoppt, alle Standorte unsicher, und die Signale gesicherter Fahrstraßen gehen bei jedem Verbinden auf Halt, solange keine Fahrstraße eingestellt ist.
 - **Datensicherung:** enthält Züge (ohne Standort) und den Fahrplan (Fahrten, Verspätungsgrenze).
 - **Demo-Modus:** lädt Beispielzüge und -fahrplan (`docs/beispiel-fahrplan.json`), wenn noch keine Züge und Fahrten existieren und das Gleisbild die Blöcke und Fahrstraßen des Beispiels hat; die Uhr startet bei 05:58 mit Faktor 20. Ein älteres gespeichertes Beispiel-Gleisbild ohne die Fahrstraßen r3/r4 bitte im Editor neu importieren (`docs/beispiel-gleisbild.json`).
-- **Noch nicht enthalten:** Lok automatisch fahren (Stufe 2).
+- **Folgt in Stufe 2:** Lok automatisch fahren.
+
+#### Bekannte Einschränkung der Automatik (Stufe 1)
+
+Die gesicherten Fahrstraßen aus Phase 1 verlangen, dass alle ihre Blöcke frei sind – auch der Startblock. Steht der Zug im Startblock und meldet dort ein echter Melder besetzt, lehnt die Sicherung die Fahrstraße ab; ein Zug, der im Zielblock hält, hält die Fahrstraße bis zur Notauflösung offen. Mit dem Simulator und im Demo-Modus tritt das nicht auf, mit echten Rückmeldern schon. Das Verhalten der Sicherung (Startblock darf vom Zug selbst belegt sein, Auflösung beim Erreichen des Zielblocks) wird als Erstes in der nächsten Ausbaustufe geändert. Bis dahin lässt sich der Fahrplan nur ohne echte Melder (Simulator, Demo) vollständig nutzen.
 
 ### Noch nicht enthalten
 
@@ -122,7 +126,7 @@ Die Sicherung braucht Belegtmelder. Ohne sie lassen sich Fahrstraßen nicht eins
 | IP-/WLAN-Einstellungen, Signaltyp/Signal Box, Decoder-Konfiguration über die EXE-Oberfläche | Teils proprietär bzw. nur über CV-Zugriff möglich (CV-Reiter funktioniert auch an den zLink-Decodern). |
 | Zimo-Decoder-Updates, Multimaus-Update, CAN-Detektor-Firmware | siehe Firmware-Updates |
 
-Diese Teile sind als nächste Phase vorgesehen, sobald Testhardware vorhanden ist. Danach folgt der Ausbau zur Modellbahnsteuerung (Fahrstraßen, Blocksicherung, Fahrplan, Gleisbild).
+Diese Teile sind vorgesehen, sobald Testhardware vorhanden ist.
 
 ## Datensicherung
 
