@@ -34,6 +34,8 @@ function input(t: number, o: Partial<DispatchInput> = {}): DispatchInput {
 }
 
 const T10 = 10 * H;
+const SET = [{ routeId: "r1", status: "set" }];
+const RUNNING = [{ routeId: "r1", status: "running" }];
 
 function status(d: Dispatcher, id = "t1#0") {
   return d.find(id)?.status;
@@ -42,7 +44,7 @@ function status(d: Dispatcher, id = "t1#0") {
 /** Drives t1#0 from 10:00 to `set`. */
 function toSet(d: Dispatcher, base: Partial<DispatchInput> = {}) {
   d.step(input(T10, base));
-  return d.step(input(T10 + 1, { ...base, results: [{ instanceId: "t1#0", ok: true }] }));
+  return d.step(input(T10 + 1, { ...base, results: [{ instanceId: "t1#0", ok: true }], interlocking: SET }));
 }
 
 describe("Dispatcher", () => {
@@ -58,6 +60,52 @@ describe("Dispatcher", () => {
     r = d.step(input(T10 + 1));
     expect(r.actions).toEqual([]);
     expect(r.instances[0].status).toBe("waiting");
+  });
+
+  it("an unanswered request is dropped and retried; it can still reach the late limit", () => {
+    const d = new Dispatcher();
+    d.step(input(T10));
+    let r = d.step(input(T10 + 1));
+    expect(r.actions).toEqual([]);
+    expect(r.instances[0]).toMatchObject({ status: "waiting", reason: "Keine Antwort der Sicherung" });
+    expect(d.cancel("t1#0")).toBe(true);
+
+    const e = new Dispatcher();
+    e.step(input(T10));
+    e.step(input(T10 + 1));
+    r = e.step(input(T10 + 2));
+    expect(r.actions).toEqual([{ type: "request", instanceId: "t1#0", routeId: "r1" }]);
+    e.step(input(T10 + 3));
+    r = e.step(input(T10 + 5 * M + 1));
+    expect(r.instances[0]).toMatchObject({
+      status: "failed",
+      reason: "Verspätungsgrenze überschritten: Keine Antwort der Sicherung",
+    });
+    expect(r.actions).toEqual([]);
+  });
+
+  it("a pending request across midnight: the old-day instance is kept and still becomes set", () => {
+    const trips = [trip({ departure: 23 * 60 + 59 })];
+    const d = new Dispatcher();
+    let r = d.step(input(DAY - 1, { trips }));
+    expect(r.actions).toEqual([{ type: "request", instanceId: "t1#0", routeId: "r1" }]);
+    r = d.step(input(DAY, { trips, results: [{ instanceId: "t1#0", ok: true }], interlocking: SET }));
+    expect(r.instances.map((i) => [i.day, i.id, i.status])).toEqual([
+      [0, "t1#0", "set"],
+      [1, "t1#0", "planned"],
+    ]);
+    expect(r.actions).toEqual([]);
+  });
+
+  it("a pending request across midnight without answer is dropped with the old day", () => {
+    const trips = [trip({ departure: 23 * 60 + 59 })];
+    const d = new Dispatcher();
+    d.step(input(DAY - 1, { trips }));
+    d.step(input(DAY, { trips }));
+    const r = d.step(input(DAY + 1, { trips }));
+    expect(r.instances.map((i) => [i.day, i.id, i.status])).toEqual([[1, "t1#0", "planned"]]);
+    expect(r.actions).toEqual([]);
+    expect(d.hasActive("t1")).toBe(false);
   });
 
   it("(b) ok result → set", () => {
@@ -290,7 +338,7 @@ describe("Dispatcher", () => {
   it("a set instance survives removal of its trip and still ends", () => {
     const d = new Dispatcher();
     toSet(d, { trips: [trip(), trip({ id: "t2", departure: 700 })] });
-    let r = d.step(input(T10 + 2, { trips: [] }));
+    let r = d.step(input(T10 + 2, { trips: [], interlocking: SET }));
     expect(r.instances.map((i) => [i.id, i.status])).toEqual([["t1#0", "set"]]);
     r = d.step(input(T10 + 3, { trips: [], ended: [{ routeId: "r1", reason: "completed" }] }));
     expect(r.instances[0].status).toBe("done");
@@ -302,5 +350,93 @@ describe("Dispatcher", () => {
     const r = d.step(input(T10, { trips: [trip({ id: "t2" }), trip()] }));
     expect(r.actions).toEqual([{ type: "request", instanceId: "t1#0", routeId: "r1" }]);
     expect(d.find("t2#0")?.reason).toBe("Zug ist noch auf einer anderen Fahrt");
+  });
+  it("set → failed on interlocking fault, no uncertain", () => {
+    const d = new Dispatcher();
+    toSet(d);
+    const r = d.step(input(T10 + 2, { interlocking: [{ routeId: "r1", status: "fault" }] }));
+    expect(r.instances[0]).toMatchObject({ status: "failed", reason: "Störung der Fahrstraße", since: T10 + 2 });
+    expect(r.actions).toEqual([]);
+  });
+
+  it("running → failed + uncertain on interlocking fault", () => {
+    const d = new Dispatcher();
+    toSet(d);
+    d.step(input(T10 + 2, { interlocking: RUNNING }));
+    const r = d.step(input(T10 + 3, { interlocking: [{ routeId: "r1", status: "fault" }] }));
+    expect(r.instances[0]).toMatchObject({ status: "failed", reason: "Störung der Fahrstraße" });
+    expect(r.actions).toEqual([{ type: "uncertain", trainId: "z1" }]);
+  });
+
+  it("running → failed + uncertain on ended fault; set → failed without uncertain on ended forced", () => {
+    const d = new Dispatcher();
+    toSet(d);
+    d.step(input(T10 + 2, { interlocking: RUNNING }));
+    let r = d.step(input(T10 + 3, { ended: [{ routeId: "r1", reason: "fault" }] }));
+    expect(r.instances[0]).toMatchObject({ status: "failed", reason: "Störung der Fahrstraße" });
+    expect(r.actions).toEqual([{ type: "uncertain", trainId: "z1" }]);
+
+    const e = new Dispatcher();
+    toSet(e);
+    r = e.step(input(T10 + 2, { ended: [{ routeId: "r1", reason: "forced" }] }));
+    expect(r.instances[0]).toMatchObject({ status: "failed", reason: "Notauflösung" });
+    expect(r.actions).toEqual([]);
+  });
+
+  it("ended completed directly in set → done + location", () => {
+    const d = new Dispatcher();
+    toSet(d);
+    const r = d.step(input(T10 + 2, { ended: [{ routeId: "r1", reason: "completed" }] }));
+    expect(r.instances[0]).toMatchObject({ status: "done", since: T10 + 2 });
+    expect(r.instances[0].reason).toBeUndefined();
+    expect(r.actions).toEqual([{ type: "location", trainId: "z1", blockId: "b2" }]);
+  });
+
+  it("route vanishes from the interlocking without ended → failed „Fahrstraße nicht mehr aktiv“", () => {
+    const d = new Dispatcher();
+    toSet(d);
+    let r = d.step(input(T10 + 2));
+    expect(r.instances[0]).toMatchObject({ status: "failed", reason: "Fahrstraße nicht mehr aktiv", since: T10 + 2 });
+    expect(r.actions).toEqual([]);
+    expect(d.hasActive("t1")).toBe(false);
+
+    const e = new Dispatcher();
+    toSet(e);
+    e.step(input(T10 + 2, { interlocking: RUNNING }));
+    r = e.step(input(T10 + 3));
+    expect(r.instances[0]).toMatchObject({ status: "failed", reason: "Fahrstraße nicht mehr aktiv" });
+    expect(r.actions).toEqual([{ type: "uncertain", trainId: "z1" }]);
+  });
+
+  it("grace: set by an ok result in this step survives a missing route; a setting status keeps set", () => {
+    const d = new Dispatcher();
+    d.step(input(T10));
+    let r = d.step(input(T10 + 1, { results: [{ instanceId: "t1#0", ok: true }] }));
+    expect(r.instances[0].status).toBe("set");
+    r = d.step(input(T10 + 2, { interlocking: [{ routeId: "r1", status: "setting" }] }));
+    expect(r.instances[0].status).toBe("set");
+    r = d.step(input(T10 + 3, { interlocking: [{ routeId: "r1", status: "whatever" }] }));
+    expect(r.instances[0].status).toBe("set");
+  });
+
+  it("an ended event wins over the missing-route rule in the same step", () => {
+    const d = new Dispatcher();
+    toSet(d);
+    d.step(input(T10 + 2, { interlocking: RUNNING }));
+    const r = d.step(input(T10 + 3, { ended: [{ routeId: "r1", reason: "completed" }] }));
+    expect(r.instances[0].status).toBe("done");
+    expect(r.actions).toEqual([{ type: "location", trainId: "z1", blockId: "b2" }]);
+  });
+
+  it("connected: false neither reconciles nor drops pending requests", () => {
+    const d = new Dispatcher();
+    toSet(d);
+    let r = d.step(input(T10 + 2, { connected: false }));
+    expect(r.instances[0].status).toBe("set");
+    const p = new Dispatcher();
+    p.step(input(T10));
+    p.step(input(T10 + 1, { connected: false }));
+    r = p.step(input(T10 + 2, { results: [{ instanceId: "t1#0", ok: true }] }));
+    expect(r.instances[0].status).toBe("set");
   });
 });

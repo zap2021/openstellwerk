@@ -52,6 +52,8 @@ const ENDED_TEXT: Record<EndedRoute["reason"], string> = {
   fault: "Störung der Fahrstraße",
 };
 
+const NO_ANSWER = "Keine Antwort der Sicherung";
+
 const byOrder = (a: Instance, b: Instance) => a.day - b.day || a.due - b.due || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
 export class Dispatcher {
@@ -70,6 +72,7 @@ export class Dispatcher {
     const actions: Action[] = [];
     this.sync(input.trips, day);
 
+    const wasActive = new Set(this.recs.filter((r) => this.isActive(r.inst.status)));
     for (const res of input.results) {
       const rec = [...this.requested].find((r) => r.inst.id === res.instanceId);
       if (!rec) continue;
@@ -78,6 +81,10 @@ export class Dispatcher {
       if (res.ok) this.change(rec, "set");
       else rec.inst.reason = res.reason ?? "Fahrstraße abgelehnt";
     }
+    // A request without an answer in the following connected step counts as lost: retry next step.
+    const unanswered = new Set(this.requested);
+    this.requested.clear();
+    for (const rec of unanswered) if (rec.inst.status === "waiting") rec.inst.reason = NO_ANSWER;
 
     for (const e of input.ended) {
       const rec = this.recs.find((r) => this.isActive(r.inst.status) && r.trip.routeId === e.routeId);
@@ -94,13 +101,17 @@ export class Dispatcher {
       }
     }
 
-    for (const s of input.interlocking) {
-      const rec = this.recs.find((r) => this.isActive(r.inst.status) && r.trip.routeId === s.routeId);
-      if (!rec) continue;
-      if (s.status === "running" && rec.inst.status === "set") this.change(rec, "running");
-      else if (s.status === "fault") {
-        const wasRunning = rec.inst.status === "running";
-        this.change(rec, "failed", ENDED_TEXT.fault);
+    // Reconcile with the interlocking. A record that only became `set` in this step is exempt from
+    // the "route missing" rule: the runner may have read the interlocking before the request ran.
+    const live = new Map(input.interlocking.map((s) => [s.routeId, s.status]));
+    for (const rec of this.recs) {
+      if (!this.isActive(rec.inst.status)) continue;
+      const wasRunning = rec.inst.status === "running";
+      const st = live.get(rec.trip.routeId);
+      if (st === undefined && !wasActive.has(rec)) continue;
+      if (st === "running" && !wasRunning) this.change(rec, "running");
+      else if (st === "fault" || st === undefined) {
+        this.change(rec, "failed", st === "fault" ? ENDED_TEXT.fault : "Fahrstraße nicht mehr aktiv");
         if (wasRunning) actions.push({ type: "uncertain", trainId: rec.trip.trainId });
       }
     }
@@ -118,11 +129,12 @@ export class Dispatcher {
         }
         this.change(rec, "waiting");
       }
-      if (inst.status !== "waiting" || this.requested.has(rec)) continue;
+      if (inst.status !== "waiting") continue;
       if (overdue > late) {
         this.change(rec, "failed", `Verspätungsgrenze überschritten: ${inst.reason ?? "unbekannt"}`);
         continue;
       }
+      if (unanswered.has(rec)) continue;
       const route = input.routes.get(rec.trip.routeId);
       if (!route) {
         this.change(rec, "failed", "Fahrstraße nicht mehr vorhanden");
