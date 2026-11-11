@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import Fastify from "fastify";
@@ -79,6 +79,8 @@ it("puts the signal back to Halt when the train enters and releases after it lef
   sim.extras.setRmBus(1, 2, false); // ... and leaves
   await until(() => status("r1") === undefined);
   expect((await post("/api/layout/tile/w1/set", { state: 0 })).statusCode).toBe(200); // unlocked again
+  expect(box.drainEnded()).toEqual([{ routeId: "r1", reason: "completed" }]);
+  expect(box.drainEnded()).toEqual([]);
 });
 
 it("refuses a route when its block is occupied, and lets the operator force-release", async () => {
@@ -131,4 +133,34 @@ it("lets signal Halt overtake a long switching job", async () => {
   await Promise.all([slow, urgent]);
   station.setTurnout = orig;
   expect(sent.filter((a) => a >= 100)).toEqual([101, 900, 102, 103, 104, 105, 106]); // one at a time, Halt right after the one in flight
+});
+
+it("tryRequestRoute reports instead of throwing", async () => {
+  await until(() => !(box as unknown as { draining: boolean }).draining);
+  expect(box.tryRequestRoute("r1")).toEqual({ ok: true });
+  const again = box.tryRequestRoute("r1");
+  expect(again.ok).toBe(false);
+  expect(again.ok === false && again.reason).toMatch(/schon angefordert/);
+  expect(box.tryRequestRoute("nope").ok).toBe(false);
+  box.releaseRoute("r1");
+  await until(() => !(box as unknown as { draining: boolean }).draining);
+});
+
+it("puts the route signals to Halt on the first connect only", async () => {
+  const sim2 = new Z21Simulator();
+  await sim2.listen(21573, "127.0.0.1");
+  const file = path.join(dir, "layout2.json");
+  writeFileSync(file, JSON.stringify(layout));
+  const st = new Station();
+  const box2 = new SignalBox(st, file, 5);
+  try {
+    sim2.extras.extAccessories.set(5, 16);
+    await st.connect("127.0.0.1", 21573);
+    await until(() => sim2.extras.extAccessories.get(5) === 0);
+    sim2.extras.extAccessories.set(5, 16);
+    st.client.disconnect();
+    await st.connect("127.0.0.1", 21573);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(sim2.extras.extAccessories.get(5)).toBe(16);
+  } finally { st.client.disconnect(); sim2.close(); void box2; }
 });

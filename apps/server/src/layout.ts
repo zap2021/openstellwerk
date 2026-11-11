@@ -3,7 +3,7 @@ import {
   EMPTY_LAYOUT, feedbackBuses, routeCommands, stateCount, tileCommands, turnoutAddresses, validateLayout,
   type Layout, type LayoutCommand,
 } from "@z21/protocol";
-import { Interlocking, type RouteState } from "@z21/interlocking";
+import { Interlocking, type EndedRoute, type RouteState } from "@z21/interlocking";
 import { JsonFile } from "./json-file.js";
 import type { RouteRun, Station } from "./station.js";
 
@@ -23,6 +23,7 @@ export class SignalBox {
   private routeRun?: RouteRun;
   private il: Interlocking;
   private ticker?: NodeJS.Timeout;
+  private haltedOnce = false;
 
   constructor(private station: Station, file?: string, private gapMs = 250) {
     this.file = new JsonFile(file);
@@ -33,7 +34,10 @@ export class SignalBox {
     }
     this.il = new Interlocking(this.layout);
     station.addExtra(() => ({ layout: this.layout, routeRun: this.routeRun, interlocking: this.il.states() }));
-    station.on("connected", () => this.sync());
+    station.on("connected", () => {
+      this.sync();
+      if (!this.haltedOnce) { this.haltedOnce = true; this.haltRouteSignals(); }
+    });
     station.on("state", () => this.evaluate());
     this.pin();
   }
@@ -144,15 +148,42 @@ export class SignalBox {
 
   /* ---------- interlocked routes ---------- */
 
-  /** Request a route with safety checks; the turnouts are driven in the background, the signal clears last. */
+  /** Request a route with safety checks; never throws. The turnouts are driven in the background, the signal clears last. */
+  tryRequestRoute(id: string): { ok: true } | { ok: false; reason: string } {
+    if (!this.station.client.connected) return { ok: false, reason: "Keine Verbindung zur Zentrale" };
+    try {
+      const out = this.il.request(id, this.station.snapshot(), Date.now());
+      if (!out.ok) return { ok: false, reason: out.reason ?? "Fahrstraße abgelehnt" };
+      this.dispatch(out.commands);
+      this.startTicker();
+      this.station.notify();
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, reason: (e as Error).message };
+    }
+  }
+
+  /** Request a route for HTTP callers: refusal becomes a 409. */
   requestRoute(id: string) {
     if (!this.station.client.connected) throw httpError(409, "not connected");
-    const out = this.il.request(id, this.station.snapshot(), Date.now());
-    if (!out.ok) throw httpError(409, out.reason ?? "Fahrstraße abgelehnt");
-    this.dispatch(out.commands);
-    this.startTicker();
-    this.station.notify();
+    const out = this.tryRequestRoute(id);
+    if (!out.ok) throw httpError(409, out.reason);
     return { ok: true };
+  }
+
+  /** Routes that ended since the last call, with the reason. */
+  drainEnded(): EndedRoute[] { return this.il.drainEnded(); }
+
+  /** Once after the first connect: signals of routes between blocks go to Halt, whatever the last session left. */
+  private haltRouteSignals() {
+    const ids = new Set<string>();
+    for (const r of this.layout.routes) {
+      if (!r.from && !r.to) continue;
+      if (r.signal) ids.add(r.signal);
+      for (const st of [...r.steps, ...(r.flank ?? [])]) ids.add(st.tileId);
+    }
+    const commands = this.layout.tiles.filter((t) => t.kind === "signal" && ids.has(t.id)).flatMap((t) => tileCommands(t, 0));
+    this.dispatch(commands, true);
   }
 
   /** Cancel a route; with force (Notauflösung) also while a train is inside. */
