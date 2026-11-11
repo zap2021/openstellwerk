@@ -214,3 +214,54 @@ describe("review findings", () => {
     expect([...il.lockedTiles()].sort()).toEqual(["s1", "w1", "w2"]);
   });
 });
+
+describe("ended routes", () => {
+  const train = (...occ: number[]) => ({ ...settled(), rmbus: [{ module: 1, inputs: [1, 2, 3, 4].map((i) => occ.includes(i)) }] });
+
+  it("reports a regular completion once", () => {
+    const il = new Interlocking(layout);
+    il.request("r1", live(), 0);
+    il.step(settled(), 100);
+    il.step(train(1), 200);
+    il.step(train(2), 300);
+    il.step(train(), 400);
+    expect(il.drainEnded()).toEqual([{ routeId: "r1", reason: "completed" }]);
+    expect(il.drainEnded()).toEqual([]);
+  });
+
+  it("reports an operator release as released", () => {
+    const il = new Interlocking(layout);
+    il.request("r1", live(), 0);
+    il.step(settled(), 100);
+    il.release("r1");
+    expect(il.drainEnded()).toEqual([{ routeId: "r1", reason: "released" }]);
+  });
+
+  it("reports an emergency release with a train inside as forced", () => {
+    const il = new Interlocking(layout);
+    il.request("r1", live(), 0);
+    il.step(settled(), 100);
+    il.step(train(1), 200);
+    il.release("r1", true);
+    expect(il.drainEnded()).toEqual([{ routeId: "r1", reason: "forced" }]);
+  });
+
+  it("reports releasing a faulted route as fault", () => {
+    const il = new Interlocking(layout);
+    il.request("r1", live(), 0);
+    il.step(settled(), 100);
+    il.step(settled({ 1: "p0" }), 200); // locked turnout moved
+    expect(il.states()[0]!.status).toBe("fault");
+    il.release("r1", true);
+    expect(il.drainEnded()).toEqual([{ routeId: "r1", reason: "fault" }]);
+  });
+
+  it("reset produces no event", () => {
+    const il = new Interlocking(layout);
+    il.request("r1", live(), 0);
+    il.release("r1");
+    il.request("r1", live(), 1);
+    il.reset();
+    expect(il.drainEnded()).toEqual([]);
+  });
+});

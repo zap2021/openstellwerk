@@ -38,6 +38,14 @@ export interface Outcome {
   commands: LayoutCommand[];
 }
 
+/** How a route ended: train arrived (completed), operator release (released), emergency release with a train inside (forced), release of a faulted route (fault). */
+export type EndReason = "completed" | "released" | "forced" | "fault";
+
+export interface EndedRoute {
+  routeId: string;
+  reason: EndReason;
+}
+
 const HALT = 0;
 const CLEAR = 1;
 
@@ -58,6 +66,7 @@ export interface InterlockingOptions {
 
 export class Interlocking {
   private readonly active = new Map<string, Active>();
+  private ended: EndedRoute[] = [];
   private readonly tiles: Map<string, Tile>;
   private readonly routes: Map<string, Route>;
   private readonly timeout: number;
@@ -156,6 +165,7 @@ export class Interlocking {
         this.to(a, "running", now);
       } else if (a.status === "running" && occupied.every((o) => o === false) && this.reachedTarget(a)) {
         this.active.delete(a.routeId);
+        this.ended.push({ routeId: a.routeId, reason: "completed" });
       } else if (a.status === "set" && occupied.some((o) => o === undefined)) {
         out.push(...this.fail(a, "Melder ausgefallen", now));
       }
@@ -173,11 +183,19 @@ export class Interlocking {
     if (a.status === "running" && !force) return refuse("Zug befindet sich in der Fahrstraße; nur per Notauflösung");
     const commands = a.signalCleared ? this.haltSignals(a) : [];
     this.active.delete(routeId);
+    this.ended.push({ routeId, reason: a.status === "fault" ? "fault" : a.status === "running" ? "forced" : "released" });
     return { ok: true, commands };
   }
 
+  /** Routes that ended since the last call, with the reason; returns and clears the list. */
+  drainEnded(): EndedRoute[] {
+    const out = this.ended;
+    this.ended = [];
+    return out;
+  }
+
   /** Drop everything without commands, e.g. after the layout changed. */
-  reset(): void { this.active.clear(); }
+  reset(): void { this.active.clear(); this.ended = []; }
 
   /* ---------- helpers ---------- */
 
