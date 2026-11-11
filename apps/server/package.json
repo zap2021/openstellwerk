@@ -13,6 +13,7 @@
     "@z21/interlocking": "*",
     "@z21/protocol": "*",
     "@z21/simulator": "*",
+    "@z21/timetable": "*",
     "fastify": "^5.2.0",
     "tsx": "^4.19.0"
   }

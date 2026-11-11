@@ -10,7 +10,8 @@
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "@z21/protocol": "*"
+    "@z21/protocol": "*",
+    "@z21/timetable": "*"
   },
   "devDependencies": {
     "@types/react": "^18.3.0",
