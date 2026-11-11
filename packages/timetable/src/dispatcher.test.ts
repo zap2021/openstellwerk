@@ -97,15 +97,74 @@ describe("Dispatcher", () => {
     expect(r.actions).toEqual([]);
   });
 
-  it("a pending request across midnight without answer is dropped with the old day", () => {
+  it("a pending request across midnight without answer stays waiting and is retried", () => {
     const trips = [trip({ departure: 23 * 60 + 59 })];
     const d = new Dispatcher();
     d.step(input(DAY - 1, { trips }));
     d.step(input(DAY, { trips }));
     const r = d.step(input(DAY + 1, { trips }));
-    expect(r.instances.map((i) => [i.day, i.id, i.status])).toEqual([[1, "t1#0", "planned"]]);
+    expect(r.instances.map((i) => [i.day, i.id, i.status])).toEqual([
+      [0, "t1#0", "waiting"],
+      [1, "t1#0", "planned"],
+    ]);
+    expect(r.actions).toEqual([{ type: "request", instanceId: "t1#0", routeId: "r1" }]);
+  });
+
+  it("midnight: a refused departure of 23:58 stays waiting at 00:01 and fails by its own late limit", () => {
+    const trips = [trip({ departure: 23 * 60 + 58 })];
+    const reason = "Block „Gleis 2“ ist besetzt";
+    const refuse = { trips, results: [{ instanceId: "t1#0", ok: false, reason }], requests: false };
+    const d = new Dispatcher();
+    d.step(input(DAY - 2 * M, { trips }));
+    d.step(input(DAY - 2 * M, refuse));
+    let r = d.step(input(DAY + M, { trips }));
+    expect(r.instances.map((i) => [i.day, i.id, i.status])).toEqual([
+      [0, "t1#0", "waiting"],
+      [1, "t1#0", "planned"],
+    ]);
+    expect(r.actions).toEqual([{ type: "request", instanceId: "t1#0", routeId: "r1" }]);
+    d.step(input(DAY + M, refuse));
+    d.step(input(DAY + 3 * M, { trips }));
+    r = d.step(input(DAY + 3 * M, refuse)); // 00:03 = 23:58 + 5 min: still within the limit
+    expect(r.instances[0]).toMatchObject({ day: 0, status: "waiting" });
+    r = d.step(input(DAY + 3 * M + 1, { trips }));
+    expect(r.instances[0]).toMatchObject({ day: 0, status: "failed", reason: `Verspätungsgrenze überschritten: ${reason}` });
+    expect(r.instances[1]).toMatchObject({ day: 1, status: "planned" });
     expect(r.actions).toEqual([]);
-    expect(d.hasActive("t1")).toBe(false);
+  });
+
+  it("midnight: a refused departure of 23:58 can still become set after midnight, and be cancelled", () => {
+    const trips = [trip({ departure: 23 * 60 + 58 })];
+    const refuse = { trips, results: [{ instanceId: "t1#0", ok: false, reason: "besetzt" }], requests: false };
+    const d = new Dispatcher();
+    d.step(input(DAY - 2 * M, { trips }));
+    d.step(input(DAY - 2 * M, refuse));
+    expect(d.find("t1#0")).toMatchObject({ day: 0, status: "waiting" });
+    d.step(input(DAY + M, { trips }));
+    let r = d.step(input(DAY + M, { trips, results: [{ instanceId: "t1#0", ok: true }], interlocking: SET, requests: false }));
+    expect(r.instances[0]).toMatchObject({ day: 0, status: "set" });
+
+    const e = new Dispatcher();
+    e.step(input(DAY - 2 * M, { trips }));
+    e.step(input(DAY - 2 * M, refuse));
+    e.step(input(DAY + M, { trips, requests: false }));
+    expect(e.find("t1#0")).toMatchObject({ day: 0, status: "waiting" }); // the open one, not tomorrow's planned
+    expect(e.cancel("t1#0")).toBe(true);
+    r = e.step(input(DAY + M + 1, { trips }));
+    expect(r.instances.map((i) => [i.day, i.status])).toEqual([
+      [0, "cancelled"],
+      [1, "planned"],
+    ]);
+  });
+
+  it("midnight: the 5 most recent finished instances of the previous day stay for the board", () => {
+    const trips = [trip({ departure: 23 * 60, repeat: { every: 1, until: 23 * 60 + 10 } })]; // 11 departures
+    const d = new Dispatcher();
+    d.step(input(DAY - 30 * M, { trips })); // 23:30: all missed
+    const r = d.step(input(DAY + 10 * M, { trips }));
+    const old = r.instances.filter((i) => i.day === 0);
+    expect(old.map((i) => [i.id, i.status])).toEqual([6, 7, 8, 9, 10].map((n) => [`t1#${n}`, "cancelled"]));
+    expect(r.instances.filter((i) => i.day === 1 && i.status === "planned")).toHaveLength(11);
   });
 
   it("(b) ok result → set", () => {
@@ -263,15 +322,18 @@ describe("Dispatcher", () => {
     d.step({ ...input(0, { trips, clock: c2 }), interlocking: [{ routeId: "r1", status: "running" }] });
     expect(status(d)).toBe("running");
     const r = d.step({ ...input(0, { trips, clock: c2 }), now: 1000, interlocking: [{ routeId: "r1", status: "running" }] });
-    const old = r.instances.find((i) => i.day === 0);
-    expect(old).toMatchObject({ id: "t1#0", status: "running" });
+    const old = r.instances.filter((i) => i.day === 0);
+    expect(old.map((i) => [i.id, i.status])).toEqual([
+      ["t2#0", "cancelled"], // yesterday's missed 06:00 stays as a finished row for the board
+      ["t1#0", "running"],
+    ]);
     const fresh = r.instances.filter((i) => i.day === 1);
     expect(fresh.map((i) => [i.id, i.status])).toEqual([
       ["t2#0", "planned"],
       ["t1#0", "planned"],
     ]);
-    expect(r.instances).toHaveLength(3);
-    expect(r.instances[0]).toBe(old);
+    expect(r.instances).toHaveLength(4);
+    expect(r.instances.slice(0, 2)).toEqual(old);
   });
 
   it("(l) trip with a missing route → failed „Fahrstraße nicht mehr vorhanden“, no exception", () => {

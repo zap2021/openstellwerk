@@ -58,6 +58,9 @@ const ENDED_TEXT: Record<EndedRoute["reason"], string> = {
 };
 
 const NO_ANSWER = "Keine Antwort der Sicherung";
+const FINISHED = new Set<Status>(["done", "failed", "cancelled"]);
+/** Finished instances of earlier model days kept after midnight, so the board does not empty. */
+const MAX_PREVIOUS_FINISHED = 5;
 
 const byOrder = (a: Instance, b: Instance) => a.day - b.day || a.due - b.due || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
@@ -202,15 +205,23 @@ export class Dispatcher {
   }
 
   /**
-   * Keeps active instances (set/running or with a pending request) whatever happens; every other
-   * instance must belong to the current model day and to a trip (and departure) that still exists.
+   * Keeps active instances (set/running or with a pending request) whatever happens. Of earlier model days it also
+   * keeps the `waiting` instances (until they become set or fail by their own late limit) and the 5 most recent
+   * finished ones (for the board); earlier-day `planned` instances are dropped. Every other instance must belong
+   * to the current model day. All kept instances need a trip (and departure) that still exists.
    * Missing departures of the current day are added as planned.
    */
   private sync(trips: Trip[], day: number): void {
     const byId = new Map(trips.map((tr) => [tr.id, tr]));
+    const recentFinished = new Set(
+      this.recs
+        .filter((r) => r.inst.day < day && FINISHED.has(r.inst.status))
+        .sort((a, b) => a.inst.since - b.inst.since || byOrder(a.inst, b.inst))
+        .slice(-MAX_PREVIOUS_FINISHED),
+    );
     this.recs = this.recs.filter((r) => {
       if (this.isActive(r.inst.status) || this.requested.has(r)) return true;
-      if (r.inst.day !== day) return false;
+      if (r.inst.day !== day && !(r.inst.day < day && (r.inst.status === "waiting" || recentFinished.has(r)))) return false;
       const trip = byId.get(r.inst.tripId);
       if (!trip) return false;
       const deps = departures(trip);
@@ -243,11 +254,13 @@ export class Dispatcher {
     return s === "set" || s === "running";
   }
 
-  /** Latest instance with this id (ids repeat across model days). */
+  /**
+   * Instance with this id (ids repeat across model days): the earliest one that is still planned or waiting
+   * (an earlier day's waiting departure before today's planned one), else the latest.
+   */
   private lookup(instanceId: string): Rec | undefined {
-    return this.sorted()
-      .filter((r) => r.inst.id === instanceId)
-      .pop();
+    const same = this.sorted().filter((r) => r.inst.id === instanceId);
+    return same.find((r) => r.inst.status === "planned" || r.inst.status === "waiting") ?? same.pop();
   }
 
   private sorted(): Rec[] {
