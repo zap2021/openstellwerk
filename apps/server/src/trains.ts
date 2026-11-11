@@ -100,12 +100,19 @@ export class TrainStore {
   private persist() { this.store.write(() => this.list()); }
 }
 
-export function registerTrainRoutes(app: FastifyInstance, store: TrainStore, deps: { blockIds: () => Set<string>; onRemove: (trainId: string) => void }) {
+export function registerTrainRoutes(
+  app: FastifyInstance,
+  store: TrainStore,
+  deps: { blockIds: () => Set<string>; onRemove: (trainId: string) => void; hasActiveDeparture: (trainId: string) => boolean },
+) {
   app.get("/api/trains", async () => store.list());
   app.post<{ Body: unknown }>("/api/trains", async (req) => store.save(req.body));
   app.put<{ Params: { id: string }; Body: unknown }>("/api/trains/:id", async (req) => store.save(req.body, req.params.id));
   app.delete<{ Params: { id: string } }>("/api/trains/:id", async (req) => {
-    if (store.get(req.params.id)) deps.onRemove(req.params.id);
+    if (store.get(req.params.id)) {
+      if (deps.hasActiveDeparture(req.params.id)) throw err("Der Zug hat eine aktive Abfahrt", 409); // before anything is removed
+      deps.onRemove(req.params.id);
+    }
     return { removed: store.remove(req.params.id) };
   });
   app.put<{ Params: { id: string }; Body: { blockId?: string | null } }>("/api/trains/:id/location", async (req) => {

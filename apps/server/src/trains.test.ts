@@ -14,7 +14,7 @@ async function setup(f?: string) {
   const store = new TrainStore(f);
   const removed: string[] = [];
   const app = Fastify();
-  registerTrainRoutes(app, store, { blockIds: () => new Set(["b1", "b2"]), onRemove: (id) => removed.push(id) });
+  registerTrainRoutes(app, store, { blockIds: () => new Set(["b1", "b2"]), onRemove: (id) => removed.push(id), hasActiveDeparture: () => false });
   await app.ready();
   return { store, app, removed };
 }

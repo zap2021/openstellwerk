@@ -142,7 +142,7 @@ registerLayoutRoutes(app, box);
 /* ---------- trains and timetable ---------- */
 const trains = new TrainStore(path.join(dataDir, "trains.json"));
 const runner = new TimetableRunner(station, box, trains, path.join(dataDir, "timetable.json"));
-registerTrainRoutes(app, trains, { blockIds: () => new Set((box.get().blocks ?? []).map((b) => b.id)), onRemove: (id) => runner.removeTripsOf(id) });
+registerTrainRoutes(app, trains, { blockIds: () => new Set((box.get().blocks ?? []).map((b) => b.id)), onRemove: (id) => runner.removeTripsOf(id), hasActiveDeparture: (id) => runner.trainHasActiveDeparture(id) });
 registerTimetableRoutes(app, runner);
 runner.start();
 const demo = new Demo(station, box, 1, runner); // used by /api/connect above, which only runs after start-up

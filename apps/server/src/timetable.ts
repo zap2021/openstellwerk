@@ -108,7 +108,12 @@ export class TimetableRunner {
     return true;
   }
 
-  /** The train is being deleted: its trips go with it, whatever state they are in. */
+  /** True while a trip of this train has a waiting, set or running departure; the train cannot be deleted then. */
+  trainHasActiveDeparture(trainId: string): boolean {
+    return this.trips.some((t) => t.trainId === trainId && this.dispatcher.hasActive(t.id));
+  }
+
+  /** The train is being deleted: its trips go with it (callers check trainHasActiveDeparture first). */
   removeTripsOf(trainId: string): void {
     const before = this.trips.length;
     this.trips = this.trips.filter((t) => t.trainId !== trainId);

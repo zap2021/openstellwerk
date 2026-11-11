@@ -45,7 +45,7 @@ let t1 = "", t2 = "";
 
 beforeAll(async () => {
   await sim.listen(21572, "127.0.0.1");
-  registerTrainRoutes(app, trains, { blockIds: () => new Set((box.get().blocks ?? []).map((b) => b.id)), onRemove: (id) => runner.removeTripsOf(id) });
+  registerTrainRoutes(app, trains, { blockIds: () => new Set((box.get().blocks ?? []).map((b) => b.id)), onRemove: (id) => runner.removeTripsOf(id), hasActiveDeparture: (id) => runner.trainHasActiveDeparture(id) });
   registerTimetableRoutes(app, runner);
   await app.ready();
   box.save(layout);
@@ -407,4 +407,29 @@ it("the snapshot carries the server time, which alone causes no broadcast", asyn
   await sleep(150); // several ticks, nothing changes but the time
   station.notify = orig;
   expect(notified).toBe(0);
+});
+
+it("DELETE /api/trains/:id is refused while the train has an active departure", async () => {
+  const t3 = trains.save({ name: "S 3", address: 5 }).id;
+  trains.setLocation(t3, "b1");
+  at("18:00", false);
+  const trip = runner.saveTrip({ trainId: t3, routeId: "r1", departure: 1081 });
+  const id = `${trip.id}#0`;
+  at("18:01");
+  await until(() => inst(id)?.status === "set");
+  const del = await app.inject({ method: "DELETE", url: `/api/trains/${t3}` });
+  expect(del.statusCode).toBe(409);
+  expect(del.json().message).toBe("Der Zug hat eine aktive Abfahrt");
+  expect(trains.get(t3)).toBeDefined();
+  expect(runner.get().trips.map((t) => t.id)).toContain(trip.id);
+  expect(inst(id)?.status).toBe("set");
+
+  await until(() => route("r1") === "set");
+  box.releaseRoute("r1");
+  await until(() => inst(id)?.status === "cancelled");
+  const ok = await app.inject({ method: "DELETE", url: `/api/trains/${t3}` });
+  expect(ok.statusCode).toBe(200);
+  expect(trains.get(t3)).toBeUndefined();
+  expect(runner.get().trips.some((t) => t.trainId === t3)).toBe(false);
+  await settle();
 });
