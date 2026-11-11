@@ -184,7 +184,8 @@ export function boardRows(instances: Instance[], trips: Trip[], trains: Train[],
     });
   }
   const open = rows.filter((r) => r.open).slice(0, limit);
-  const finished = rows.filter((r) => !r.open).slice(-KEEP_FINISHED).slice(-Math.max(0, limit - open.length));
+  const room = Math.min(KEEP_FINISHED, Math.max(0, limit - open.length));
+  const finished = room > 0 ? rows.filter((r) => !r.open).slice(-room) : [];
   const keep = new Set([...open, ...finished]);
   return rows.filter((r) => keep.has(r)).map((r) => r.row);
 }
