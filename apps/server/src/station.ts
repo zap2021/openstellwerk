@@ -109,6 +109,8 @@ export interface StationState {
   routeRun?: RouteRun;
   /** Interlocked routes that are not idle (see @z21/interlocking). */
   interlocking?: RouteState[];
+  /** true while the built-in simulator stands in for a real command station */
+  demo?: boolean;
 }
 
 /** Progress of a route that is being set. */
@@ -117,6 +119,8 @@ export interface RouteRun { routeId: string; done: number; total: number; runnin
 /** Holds the live model of the connected command station and exposes high-level operations. */
 export class Station extends EventEmitter<{ state: [StationState]; loconet: [LocoNetLine]; connected: [] }> {
   /** Lets other modules (signal box) add their part to the snapshot that every browser receives. */
+  /** Set by the demo mode; shown in the snapshot so the UI can say it is not real. */
+  demo = false;
   extra: () => Pick<StationState, "layout" | "routeRun" | "interlocking"> = () => ({});
   /** Monitors that must stay on no matter which tab is open (the track diagram needs its detectors). */
   private pinned: Partial<Monitors> = {};
@@ -178,6 +182,7 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
       modes: this.modes,
       garage: this.garage.list(),
       scan: this.scanState,
+      demo: this.demo || undefined,
       ...this.extra(),
     };
   }

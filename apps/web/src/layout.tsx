@@ -205,6 +205,7 @@ export function DisplayView({ state }: { state?: StationState }) {
         <div className="display-routes">
           {active.length === 0 ? <span className="muted">Keine Fahrstraße eingestellt</span> : active.map((r) => <span key={r.id} className={`chip ${il.get(r.id)!.status}`}>{r.name} · {STATUS[il.get(r.id)!.status]}</span>)}
         </div>
+        {state?.demo && <span className="demo-badge">DEMO</span>}
         <span className={`dot ${state?.connected ? "ok" : "bad"}`} title={state?.connected ? "mit Zentrale verbunden" : "keine Verbindung"} />
       </header>
       {layout && layout.tiles.length > 0

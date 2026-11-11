@@ -50,7 +50,8 @@ function Main({ logout }: { logout?: () => void }) {
       <header>
         <h1>Z21 Web</h1>
         <span className={`dot ${connected ? "ok" : online ? "warn" : "bad"}`} />
-        <span>{connected ? `${state?.hw?.hwName ?? "Z21"} @ ${state?.host}` : online ? "nicht mit Zentrale verbunden" : "Server offline"}</span>
+        {state?.demo && <span className="demo-badge" title="Simulierte Zentrale ohne Hardware">DEMO</span>}
+        <span>{state?.demo ? "Simulierte Zentrale" : connected ? `${state?.hw?.hwName ?? "Z21"} @ ${state?.host}` : online ? "nicht mit Zentrale verbunden" : "Server offline"}</span>
         {connected && kind !== "decoder" && state && <PowerBar state={state} run={run} />}
         {logout && <button className={connected ? "" : "push"} onClick={logout} title="Abmelden">Abmelden</button>}
       </header>
@@ -122,6 +123,22 @@ function StationTab({ state, run }: { state?: StationState; run: Run }) {
   return (
     <section>
       <h2>Verbindung</h2>
+      <div className={`panel demo-panel${state?.demo ? " on" : ""}`}>
+        <div className="row">
+          <strong>Demo-Modus</strong>
+          <span className="hint grow">
+            {state?.demo
+              ? "Läuft: eine simulierte Zentrale ersetzt die Hardware. Fahrstraßen einstellen, ein virtueller Zug fährt sie ab."
+              : "Alle Funktionen ohne Hardware ausprobieren. Startet eine simulierte Zentrale im Server und lädt, falls leer, das Beispiel-Gleisbild."}
+          </span>
+          <button
+            className={state?.demo ? "danger" : "active"}
+            disabled={!state?.demo && !!state?.connected}
+            title={!state?.demo && state?.connected ? "Zuerst die Verbindung zur Zentrale trennen" : undefined}
+            onClick={() => run(post("/api/demo", { on: !state?.demo }))}
+          >{state?.demo ? "Demo beenden" : "Demo starten"}</button>
+        </div>
+      </div>
       <div className="row">
         <input value={host} onChange={(e) => setHost(e.target.value)} placeholder="IP der Z21" />
         <button onClick={() => run(post("/api/connect", { host }))}>Verbinden</button>

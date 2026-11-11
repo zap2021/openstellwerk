@@ -12,6 +12,7 @@ import { CameraStore, registerCameraRoutes } from "./cameras.js";
 import { discover } from "./z21-client.js";
 import { exposureProblem, registerAuth } from "./auth.js";
 import { registerLayoutRoutes, SignalBox } from "./layout.js";
+import { Demo, registerDemoRoutes } from "./demo.js";
 import { readTls, tlsFilesFromEnv, watchTls } from "./tls.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -46,10 +47,11 @@ app.get("/api/state", async () => station.snapshot());
 app.get("/api/discover", async () => discover());
 
 app.post<{ Body: { host: string; port?: number } }>("/api/connect", async (req) => {
+  await demo.stop(); // a real connection replaces the demo
   await station.connect(String(req.body.host), req.body.port);
   return station.snapshot();
 });
-app.post("/api/disconnect", async () => { station.client.disconnect(); return station.snapshot(); });
+app.post("/api/disconnect", async () => { await demo.stop(); station.client.disconnect(); return station.snapshot(); });
 
 app.post<{ Body: { on: boolean } }>("/api/power", async (req) => { station.setPower(!!req.body.on); return { ok: true }; });
 app.post("/api/estop", async () => { station.emergencyStop(); return { ok: true }; });
@@ -129,7 +131,10 @@ app.put<{ Params: { addr: string }; Body: { mode: string } }>("/api/turnout/:add
 
 /* ---------- more driving ---------- */
 /* ---------- signal box: track diagram, routes ---------- */
-registerLayoutRoutes(app, new SignalBox(station, path.join(dataDir, "layout.json")));
+const box = new SignalBox(station, path.join(dataDir, "layout.json"));
+const demo = new Demo(station, box); // used by /api/connect above, which only runs after start-up
+registerLayoutRoutes(app, box);
+registerDemoRoutes(app, demo);
 
 /* ---------- cameras ---------- */
 registerCameraRoutes(app, new CameraStore(path.join(dataDir, "cameras.json")));

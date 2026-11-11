@@ -12,6 +12,7 @@
     "@fastify/websocket": "^11.0.0",
     "@z21/interlocking": "*",
     "@z21/protocol": "*",
+    "@z21/simulator": "*",
     "fastify": "^5.2.0",
     "tsx": "^4.19.0"
   }

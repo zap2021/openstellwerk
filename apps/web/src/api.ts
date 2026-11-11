@@ -57,6 +57,8 @@ export interface StationState {
   layout?: Layout;
   routeRun?: { routeId: string; done: number; total: number; running: boolean; error?: string };
   /** Interlocked routes that are not idle (mirrors RouteState of @z21/interlocking). */
+  /** true while the built-in simulator stands in for a real command station */
+  demo?: boolean;
   interlocking?: { routeId: string; status: "setting" | "set" | "running" | "fault"; since: number; message?: string }[];
   scan?: { running: boolean; from: number; to: number; current: number; found: number[]; error?: string };
 }
