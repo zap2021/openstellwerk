@@ -2,10 +2,13 @@ import { useRef, useState } from "react";
 import { api } from "./api";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
-type Part = "garage" | "layout" | "cameras";
+type Part = "garage" | "layout" | "cameras" | "trains" | "timetable";
 
-const LABEL: Record<Part, string> = { garage: "Loks (Namen, Funktionsbezeichnungen, von Hand ergänzte Loks)", layout: "Gleisbild mit Blöcken und Fahrstraßen", cameras: "Kameras" };
-const countOf = (b: Record<string, unknown>, p: Part) => (p === "layout" ? (b.layout as { tiles?: unknown[] } | undefined)?.tiles?.length : (b[p] as unknown[] | undefined)?.length);
+const LABEL: Record<Part, string> = { garage: "Loks (Namen, Funktionsbezeichnungen, von Hand ergänzte Loks)", layout: "Gleisbild mit Blöcken und Fahrstraßen", cameras: "Kameras", trains: "Züge (ohne Standort)", timetable: "Fahrplan" };
+const countOf = (b: Record<string, unknown>, p: Part) =>
+  p === "layout" ? (b.layout as { tiles?: unknown[] } | undefined)?.tiles?.length
+  : p === "timetable" ? (b.timetable as { trips?: unknown[] } | undefined)?.trips?.length
+  : (b[p] as unknown[] | undefined)?.length;
 
 /** Backup of everything maintained in this application that the Z21 does not store. */
 export function BackupPanel({ run }: { run: Run }) {
@@ -66,7 +69,7 @@ export function BackupPanel({ run }: { run: Run }) {
               return (
                 <label key={p} className="check">
                   <input type="checkbox" disabled={n === undefined} checked={chosen.includes(p)} onChange={(e) => setChosen(e.target.checked ? [...chosen, p] : chosen.filter((x) => x !== p))} />
-                  {LABEL[p]}{n === undefined ? " – nicht in der Datei" : ` – ${n} ${p === "layout" ? "Felder" : "Einträge"}`}
+                  {LABEL[p]}{n === undefined ? " – nicht in der Datei" : ` – ${n} ${p === "layout" ? "Felder" : p === "timetable" ? "Fahrten" : "Einträge"}`}
                 </label>
               );
             })}

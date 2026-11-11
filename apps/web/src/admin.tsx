@@ -7,6 +7,8 @@ import { BoostersTab, ClockTab, DeviceTab, RmBusTab } from "./devices";
 import { LayoutEditorPage } from "./layout";
 import { DetectorsTab, LocoNetTab, RailComTab } from "./monitors";
 import { NetworkTab } from "./network";
+import { TimetableAdmin } from "./timetable";
+import { TrainsPage } from "./trains";
 import type { Route } from "./route";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
@@ -14,29 +16,29 @@ const post = (url: string, body?: unknown) => api("POST", url, body);
 const put = (url: string, body?: unknown) => api("PUT", url, body);
 
 export type AdminPage =
-  | "station" | "network" | "layout" | "cameras" | "backup" | "cv" | "rmbus" | "clock" | "boosters" | "device"
+  | "station" | "network" | "layout" | "trains" | "timetable" | "cameras" | "backup" | "cv" | "rmbus" | "clock" | "boosters" | "device"
   | "railcom" | "loconet" | "detectors" | "monitor";
 
 /** The administration area, grouped; the order here is the order in the navigation. */
 export const ADMIN_GROUPS: { title: string; pages: [AdminPage, string][] }[] = [
   { title: "Verbindung", pages: [["station", "Zentrale und Demo"], ["network", "Netzwerk"]] },
-  { title: "Anlage", pages: [["layout", "Gleisbild bearbeiten"], ["cameras", "Kameras einrichten"], ["backup", "Datensicherung"]] },
+  { title: "Anlage", pages: [["layout", "Gleisbild bearbeiten"], ["trains", "Züge"], ["timetable", "Fahrplan"], ["cameras", "Kameras einrichten"], ["backup", "Datensicherung"]] },
   { title: "Programmieren", pages: [["cv", "CV-Programmierung"]] },
   { title: "Hardware", pages: [["rmbus", "R-BUS"], ["clock", "Modellbahn-Uhr"], ["boosters", "Booster"], ["device", "Gerät"]] },
   { title: "Diagnose", pages: [["railcom", "RailCom"], ["loconet", "LocoNet"], ["detectors", "Melder"], ["monitor", "Rohdaten"]] },
 ];
 
 /** Pages that start with a heading of their own; the others get the page title from the navigation. */
-const HAS_OWN_HEADING: AdminPage[] = ["station", "layout", "cameras", "backup"];
+const HAS_OWN_HEADING: AdminPage[] = ["station", "layout", "trains", "timetable", "cameras", "backup"];
 
 /** A Z21 offers everything; zLink boosters/decoders (behind a 10838 Z21 pro LINK) only a small part of the protocol. */
 export function adminPages(state?: StationState): AdminPage[] {
   const kind = state?.hw?.kind;
   const always: AdminPage[] = ["station", "cameras", "backup", "monitor"];
-  if (!state?.connected) return [...always, ...(state ? (["layout"] as AdminPage[]) : [])];
+  if (!state?.connected) return [...always, ...(state ? (["layout", "trains", "timetable"] as AdminPage[]) : [])];
   if (kind === "booster") return [...always, "device"];
   if (kind === "decoder") return [...always, "device", "cv"];
-  return [...always, "layout", "network", "cv", "rmbus", "clock", "boosters", "railcom", "loconet", "detectors"];
+  return [...always, "layout", "trains", "timetable", "network", "cv", "rmbus", "clock", "boosters", "railcom", "loconet", "detectors"];
 }
 
 function StationTab({ state, run }: { state?: StationState; run: Run }) {
@@ -241,6 +243,8 @@ export function AdminView({ state, wire, loconet, clearWire, clearLoconet, camer
         {current === "backup" && <BackupPanel run={run} />}
         {current === "monitor" && <Monitor wire={wire} clear={clearWire} />}
         {current === "layout" && state && <LayoutEditorPage state={state} run={run} done={() => go({ area: "admin", page: "station" })} />}
+        {current === "trains" && state && <TrainsPage state={state} run={run} />}
+        {current === "timetable" && state && <TimetableAdmin state={state} run={run} />}
         {connected && state && (
           <>
             {current === "network" && <NetworkTab state={state} run={run} />}

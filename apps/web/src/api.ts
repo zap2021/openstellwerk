@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Layout } from "@z21/protocol/layout";
+import type { TimetableSnapshot } from "@z21/timetable";
 
 export type MonitorKind = "railcom" | "loconet" | "detectors" | "rmbus" | "boosters" | "clock";
 
@@ -55,6 +56,7 @@ export interface StationState {
   modes: { loco: Record<number, string>; turnout: Record<number, string> };
   garage: GarageLoco[];
   layout?: Layout;
+  timetable?: TimetableSnapshot;
   routeRun?: { routeId: string; done: number; total: number; running: boolean; error?: string };
   /** Interlocked routes that are not idle (mirrors RouteState of @z21/interlocking). */
   /** true while the built-in simulator stands in for a real command station */
