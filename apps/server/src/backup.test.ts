@@ -2,18 +2,22 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import Fastify from "fastify";
-import { afterAll, beforeAll, expect, it } from "vitest";
+import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { BackupService, registerBackupRoutes } from "./backup.js";
 import { CameraStore } from "./cameras.js";
 import { Garage } from "./garage.js";
 import { SignalBox } from "./layout.js";
 import { Station } from "./station.js";
+import { TrainStore } from "./trains.js";
+import { TimetableRunner } from "./timetable.js";
 
 const dir = mkdtempSync(path.join(tmpdir(), "backup-"));
 const garage = new Garage();
 const station = new Station(garage);
 const box = new SignalBox(station, path.join(dir, "layout.json"));
 const cameras = new CameraStore();
+const trains = new TrainStore();
+const runner = new TimetableRunner(station, box, trains);
 const app = Fastify();
 
 const layout = {
@@ -23,7 +27,7 @@ const layout = {
 };
 
 beforeAll(async () => {
-  registerBackupRoutes(app, new BackupService(garage, box, cameras, () => station.notify()));
+  registerBackupRoutes(app, new BackupService(garage, box, cameras, trains, runner, () => station.notify()));
   await app.ready();
   garage.upsert(3, { name: "V 200", functionNames: { 0: "Licht", 2: "Horn" }, source: "manual" });
   garage.upsert(1000, { name: "Dampflok" });
@@ -62,7 +66,7 @@ it("restores everything into a fresh state and keeps the camera password without
 
   const res = await restore({ backup });
   expect(res.statusCode).toBe(200);
-  expect(res.json()).toEqual({ restored: { garage: 2, layout: 2, cameras: 1 } });
+  expect(res.json()).toEqual({ restored: { garage: 2, layout: 2, cameras: 1, trains: 0, timetable: 0 } });
   expect(garage.list().map((l) => l.address)).toEqual([3, 1000]);
   expect(garage.get(3)?.functionNames).toEqual({ 0: "Licht", 2: "Horn" });
   expect(box.get().blocks).toHaveLength(1);
@@ -103,6 +107,82 @@ it("rejects broken files and changes nothing, even when another part is fine", a
   await bad((b) => { b.garage = [{ address: 5 }, { address: 5 }]; }, /doppelt/);
   await bad((b) => { (b.layout as { cols: number }).cols = 1; }, /Spaltenzahl/); // garage is valid, layout is not
   await bad((b) => { (b.cameras as { url: string }[])[0]!.url = "rtsp://cam"; }, /Kamera 1.*RTSP/);
-  await bad((b) => { delete b.garage; delete b.layout; delete b.cameras; }, /nichts/);
+  await bad((b) => { delete b.garage; delete b.layout; delete b.cameras; delete b.trains; delete b.timetable; }, /nichts/);
   expect((await restore({ backup: null })).statusCode).toBe(400);
+});
+
+/* ---------- trains and timetable ---------- */
+const trainsOf = () => trains.list().map(({ location: _l, ...t }) => t);
+const setup = () => {
+  trains.replaceAll([]); runner.replaceAll({ trips: [], lateLimit: 5 });
+  box.save({ ...layout, routes: [{ id: "r1", name: "1 nach 1", from: "b1", to: "b1", steps: [] }] });
+  trains.replaceAll([{ id: "t1", name: "RE 1", address: 3 }]);
+  runner.replaceAll({ trips: [{ id: "f1", trainId: "t1", routeId: "r1", departure: 480, dwell: 2 }], lateLimit: 7 });
+};
+
+it("round-trips trains (without location) and the timetable", async () => {
+  setup();
+  trains.setLocation("t1", "b1");
+  const b = await get();
+  expect(b.trains).toHaveLength(1);
+  expect(b.trains[0].location).toBeUndefined();
+  expect(b.timetable).toEqual({ trips: [{ id: "f1", trainId: "t1", routeId: "r1", departure: 480, dwell: 2 }], settings: { lateLimit: 7 } });
+  const expected = trainsOf();
+  trains.replaceAll([]); runner.replaceAll({ trips: [], lateLimit: 5 });
+  const res = await restore({ backup: b });
+  expect(res.json()).toEqual({ restored: { garage: expect.any(Number), layout: 2, cameras: 1, trains: 1, timetable: 1 } });
+  expect(trainsOf()).toEqual(expected);
+  expect(runner.get().trips).toEqual(b.timetable.trips);
+  expect(runner.get().lateLimit).toBe(7);
+});
+
+it("restores an old backup without trains and timetable and leaves them alone", async () => {
+  setup();
+  const b = await get(); delete b.trains; delete b.timetable;
+  const res = await restore({ backup: b });
+  expect(res.statusCode).toBe(200);
+  expect(res.json().restored.trains).toBeUndefined();
+  expect(trains.list()).toHaveLength(1);
+  expect(runner.get().trips).toHaveLength(1);
+});
+
+it("rejects a trip with an unknown train and changes nothing", async () => {
+  setup();
+  const b = await get();
+  b.timetable.trips[0].trainId = "gibtsnicht";
+  garage.upsert(77, { name: "Bleibt" });
+  const res = await restore({ backup: b });
+  expect(res.statusCode).toBe(400);
+  expect(res.json().message).toMatch(/Zug nicht gefunden/);
+  expect(garage.get(77)).toBeDefined();
+  expect(trains.list()).toHaveLength(1);
+  expect(runner.get().lateLimit).toBe(7);
+  const c = await get(); c.timetable.settings.lateLimit = 9999;
+  expect((await restore({ backup: c })).statusCode).toBe(400);
+});
+
+it("restoring only trains fails when a current trip points to a removed train", async () => {
+  setup();
+  const b = await get();
+  b.trains = [{ id: "t2", name: "Anderer", address: 4 }];
+  const res = await restore({ backup: b, parts: ["trains"] });
+  expect(res.statusCode).toBe(400);
+  expect(res.json().message).toBe("Fahrt f1 verweist auf einen Zug, den es nach der Wiederherstellung nicht mehr gibt");
+  expect(trains.list().map((t) => t.id)).toEqual(["t1"]);
+  b.trains = [{ id: "t1", name: "Umbenannt", address: 3 }];
+  expect((await restore({ backup: b, parts: ["trains"] })).statusCode).toBe(200);
+  expect(runner.get().trips).toHaveLength(1);
+});
+
+it("refuses to restore the timetable while a departure is running, changing nothing", async () => {
+  setup();
+  const b = await get();
+  garage.upsert(78, { name: "Auch bleibt" });
+  b.garage = [{ address: 5 }];
+  const spy = vi.spyOn(runner, "hasRunningDeparture").mockReturnValue(true);
+  const res = await restore({ backup: b });
+  spy.mockRestore();
+  expect(res.statusCode).toBe(409);
+  expect(garage.get(78)).toBeDefined();
+  expect(garage.get(5)).toBeUndefined();
 });

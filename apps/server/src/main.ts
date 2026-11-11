@@ -153,7 +153,7 @@ const cameraStore = new CameraStore(path.join(dataDir, "cameras.json"));
 registerCameraRoutes(app, cameraStore);
 
 /* ---------- backup: everything the user maintains that the Z21 does not store ---------- */
-registerBackupRoutes(app, new BackupService(station.garage, box, cameraStore, () => station.notify()));
+registerBackupRoutes(app, new BackupService(station.garage, box, cameraStore, trains, runner, () => station.notify()));
 
 /* ---------- network settings (read-only) ---------- */
 app.get("/api/network", async () => {

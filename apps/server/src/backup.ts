@@ -1,18 +1,22 @@
 import type { FastifyInstance } from "fastify";
 import { validateLayout, type Layout } from "@z21/protocol";
+import { validateSettings, validateTrains, validateTrips, type Train, type Trip } from "@z21/timetable";
 import type { Camera, CameraStore } from "./cameras.js";
 import { parseGarage, type Garage, type GarageLoco } from "./garage.js";
 import type { SignalBox } from "./layout.js";
+import type { TimetableRunner } from "./timetable.js";
+import type { TrainStore } from "./trains.js";
 
 /**
  * Backup of everything the user maintains in this application and that is NOT stored on the command station:
  *  - garage: locos added by hand or found by the scan, their names and function labels
  *  - layout: track diagram, blocks and routes
  *  - cameras: configured cameras (passwords only on request)
+ *  - trains and timetable: trains (without their location), trips and the lateness setting
  * Loco speeds, turnout positions, CVs, clock and network settings live on the Z21 and are not part of it.
  */
 export const BACKUP_FORMAT = "z21-web-backup";
-export const BACKUP_PARTS = ["garage", "layout", "cameras"] as const;
+export const BACKUP_PARTS = ["garage", "layout", "cameras", "trains", "timetable"] as const;
 export type BackupPart = (typeof BACKUP_PARTS)[number];
 
 export interface Backup {
@@ -22,12 +26,14 @@ export interface Backup {
   garage?: GarageLoco[];
   layout?: Layout;
   cameras?: Partial<Camera>[];
+  trains?: Omit<Train, "location">[];
+  timetable?: { trips: Trip[]; settings: { lateLimit: number } };
 }
 
 const httpError = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode });
 
 export class BackupService {
-  constructor(private garage: Garage, private box: SignalBox, private cameras: CameraStore, private changed: () => void = () => {}) {}
+  constructor(private garage: Garage, private box: SignalBox, private cameras: CameraStore, private trains: TrainStore, private timetable: TimetableRunner, private changed: () => void = () => {}) {}
 
   create(opts: { passwords?: boolean } = {}): Backup {
     return {
@@ -37,6 +43,8 @@ export class BackupService {
       garage: this.garage.list(),
       layout: this.box.get(),
       cameras: this.cameras.list().map((c) => (opts.passwords ? c : { ...c, password: undefined })),
+      trains: this.trains.list().map(({ location: _l, ...t }) => t),
+      timetable: { trips: this.timetable.get().trips, settings: { lateLimit: this.timetable.get().lateLimit } },
     };
   }
 
@@ -59,11 +67,31 @@ export class BackupService {
     if (cameras !== undefined) this.cameras.check(cameras);
     if (layout && this.box.routeStates().length) throw httpError(409, "Es sind noch Fahrstraßen angefordert; zuerst auflösen");
 
+    const t = (b.timetable ?? {}) as Record<string, unknown>;
+    const layoutAfter = layout ?? this.box.get();
+    const trains = chosen.includes("trains")
+      ? (check(() => validateTrains(b.trains, { blockIds: new Set((layoutAfter.blocks ?? []).map((x) => x.id)) })) as Train[])
+      : undefined;
+    const trainIds = new Set((trains ?? this.trains.list()).map((x) => x.id));
+    let timetable: { trips: Trip[]; lateLimit: number } | undefined;
+    if (chosen.includes("timetable")) {
+      const routeIds = new Set(layoutAfter.routes.map((r) => r.id));
+      const trips = check(() => validateTrips(t.trips, { trainIds, routeIds })) as Trip[];
+      const settings = check(() => validateSettings(t.settings)) as { lateLimit: number };
+      timetable = { trips, lateLimit: settings.lateLimit };
+      if (this.timetable.hasRunningDeparture()) throw httpError(409, "Es läuft gerade eine Fahrt; zuerst beenden");
+    } else if (trains) {
+      const orphan = this.timetable.get().trips.find((x) => !trainIds.has(x.trainId));
+      if (orphan) throw httpError(400, `Fahrt ${orphan.id} verweist auf einen Zug, den es nach der Wiederherstellung nicht mehr gibt`);
+    }
+
     // 2. apply
     const restored: Record<string, number> = {};
     if (garage) { this.garage.replaceAll(garage); restored.garage = garage.length; }
     if (layout) { this.box.save(layout); restored.layout = layout.tiles.length; }
     if (cameras !== undefined) restored.cameras = this.cameras.replaceAll(cameras).length;
+    if (trains) { this.trains.replaceAll(trains); restored.trains = trains.length; }
+    if (timetable) { this.timetable.replaceAll(timetable); restored.timetable = timetable.trips.length; }
     this.changed(); // browsers get the new state right away
     return { restored };
   }

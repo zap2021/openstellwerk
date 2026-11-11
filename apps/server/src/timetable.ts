@@ -146,9 +146,14 @@ export class TimetableRunner {
     this.tick();
   }
 
+  /** True while a departure has its route set or is driving; trips cannot be replaced then. */
+  hasRunningDeparture(): boolean {
+    return this.instances.some((i) => i.status === "set" || i.status === "running");
+  }
+
   /** Backup restore; trips are expected to be validated by the caller. */
   replaceAll(data: { trips: Trip[]; lateLimit: number }): void {
-    if (this.instances.some((i) => i.status === "set" || i.status === "running")) throw err("Es läuft gerade eine Fahrt; zuerst beenden", 409);
+    if (this.hasRunningDeparture()) throw err("Es läuft gerade eine Fahrt; zuerst beenden", 409);
     this.trips = [...data.trips];
     this.lateLimit = data.lateLimit;
     this.changed();
