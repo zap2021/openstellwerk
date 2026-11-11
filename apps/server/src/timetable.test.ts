@@ -178,6 +178,53 @@ it("(h) a route that completed just before a layout save still ends the trip as 
   await settle();
 });
 
+it("(b3) two waiting departures of one train, the first refused: the second is not left pending and can be cancelled", async () => {
+  trains.setLocation(t2, "b3");
+  await occupy(2, true); // the first departure is refused every tick
+  at("11:20", false);
+  const trip = runner.saveTrip({ trainId: t2, routeId: "r2", departure: 680, repeat: { every: 1, until: 681 } });
+  const [a, b] = [`${trip.id}#0`, `${trip.id}#1`];
+  at("11:21");
+  await until(() => inst(a)?.status === "waiting" && inst(b)?.status === "waiting" && /besetzt/.test(inst(a)?.reason ?? ""));
+  for (let i = 0; i < 5; i++) {
+    await sleep(30);
+    expect(inst(b)?.reason).not.toBe("Keine Antwort der Sicherung");
+  }
+  const res = await app.inject({ method: "POST", url: `/api/timetable/instances/${encodeURIComponent(b)}/cancel` });
+  expect(res.statusCode).toBe(200);
+  expect(inst(b)).toMatchObject({ status: "cancelled", reason: "vom Bediener" });
+  expect((await app.inject({ method: "POST", url: `/api/timetable/instances/${encodeURIComponent(a)}/cancel` })).statusCode).toBe(200);
+  await occupy(2, false);
+  expect(runner.removeTrip(trip.id)).toBe(true);
+});
+
+it("(h2) ended events are not drained while disconnected: a route completed before the drop still ends done", async () => {
+  trains.setLocation(t1, "b1");
+  at("11:40", false);
+  const trip = runner.saveTrip({ trainId: t1, routeId: "r1", departure: 701 });
+  const id = `${trip.id}#0`;
+  at("11:41");
+  await until(() => inst(id)?.status === "set");
+  await until(() => route("r1") === "set");
+  await occupy(1, true);
+  await until(() => inst(id)?.status === "running");
+  await occupy(2, true);
+  await occupy(1, false);
+  runner.stop(); // the end of the route reaches the runner only after the reconnect
+  await occupy(2, false);
+  await until(() => route("r1") === undefined);
+  station.client.disconnect();
+  runner.start();
+  await sleep(100); // several ticks while disconnected
+  expect(inst(id)?.status).toBe("running");
+  await station.connect("127.0.0.1", 21572);
+  await until(() => inst(id)?.status !== "running");
+  expect(inst(id)?.status).toBe("done");
+  expect(trains.get(t1)?.location).toMatchObject({ blockId: "b2", source: "carried" });
+  await until(() => station.snapshot().rmbus.some((m) => m.module === 1));
+  await settle();
+});
+
 it("(d) a route deleted after the trip was created fails the instance", async () => {
   at("12:00", false);
   const trip = runner.saveTrip({ trainId: t2, routeId: "r2", departure: 721 });

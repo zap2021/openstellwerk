@@ -446,4 +446,30 @@ describe("Dispatcher", () => {
     r = p.step(input(T10 + 2, { results: [{ instanceId: "t1#0", ok: true }] }));
     expect(r.instances[0].status).toBe("set");
   });
+
+  it("requests: false delivers results without requesting: a second waiting instance stays cancellable", () => {
+    const trips = [trip({ repeat: { every: 1, until: 601 } })]; // t1#0 10:00, t1#1 10:01, both waiting at 10:01
+    const refused = { trips, results: [{ instanceId: "t1#0", ok: false, reason: "Block „Gleis 2“ ist besetzt" }] };
+    const d = new Dispatcher();
+    let r = d.step(input(T10 + M, { trips }));
+    expect(r.actions).toEqual([{ type: "request", instanceId: "t1#0", routeId: "r1" }]); // t1#1: same train, blocked
+    r = d.step(input(T10 + M, { ...refused, requests: false }));
+    expect(r.actions).toEqual([]);
+    r = d.step(input(T10 + M + 1, { trips })); // next normal step: t1#1 was not pending, so no „Keine Antwort“
+    expect(r.instances.find((i) => i.id === "t1#1")?.reason).not.toBe("Keine Antwort der Sicherung");
+    expect(r.actions).toEqual([{ type: "request", instanceId: "t1#0", routeId: "r1" }]);
+
+    const e = new Dispatcher();
+    e.step(input(T10 + M, { trips }));
+    e.step(input(T10 + M, { ...refused, requests: false }));
+    expect(e.cancel("t1#1")).toBe(true);
+    expect(e.cancel("t1#0")).toBe(true);
+
+    const f = new Dispatcher();
+    f.step(input(T10 + M, { trips }));
+    f.step(input(T10 + M, { ...refused, requests: false }));
+    expect(f.cancel("t1#0")).toBe(true);
+    r = f.step(input(T10 + M + 1, { trips }));
+    expect(r.actions).toEqual([{ type: "request", instanceId: "t1#1", routeId: "r1" }]);
+  });
 });

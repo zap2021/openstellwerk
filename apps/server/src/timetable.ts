@@ -219,10 +219,9 @@ export class TimetableRunner {
     const results = this.execute(first.actions);
     let out = first;
     if (results.length) {
-      out = this.dispatcher.step({ ...base, trains: this.trains.list(), interlocking: this.box.routeStates(), ended: [], results });
-      // The answers are delivered right here. A refused instance retries in the next tick's first step, so
-      // requests from this step are never sent (defensive: the dispatcher does not emit any here).
-      this.execute(out.actions.filter((a) => a.type !== "request"));
+      // Results only: the answers are delivered right here, new requests wait for the next tick's first step.
+      out = this.dispatcher.step({ ...base, trains: this.trains.list(), interlocking: this.box.routeStates(), ended: [], results, requests: false });
+      this.execute(out.actions);
     }
     this.instances = out.instances;
     this.detect();

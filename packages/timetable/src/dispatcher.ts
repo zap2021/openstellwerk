@@ -32,6 +32,11 @@ export interface DispatchInput {
   interlocking: RouteStatusInfo[];
   ended: EndedRoute[];
   results: RouteResult[];
+  /**
+   * Default true. false: a results-only step (the runner's second step of a tick) — the dispatcher neither emits
+   * nor records any request, so nothing stays pending (and blocks a cancel) between ticks.
+   */
+  requests?: boolean;
 }
 export type Action =
   | { type: "request"; instanceId: string; routeId: string }
@@ -155,6 +160,7 @@ export class Dispatcher {
         inst.reason = reason;
         continue;
       }
+      if (input.requests === false) continue;
       this.requested.add(rec);
       actions.push({ type: "request", instanceId: inst.id, routeId: rec.trip.routeId });
     }
