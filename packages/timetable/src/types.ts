@@ -47,4 +47,6 @@ export interface TimetableSnapshot {
   lateLimit: number;
   trains: Train[];
   instances: Instance[];
+  /** Server clock (ms epoch) when the snapshot was built: browsers run the model clock on server time. */
+  serverNow?: number;
 }

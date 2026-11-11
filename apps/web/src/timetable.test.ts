@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Instance, Status, Train, Trip } from "@z21/timetable";
 import type { Layout, Route } from "@z21/protocol/layout";
-import { boardRows, tripRows } from "./timetable";
+import { boardRows, modelNowSkewed, tripRows } from "./timetable";
 
 const trains: Train[] = [{ id: "t1", name: "IC 1", address: 3 }];
 const routes: Route[] = [{ id: "r1", name: "A nach B", steps: [], from: "a", to: "b" }];
@@ -55,5 +55,19 @@ describe("boardRows", () => {
   it("shows each departure of a repeating trip", () => {
     const rep = [trip({ id: "t1", trainId: "t1", departure: 600, repeat: { every: 30, until: 1200 } })];
     expect(boardRows([inst("t1#2", "t1", (600 + 60) * 60)], rep, bTrains, layout, 5)[0].time).toBe("11:00");
+  });
+});
+
+describe("modelNowSkewed", () => {
+  const clock = { running: true, factor: 20, baseModel: 8 * 3600, baseReal: 1_000_000 };
+  it("uses the server clock: a browser one hour ahead shows the server's model time", () => {
+    const server = 1_000_000 + 60_000; // the server is one real minute past its base
+    const browser = server + 3_600_000;
+    const atServer = 8 * 3600 + 60 * 20;
+    expect(modelNowSkewed(clock, browser, server, browser)).toBe(atServer);
+    expect(modelNowSkewed(clock, browser + 1000, server, browser)).toBe(atServer + 20); // and keeps running from there
+  });
+  it("falls back to the browser clock without a server time", () => {
+    expect(modelNowSkewed(clock, 1_000_000 + 1000, undefined, 0)).toBe(8 * 3600 + 20);
   });
 });

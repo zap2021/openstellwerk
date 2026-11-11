@@ -393,3 +393,18 @@ it("keeps an unparseable timetable.json as a .invalid copy", () => {
     expect(copies.map((n) => readFileSync(path.join(d, n), "utf8"))).toEqual(["{ nope"]);
   } finally { log.mockRestore(); rmSync(d, { recursive: true, force: true }); }
 });
+
+it("the snapshot carries the server time, which alone causes no broadcast", async () => {
+  const before = Date.now();
+  const s = tt();
+  expect(s.serverNow).toBeGreaterThanOrEqual(before);
+  expect(s.serverNow).toBeLessThanOrEqual(Date.now());
+  runner.clockAction({ action: "stop" });
+  await sleep(60);
+  let notified = 0;
+  const orig = station.notify.bind(station);
+  station.notify = () => { notified++; orig(); };
+  await sleep(150); // several ticks, nothing changes but the time
+  station.notify = orig;
+  expect(notified).toBe(0);
+});

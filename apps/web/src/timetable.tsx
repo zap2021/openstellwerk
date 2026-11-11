@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatHHMM, modelNow, parseHHMM, statusText, timeOfDay, type ClockState, type Instance, type Status, type Train, type Trip } from "@z21/timetable";
 import type { Layout, Route } from "@z21/protocol/layout";
 import { api, type StationState } from "./api";
@@ -145,16 +145,29 @@ export function TimetableAdmin({ state, run }: { state: StationState; run: Run }
 // ---------------------------------------------------------------------------------------------------------------
 // Operation (tab "Fahrplan") and departure board
 
-/** Model time in whole seconds; ticks every second while the clock runs, stays put when it is stopped. */
-export function useModelTime(clock: ClockState): number {
+/**
+ * Model time at browser time `browserNow`, but on the server's clock: `serverNow` was the server time when the
+ * snapshot arrived at browser time `receivedAt`. Without `serverNow` the browser clock is used as is.
+ */
+export function modelNowSkewed(clock: ClockState, browserNow: number, serverNow: number | undefined, receivedAt: number): number {
+  return modelNow(clock, serverNow === undefined ? browserNow : browserNow + (serverNow - receivedAt));
+}
+
+/**
+ * Model time in whole seconds; ticks every second while the clock runs, stays put when it is stopped.
+ * `serverNow` (from the snapshot) corrects a browser clock that differs from the server's.
+ */
+export function useModelTime(clock: ClockState, serverNow?: number): number {
   const [now, setNow] = useState(() => Date.now());
+  // offset server − browser, captured whenever a snapshot with a new server time arrives
+  const receivedAt = useMemo(() => Date.now(), [serverNow]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     setNow(Date.now());
     if (!clock.running) return;
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, [clock.running, clock.factor, clock.baseModel, clock.baseReal]);
-  return Math.floor(modelNow(clock, now));
+  return Math.floor(modelNowSkewed(clock, Math.max(now, receivedAt), serverNow, receivedAt));
 }
 
 export interface BoardRow {
@@ -213,7 +226,7 @@ export function useTrips(everyMs?: number): Trip[] {
 export function TimetableOperate({ state, run }: { state: StationState; run: Run }) {
   const tt = state.timetable;
   const clock = tt?.clock ?? { running: false, factor: 1, baseModel: 0, baseReal: 0 };
-  const model = useModelTime(clock);
+  const model = useModelTime(clock, tt?.serverNow);
   const trips = useTrips();
   const [factor, setFactor] = useState(clock.factor);
   const [time, setTime] = useState("08:00");

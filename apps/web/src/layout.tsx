@@ -203,7 +203,7 @@ export function DisplayView({ state }: { state?: StationState }) {
   return (
     <div className="display">
       <header className="display-head">
-        {tt ? <ModelClock clock={tt.clock} /> : <div className="display-clock" title={z ? "Modellbahn-Uhr der Z21" : "Uhrzeit dieses Geräts (keine Modellbahn-Uhr gemeldet)"}>{time}{z && z.rate > 1 ? <small>×{z.rate}</small> : null}</div>}
+        {tt ? <ModelClock clock={tt.clock} serverNow={tt.serverNow} /> : <div className="display-clock" title={z ? "Modellbahn-Uhr der Z21" : "Uhrzeit dieses Geräts (keine Modellbahn-Uhr gemeldet)"}>{time}{z && z.rate > 1 ? <small>×{z.rate}</small> : null}</div>}
         <div className="display-routes">
           {active.length === 0 ? <span className="muted">Keine Fahrstraße eingestellt</span> : active.map((r) => <span key={r.id} className={`chip ${il.get(r.id)!.status}`}>{r.name} · {STATUS[il.get(r.id)!.status]}</span>)}
         </div>
@@ -219,8 +219,8 @@ export function DisplayView({ state }: { state?: StationState }) {
 }
 
 /** The timetable clock of the display: HH:MM large, stopped state and speed visible. */
-function ModelClock({ clock }: { clock: NonNullable<StationState["timetable"]>["clock"] }) {
-  const model = useModelTime(clock);
+function ModelClock({ clock, serverNow }: { clock: NonNullable<StationState["timetable"]>["clock"]; serverNow?: number }) {
+  const model = useModelTime(clock, serverNow);
   return (
     <div className="display-clock" title="Fahrplanuhr">
       <span className="display-clock-title">Fahrplanuhr</span>

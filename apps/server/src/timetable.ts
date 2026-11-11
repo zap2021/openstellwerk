@@ -62,7 +62,7 @@ export class TimetableRunner {
       }
     }
     if (invalid) this.store.keepInvalid(); // before any write replaces what could not be used
-    station.addExtra(() => ({ timetable: this.view() }));
+    station.addExtra(() => ({ timetable: { ...this.view(), serverNow: Date.now() } }));
   }
 
   start(): void {
@@ -276,7 +276,7 @@ export class TimetableRunner {
     }
   }
 
-  /** Tell the browsers, but only when something they see has changed. */
+  /** Tell the browsers, but only when something they see has changed (the server time is added per snapshot). */
   private publish() {
     const json = JSON.stringify(this.view());
     if (json === this.lastView) return;
