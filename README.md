@@ -99,7 +99,19 @@ Im Gleisbild-Editor fasst du Gleisfelder zu **Blöcken** zusammen; ein Block gil
 
 Die Sicherung braucht Belegtmelder. Ohne sie lassen sich Fahrstraßen nicht einstellen (im Simulator über `sim.extras.setRmBus` testen). Auflösung gibt es bisher nur für die ganze Fahrstraße, nicht blockweise; Flankenschutz-Weichen lassen sich über die JSON-Datei (`flank`) eintragen, noch nicht im Editor.
 
-**Anzeige für einen zweiten Bildschirm:** `http://<adresse>:3001/#/anzeige` zeigt Modellbahn-Uhr, eingestellte Fahrstraßen und das Gleisbild live, ohne Bedienelemente. Die Seite braucht dieselbe Anmeldung wie die Bedienung (Sitzung bleibt 30 Tage). Eine Abfahrtstafel folgt mit dem Fahrplan.
+**Anzeige für einen zweiten Bildschirm:** `http://<adresse>:3001/#/anzeige` zeigt die Fahrplanuhr (siehe unten), eingestellte Fahrstraßen und das Gleisbild live, ohne Bedienelemente. Die Seite braucht dieselbe Anmeldung wie die Bedienung (Sitzung bleibt 30 Tage).
+
+### Fahrplan und Abfahrtstafel
+
+- **Züge** (Verwaltung → Züge): Name, Nummer (z. B. „RE 1“) und Lokadresse. Den **Standort** (Block) setzt du von Hand; nach einem Neustart oder wenn die Automatik den Zug nicht sicher verfolgen kann, gilt er als **unsicher** und wird so angezeigt, bis du ihn bestätigst oder neu setzt.
+- **Fahrten** (Verwaltung → Fahrplan): ein Zug fährt auf einer gesicherten Fahrstraße zu einer Abfahrtszeit, mit Haltezeit und Zieltext. Mit **Takt** wiederholt sich die Fahrt alle N Minuten bis zu einer Endzeit.
+- **Fahrplanuhr** (Bedienen → Fahrplan): eigene Modellzeit, unabhängig von der Z21-Uhr. Start/Stopp, Faktor (1 bis 120) und „Uhr stellen“. Sie läuft nur bei bestehender Verbindung.
+- **Automatik (Stufe 1):** Zur Abfahrtszeit fordert der Server die gesicherte Fahrstraße an und stellt Weichen und Signal. Die Lok fährt sie nicht automatisch (das tust du am Fahrregler, im Demo-Modus der virtuelle Zug). Lehnt die Sicherung die Fahrstraße ab (z. B. Block belegt), wartet die Abfahrt und versucht es erneut; ist die **Verspätungsgrenze** (Minuten, Standard 5) überschritten, geht sie in Störung. Erreicht der Zug den Zielblock, steht er dort als „mitgeführt“.
+- **Abfahrtstafel:** `#/anzeige` zeigt die nächsten Abfahrten mit Fahrplanuhr statt Z21-Uhr.
+- **Nach einem Neustart:** Fahrplanuhr gestoppt, alle Standorte unsicher, und die Signale gesicherter Fahrstraßen gehen beim ersten Verbinden auf Halt.
+- **Datensicherung:** enthält Züge (ohne Standort) und den Fahrplan (Fahrten, Verspätungsgrenze).
+- **Demo-Modus:** lädt Beispielzüge und -fahrplan (`docs/beispiel-fahrplan.json`), wenn noch keine Züge und Fahrten existieren und das Gleisbild die Blöcke und Fahrstraßen des Beispiels hat; die Uhr startet bei 05:58 mit Faktor 20. Ein älteres gespeichertes Beispiel-Gleisbild ohne die Fahrstraßen r3/r4 bitte im Editor neu importieren (`docs/beispiel-gleisbild.json`).
+- **Noch nicht enthalten:** Lok automatisch fahren (Stufe 2).
 
 ### Noch nicht enthalten
 
@@ -118,6 +130,7 @@ Unter **Verwaltung → Datensicherung** lädst du alles herunter, was du in der 
 
 - **Loks:** Namen, Funktionsbezeichnungen und von Hand ergänzte Loks
 - **Gleisbild:** Felder, Blöcke und Fahrstraßen
+- **Züge und Fahrplan:** Züge (ohne Standort), Fahrten und Verspätungsgrenze
 - **Kameras:** Kamera-Passwörter nur, wenn du sie ausdrücklich einschließt (sie stehen dann im Klartext in der Datei)
 
 Beim Wiederherstellen wählst du die Teile einzeln aus. Alles wird vorher geprüft; ist ein Teil fehlerhaft, ändert sich nichts. Das Gleisbild lässt sich nicht ersetzen, solange Fahrstraßen angefordert sind. Fahrzustand, Weichenlagen, CVs, Uhr und Netzwerk-Einstellungen liegen in der Z21 selbst und gehören nicht dazu. Das Gleisbild allein kannst du weiter im Editor exportieren und importieren.

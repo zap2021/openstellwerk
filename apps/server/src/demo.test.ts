@@ -7,6 +7,8 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import { Demo, registerDemoRoutes } from "./demo.js";
 import { registerLayoutRoutes, SignalBox } from "./layout.js";
 import { Station } from "./station.js";
+import { TimetableRunner } from "./timetable.js";
+import { TrainStore } from "./trains.js";
 
 const dir = mkdtempSync(path.join(tmpdir(), "demo-"));
 const station = new Station();
@@ -66,4 +68,53 @@ it("stops cleanly, and refuses to start while a real station is connected", asyn
   expect(station.snapshot().connected).toBe(true); // the real connection is untouched
   station.client.disconnect();
   real.close();
+});
+
+/** A fresh station with the example loaded through the demo, wired to a timetable runner. */
+function rig(layoutFile = "layout.json") {
+  const d = mkdtempSync(path.join(tmpdir(), "demo-tt-"));
+  const st = new Station();
+  const bx = new SignalBox(st, path.join(d, layoutFile), 10);
+  const trains = new TrainStore(path.join(d, "trains.json"));
+  const runner = new TimetableRunner(st, bx, trains, path.join(d, "timetable.json"), { tickMs: 50 });
+  const dm = new Demo(st, bx, 20, runner);
+  runner.start();
+  const done = async () => { runner.stop(); await dm.stop(); rmSync(d, { recursive: true, force: true }); };
+  return { st, bx, trains, runner, dm, done };
+}
+
+it("demo start loads the example timetable, runs the clock and the first trip arrives", async () => {
+  const { st, trains, runner, dm, done } = rig();
+  try {
+    await dm.start();
+    expect(trains.list().map((t) => [t.id, t.location?.blockId, t.location?.source])).toEqual([["re1", "zufahrt", "manual"], ["s2", "zufahrt", "manual"]]);
+    expect(runner.get().trips).toHaveLength(4);
+    expect(runner.get().lateLimit).toBe(5);
+    expect(runner.get().clock).toMatchObject({ running: true, factor: 20 });
+    runner.clockAction({ action: "set", time: "05:59", factor: 120 }); // keep the test short
+    const inst = () => st.snapshot().timetable?.instances.find((i) => i.tripId === "re-out");
+    await until(() => inst()?.status === "done", 20000);
+    expect(trains.list().find((t) => t.id === "re1")?.location).toMatchObject({ blockId: "g1", source: "carried" });
+  } finally { await done(); }
+}, 30000);
+
+it("loadExample does nothing when trains or trips already exist", async () => {
+  const { trains, runner, dm, done } = rig();
+  try {
+    await dm.start();
+    const before = JSON.stringify([trains.list(), runner.get().trips]);
+    expect(runner.loadExample()).toBe(false);
+    expect(JSON.stringify([trains.list(), runner.get().trips])).toBe(before);
+  } finally { await done(); }
+});
+
+it("loadExample loads nothing when the layout lacks the example routes", async () => {
+  const { bx, trains, runner, dm, done } = rig();
+  try {
+    bx.save({ cols: 4, rows: 4, tiles: [{ id: "k", x: 1, y: 1, kind: "straight", rot: 0 }], routes: [] });
+    expect(runner.loadExample()).toBe(false);
+    await dm.start(false);
+    expect(trains.list()).toEqual([]);
+    expect(runner.get().trips).toEqual([]);
+  } finally { await done(); }
 });

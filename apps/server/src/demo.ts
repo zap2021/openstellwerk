@@ -5,6 +5,7 @@ import { Z21Simulator } from "@z21/simulator";
 import type { Layout } from "@z21/protocol";
 import type { SignalBox } from "./layout.js";
 import type { Station } from "./station.js";
+import type { TimetableRunner } from "./timetable.js";
 
 const httpError = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode });
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -24,7 +25,7 @@ export class Demo {
   /** bumped on every start/stop, so a train from an earlier session ends quietly */
   private session = 0;
 
-  constructor(private station: Station, private box: SignalBox, private pace = 1) {}
+  constructor(private station: Station, private box: SignalBox, private pace = 1, private timetable?: Pick<TimetableRunner, "loadExample" | "clockAction" | "get">) {}
 
   get active() { return !!this.sim; }
 
@@ -47,7 +48,18 @@ export class Demo {
     }
     this.station.demo = true;
     this.station.notify();
+    this.startTimetable();
     this.timer = setInterval(() => this.tick(session), 500);
+  }
+
+  /** Example timetable on an empty system, and the model clock running; a clock the user already runs stays as it is. */
+  private startTimetable() {
+    const tt = this.timetable;
+    if (!tt) return;
+    try {
+      if (tt.loadExample()) tt.clockAction({ action: "set", time: "05:58", factor: 20 });
+      if (!tt.get().clock.running) tt.clockAction({ action: "start" });
+    } catch (e) { console.error("Demo: Fahrplan nicht gestartet:", (e as Error).message); }
   }
 
   async stop() {

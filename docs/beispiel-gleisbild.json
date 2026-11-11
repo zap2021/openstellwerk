@@ -160,6 +160,38 @@
       "from": "zufahrt",
       "to": "g2",
       "signal": "s1"
+    },
+    {
+      "id": "r3",
+      "name": "Gleis 1 zurück",
+      "steps": [
+        {
+          "tileId": "w1",
+          "state": 0
+        },
+        {
+          "tileId": "w2",
+          "state": 0
+        }
+      ],
+      "from": "g1",
+      "to": "zufahrt"
+    },
+    {
+      "id": "r4",
+      "name": "Gleis 2 zurück",
+      "steps": [
+        {
+          "tileId": "w1",
+          "state": 1
+        },
+        {
+          "tileId": "w2",
+          "state": 1
+        }
+      ],
+      "from": "g2",
+      "to": "zufahrt"
     }
   ],
   "blocks": [

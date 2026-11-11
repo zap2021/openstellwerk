@@ -137,9 +137,7 @@ app.put<{ Params: { addr: string }; Body: { mode: string } }>("/api/turnout/:add
 /* ---------- more driving ---------- */
 /* ---------- signal box: track diagram, routes ---------- */
 const box = new SignalBox(station, path.join(dataDir, "layout.json"));
-const demo = new Demo(station, box); // used by /api/connect above, which only runs after start-up
 registerLayoutRoutes(app, box);
-registerDemoRoutes(app, demo);
 
 /* ---------- trains and timetable ---------- */
 const trains = new TrainStore(path.join(dataDir, "trains.json"));
@@ -147,6 +145,8 @@ const runner = new TimetableRunner(station, box, trains, path.join(dataDir, "tim
 registerTrainRoutes(app, trains, { blockIds: () => new Set((box.get().blocks ?? []).map((b) => b.id)), onRemove: (id) => runner.removeTripsOf(id) });
 registerTimetableRoutes(app, runner);
 runner.start();
+const demo = new Demo(station, box, 1, runner); // used by /api/connect above, which only runs after start-up
+registerDemoRoutes(app, demo);
 
 /* ---------- cameras ---------- */
 const cameraStore = new CameraStore(path.join(dataDir, "cameras.json"));

@@ -176,6 +176,6 @@ describe("example layout", () => {
   it("docs/beispiel-gleisbild.json stays valid, with interlocked routes", () => {
     const v = validateLayout(JSON.parse(readFileSync(new URL("../../../docs/beispiel-gleisbild.json", import.meta.url), "utf8")));
     expect(v.blocks).toHaveLength(3);
-    expect(v.routes.map((r) => [r.from, r.to])).toEqual([["zufahrt", "g1"], ["zufahrt", "g2"]]);
+    expect(v.routes.map((r) => [r.from, r.to])).toEqual([["zufahrt", "g1"], ["zufahrt", "g2"], ["g1", "zufahrt"], ["g2", "zufahrt"]]);
   });
 });

@@ -1,0 +1,79 @@
+{
+  "trains": [
+    {
+      "id": "re1",
+      "name": "Regionalexpress 1",
+      "number": "RE 1",
+      "address": 3,
+      "location": {
+        "blockId": "zufahrt",
+        "source": "manual",
+        "since": 0
+      }
+    },
+    {
+      "id": "s2",
+      "name": "S-Bahn 2",
+      "number": "S 2",
+      "address": 4,
+      "location": {
+        "blockId": "zufahrt",
+        "source": "manual",
+        "since": 0
+      }
+    }
+  ],
+  "trips": [
+    {
+      "id": "re-out",
+      "trainId": "re1",
+      "routeId": "r1",
+      "departure": 360,
+      "dwell": 1,
+      "repeat": {
+        "every": 20,
+        "until": 1320
+      },
+      "destination": "Gleis 1"
+    },
+    {
+      "id": "s-out",
+      "trainId": "s2",
+      "routeId": "r2",
+      "departure": 365,
+      "dwell": 1,
+      "repeat": {
+        "every": 20,
+        "until": 1320
+      },
+      "destination": "Gleis 2"
+    },
+    {
+      "id": "re-back",
+      "trainId": "re1",
+      "routeId": "r3",
+      "departure": 370,
+      "dwell": 1,
+      "repeat": {
+        "every": 20,
+        "until": 1320
+      },
+      "destination": "Zufahrt"
+    },
+    {
+      "id": "s-back",
+      "trainId": "s2",
+      "routeId": "r4",
+      "departure": 375,
+      "dwell": 1,
+      "repeat": {
+        "every": 20,
+        "until": 1320
+      },
+      "destination": "Zufahrt"
+    }
+  ],
+  "settings": {
+    "lateLimit": 5
+  }
+}
