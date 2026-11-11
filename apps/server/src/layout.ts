@@ -23,7 +23,6 @@ export class SignalBox {
   private routeRun?: RouteRun;
   private il: Interlocking;
   private ticker?: NodeJS.Timeout;
-  private haltedOnce = false;
   /** End events of an interlocking that was replaced by save(); handed out by the next drainEnded(). */
   private endedBuffer: EndedRoute[] = [];
 
@@ -38,7 +37,8 @@ export class SignalBox {
     station.addExtra(() => ({ layout: this.layout, routeRun: this.routeRun, interlocking: this.il.states() }));
     station.on("connected", () => {
       this.sync();
-      if (!this.haltedOnce) { this.haltedOnce = true; this.haltRouteSignals(); }
+      // every connect, not only the first: it may be another station (demo, then real) or the last Halt may not have arrived
+      if (!this.il.states().length) this.haltRouteSignals();
     });
     station.on("state", () => this.evaluate());
     this.pin();
@@ -181,16 +181,22 @@ export class SignalBox {
     return out;
   }
 
-  /** Once after the first connect: signals of routes between blocks go to Halt, whatever the last session left. */
+  /**
+   * After a connect without active routes: signals of routes between blocks go to Halt, whatever the last session left.
+   * Halt is the safe direction and idempotent; a failure is logged and must not escape the event handler.
+   */
   private haltRouteSignals() {
+    try { this.dispatch(this.routeSignalHalts(), true); } catch (e) { console.error("Signale auf Halt fehlgeschlagen:", (e as Error).message); }
+  }
+
+  private routeSignalHalts(): LayoutCommand[] {
     const ids = new Set<string>();
     for (const r of this.layout.routes) {
       if (!r.from && !r.to) continue;
       if (r.signal) ids.add(r.signal);
       for (const st of [...r.steps, ...(r.flank ?? [])]) ids.add(st.tileId);
     }
-    const commands = this.layout.tiles.filter((t) => t.kind === "signal" && ids.has(t.id)).flatMap((t) => tileCommands(t, 0));
-    this.dispatch(commands, true);
+    return this.layout.tiles.filter((t) => t.kind === "signal" && ids.has(t.id)).flatMap((t) => tileCommands(t, 0));
   }
 
   /** Cancel a route; with force (Notauflösung) also while a train is inside. */

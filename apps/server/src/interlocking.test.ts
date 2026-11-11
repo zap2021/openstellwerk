@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import Fastify from "fastify";
-import { afterAll, beforeAll, expect, it } from "vitest";
+import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { Z21Simulator } from "@z21/simulator";
 import type { Layout } from "@z21/protocol";
 import { registerLayoutRoutes, SignalBox } from "./layout.js";
@@ -165,7 +165,7 @@ it("keeps a completed end event across a layout save before it was drained", asy
   await until(() => !(box as unknown as { draining: boolean }).draining);
 });
 
-it("puts the route signals to Halt on the first connect only", async () => {
+it("puts the route signals to Halt on every connect while no route is active", async () => {
   const sim2 = new Z21Simulator();
   await sim2.listen(21573, "127.0.0.1");
   const file = path.join(dir, "layout2.json");
@@ -176,10 +176,52 @@ it("puts the route signals to Halt on the first connect only", async () => {
     sim2.extras.extAccessories.set(5, 16);
     await st.connect("127.0.0.1", 21573);
     await until(() => sim2.extras.extAccessories.get(5) === 0);
-    sim2.extras.extAccessories.set(5, 16);
+    sim2.extras.extAccessories.set(5, 16); // someone cleared it by hand while we were away
     st.client.disconnect();
     await st.connect("127.0.0.1", 21573);
-    await new Promise((r) => setTimeout(r, 300));
-    expect(sim2.extras.extAccessories.get(5)).toBe(16);
-  } finally { st.client.disconnect(); sim2.close(); void box2; }
+    await until(() => sim2.extras.extAccessories.get(5) === 0);
+
+    // with an active route a reconnect sends no blanket Halt: the route owns its signal (its own fault handling decides)
+    await until(() => st.snapshot().rmbus.some((m) => m.module === 1));
+    expect(box2.tryRequestRoute("r1")).toEqual({ ok: true });
+    await until(() => sim2.extras.extAccessories.get(5) === 16);
+    await until(() => !(box2 as unknown as { draining: boolean }).draining);
+    const halts = vi.spyOn(box2 as unknown as { routeSignalHalts(): unknown[] }, "routeSignalHalts");
+    st.client.disconnect();
+    await st.connect("127.0.0.1", 21573);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(halts).not.toHaveBeenCalled();
+    box2.releaseRoute("r1", true);
+    st.client.disconnect();
+    await st.connect("127.0.0.1", 21573); // and without a route again
+    expect(halts).toHaveBeenCalledTimes(1);
+
+    // a throw while building the Halt commands is logged and does not escape the connected handler
+    halts.mockImplementationOnce(() => { throw new Error("kaputt"); });
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    st.client.disconnect();
+    await st.connect("127.0.0.1", 21573);
+    expect(err).toHaveBeenCalledWith("Signale auf Halt fehlgeschlagen:", "kaputt");
+    expect(st.client.connected).toBe(true);
+    err.mockRestore();
+  } finally { st.client.disconnect(); sim2.close(); }
+});
+
+it("puts the signals of the real station to Halt after a demo session (demo, then real)", async () => {
+  const simA = new Z21Simulator();
+  const simB = new Z21Simulator();
+  await simA.listen(21574, "127.0.0.1");
+  await simB.listen(21575, "127.0.0.1");
+  const file = path.join(dir, "layout3.json");
+  writeFileSync(file, JSON.stringify(layout));
+  const st = new Station();
+  new SignalBox(st, file, 5);
+  try {
+    await st.connect("127.0.0.1", 21574);
+    await until(() => simA.extras.extAccessories.get(5) === 0);
+    st.client.disconnect();
+    simB.extras.extAccessories.set(5, 16);
+    await st.connect("127.0.0.1", 21575);
+    await until(() => simB.extras.extAccessories.get(5) === 0);
+  } finally { st.client.disconnect(); simA.close(); simB.close(); }
 });
