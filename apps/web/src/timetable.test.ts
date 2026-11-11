@@ -52,6 +52,11 @@ describe("boardRows", () => {
     expect(rows.map((r) => r.id)).toEqual(["t1#0"]);
     expect(boardRows([inst("t3#0", "t3", 0)], [trip({ id: "t3", trainId: "gone" })], bTrains, layout, 5)).toEqual([]);
   });
+  it("gives rows of the same departure on two days distinct keys", () => {
+    const rows = boardRows([{ ...inst("t1#0", "t1", 100, "done"), day: 3 }, { ...inst("t1#0", "t1", 100), day: 4 }], trips, bTrains, layout, 5);
+    expect(rows.map((r) => r.key)).toEqual(["3:t1#0", "4:t1#0"]);
+    expect(rows.map((r) => r.id)).toEqual(["t1#0", "t1#0"]);
+  });
   it("shows each departure of a repeating trip", () => {
     const rep = [trip({ id: "t1", trainId: "t1", departure: 600, repeat: { every: 30, until: 1200 } })];
     expect(boardRows([inst("t1#2", "t1", (600 + 60) * 60)], rep, bTrains, layout, 5)[0].time).toBe("11:00");

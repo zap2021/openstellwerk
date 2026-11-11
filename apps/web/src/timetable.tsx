@@ -171,6 +171,8 @@ export function useModelTime(clock: ClockState, serverNow?: number): number {
 }
 
 export interface BoardRow {
+  /** React key: instance ids repeat from day to day, so the day is part of it. */
+  key: string;
   id: string; trainId: string; time: string; number: string; destination: string; platform: string;
   status: Status; label: string; reason?: string;
 }
@@ -191,7 +193,7 @@ export function boardRows(instances: Instance[], trips: Trip[], trains: Train[],
     rows.push({
       open: !FINISHED.includes(i.status),
       row: {
-        id: i.id, trainId: train.id, time: formatHHMM(Math.floor(i.due / 60)), number: train.number ?? train.name,
+        key: `${i.day}:${i.id}`, id: i.id, trainId: train.id, time: formatHHMM(Math.floor(i.due / 60)), number: train.number ?? train.name,
         destination: trip.destination ?? target, platform: target, status: i.status, label: statusText(i.status), reason: i.reason,
       },
     });
@@ -270,7 +272,7 @@ export function TimetableOperate({ state, run }: { state: StationState; run: Run
         {rows.length === 0 && <p className="hint">Keine Abfahrten geplant.</p>}
         <ul className="loco-list">
           {rows.map((r) => (
-            <li key={r.id} className="departure">
+            <li key={r.key} className="departure">
               <span className="addr">{r.time}</span>
               <span className="meta">
                 <strong>{r.number} · {r.destination || "–"}{r.platform ? ` · ${r.platform}` : ""}</strong>
@@ -317,7 +319,7 @@ export function DepartureBoard({ state, trips }: { state: StationState; trips?: 
       <tbody>
         {rows.length === 0 && <tr><td colSpan={5} className="muted">Keine Abfahrten</td></tr>}
         {rows.map((r) => (
-          <tr key={r.id} className={FINISHED.includes(r.status) ? "past" : undefined}>
+          <tr key={r.key} className={FINISHED.includes(r.status) ? "past" : undefined}>
             <td className="time">{r.time}</td><td>{r.number}</td><td>{r.destination}</td><td>{r.platform}</td>
             <td><span className={`st ${r.status}`}>{r.label}</span>{r.reason && <small className="reason"> {r.reason}</small>}</td>
           </tr>
