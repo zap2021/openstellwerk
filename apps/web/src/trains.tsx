@@ -21,18 +21,26 @@ export function TrainsPage({ state, run }: { state: StationState; run: Run }) {
   const inGarage = state.garage.some((g) => g.address === draft.address);
   const problem = !draft.name.trim() ? "Name eingeben" : !(draft.address >= 1 && draft.address <= 9999) ? "Lokadresse 1–9999 eingeben" : undefined;
 
-  const change = (p: Promise<unknown>) => { setError(undefined); return run(p.catch((e) => { setError((e as Error).message); throw e; })); };
+  /** Runs the request and shows a server error next to the form; resolves to whether it succeeded. */
+  const change = async (request: () => Promise<unknown>): Promise<boolean> => {
+    let ok = false;
+    setError(undefined);
+    await run(request().then(() => { ok = true; }, (e) => { setError((e as Error).message); }));
+    return ok;
+  };
   const save = async () => {
     if (problem) return;
     const body = { name: draft.name.trim(), number: draft.number.trim() || undefined, address: draft.address };
     const current = timetable.trains.find((t) => t.id === draft.id);
-    try {
-      await change((async () => {
-        const saved = draft.id ? await api<Train>("PUT", `/api/trains/${draft.id}`, body) : await api<Train>("POST", "/api/trains", body);
-        if ((current?.location?.blockId ?? "") !== draft.blockId) await api("PUT", `/api/trains/${saved.id}/location`, { blockId: draft.blockId || null });
-        setDraft((d) => ({ ...d, id: saved.id }));
-      })());
-    } catch { /* shown via error */ }
+    await change(async () => {
+      let id = draft.id;
+      if (id) await api("PUT", `/api/trains/${id}`, body);
+      else {
+        id = (await api<Train>("POST", "/api/trains", body)).id;
+        setDraft((d) => ({ ...d, id })); // a retry after a failed location update must not create a second train
+      }
+      if ((current?.location?.blockId ?? "") !== draft.blockId) await api("PUT", `/api/trains/${id}/location`, { blockId: draft.blockId || null });
+    });
   };
 
   return (
@@ -81,7 +89,7 @@ export function TrainsPage({ state, run }: { state: StationState; run: Run }) {
           <button className="active" disabled={!!problem} onClick={() => void save()}>Speichern</button>
           <button onClick={() => { setDraft(EMPTY); setError(undefined); }}>Neu</button>
           {draft.id && (
-            <button className="danger" onClick={() => ifSure("Diesen Zug löschen? Auch die Fahrten dieses Zugs werden gelöscht.", () => change(api("DELETE", `/api/trains/${draft.id}`)).then(() => setDraft(EMPTY), () => undefined))}>Löschen</button>
+            <button className="danger" onClick={() => ifSure("Diesen Zug löschen? Auch die Fahrten dieses Zugs werden gelöscht.", () => void change(() => api("DELETE", `/api/trains/${draft.id}`)).then((ok) => { if (ok) setDraft(EMPTY); }))}>Löschen</button>
           )}
         </div>
       </div>

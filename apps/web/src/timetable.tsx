@@ -49,7 +49,13 @@ export function TimetableAdmin({ state, run }: { state: StationState; run: Run }
 
   if (!state.timetable) return <p className="hint">Der Fahrplan ist noch nicht verfügbar (Server zu alt oder noch nicht bereit).</p>;
 
-  const change = (p: Promise<unknown>) => { setError(undefined); return run(p.then(load).catch((e) => { setError((e as Error).message); throw e; })); };
+  /** Runs the request, reloads the trips and shows a server error next to the form; resolves to whether it succeeded. */
+  const change = async (request: () => Promise<unknown>): Promise<boolean> => {
+    let ok = false;
+    setError(undefined);
+    await run(request().then(load).then(() => { ok = true; }, (e) => { setError((e as Error).message); }));
+    return ok;
+  };
   const departure = parseHHMM(draft.departure);
   const until = parseHHMM(draft.until);
   const problem = !draft.trainId || !draft.routeId ? "Zug und Fahrstraße wählen"
@@ -64,7 +70,7 @@ export function TimetableAdmin({ state, run }: { state: StationState; run: Run }
       destination: draft.destination.trim() || undefined,
       repeat: draft.repeat && until !== undefined ? { every: draft.every, until } : undefined,
     };
-    void change(draft.id ? api("PUT", `/api/trips/${draft.id}`, body) : api("POST", "/api/trips", body)).then(() => setDraft(EMPTY), () => undefined);
+    void change(() => (draft.id ? api("PUT", `/api/trips/${draft.id}`, body) : api("POST", "/api/trips", body))).then((ok) => { if (ok) setDraft(EMPTY); });
   };
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setDraft({ ...draft, [k]: v });
   const rows = tripRows(data?.trips ?? [], trains, routes);
@@ -91,7 +97,7 @@ export function TimetableAdmin({ state, run }: { state: StationState; run: Run }
         <h2>Verspätungsgrenze</h2>
         <div className="row tight">
           <label>Minuten <input type="number" min={0} max={240} value={limit} onChange={(e) => setLimit(Number(e.target.value))} /></label>
-          <button disabled={limit === data?.lateLimit} onClick={() => void change(api("PUT", "/api/timetable/settings", { lateLimit: limit })).catch(() => undefined)}>Speichern</button>
+          <button disabled={limit === data?.lateLimit} onClick={() => void change(() => api("PUT", "/api/timetable/settings", { lateLimit: limit }))}>Speichern</button>
         </div>
         <p className="hint">Ab dieser Verspätung wird eine Fahrt als „verspätet“ gemeldet.</p>
       </aside>
@@ -129,7 +135,7 @@ export function TimetableAdmin({ state, run }: { state: StationState; run: Run }
         <div className="row tight">
           <button className="active" disabled={!!problem} onClick={save}>Speichern</button>
           <button onClick={() => { setDraft(EMPTY); setError(undefined); }}>Neu</button>
-          {draft.id && <button className="danger" onClick={() => ifSure("Diese Fahrt löschen?", () => change(api("DELETE", `/api/trips/${draft.id}`)).then(() => setDraft(EMPTY), () => undefined))}>Löschen</button>}
+          {draft.id && <button className="danger" onClick={() => ifSure("Diese Fahrt löschen?", () => void change(() => api("DELETE", `/api/trips/${draft.id}`)).then((ok) => { if (ok) setDraft(EMPTY); }))}>Löschen</button>}
         </div>
       </div>
     </section>
