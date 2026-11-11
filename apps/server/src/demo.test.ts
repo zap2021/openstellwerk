@@ -41,6 +41,16 @@ it("drives a virtual train through a route: set, entered, released", async () =>
   expect(station.snapshot().interlocking).toEqual([]);
 });
 
+it("ends the train when its route is released before it left", async () => {
+  const free = () => station.snapshot().rmbus.find((m) => m.module === 1)!.inputs.every((i) => !i);
+  expect((await post("/api/interlocking/r1/request")).statusCode).toBe(200);
+  await until(() => (demo as unknown as { running: Set<string> }).running.has("r1")); // the train is on its way ...
+  expect((await post("/api/interlocking/r1/release")).statusCode).toBe(200); // ... but the route is cancelled
+  await new Promise((r) => setTimeout(r, 400));
+  expect(free()).toBe(true); // no ghost train occupied a detector
+  expect(station.snapshot().interlocking).toEqual([]);
+});
+
 it("stops cleanly, and refuses to start while a real station is connected", async () => {
   expect((await post("/api/demo", { on: false })).json()).toEqual({ active: false });
   expect(station.snapshot()).toMatchObject({ connected: false });

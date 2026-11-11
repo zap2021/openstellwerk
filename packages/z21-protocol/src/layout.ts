@@ -8,7 +8,7 @@ export type Dir = number;
 export const CENTER = -1;
 
 export const TILE_KINDS = [
-  "straight", "curve", "turnoutLeft", "turnoutRight", "threeWay", "doubleSlip", "crossing", "crossing90", "bufferStop", "signal", "text",
+  "straight", "curve", "curve90", "turnoutLeft", "turnoutRight", "threeWay", "doubleSlip", "crossing", "crossing90", "bufferStop", "signal", "text",
 ] as const;
 export type TileKind = (typeof TILE_KINDS)[number];
 
@@ -16,6 +16,7 @@ export type TileKind = (typeof TILE_KINDS)[number];
 const BASE_PATHS: Record<TileKind, [Dir, Dir][]> = {
   straight: [[4, 0]],
   curve: [[4, 1]],
+  curve90: [[4, 2]], // west to south: a 90° bend (curve is the 45° one)
   turnoutLeft: [[4, 0], [4, 7]],
   turnoutRight: [[4, 0], [4, 1]],
   threeWay: [[4, 0], [4, 7], [4, 1]],
@@ -59,9 +60,10 @@ export interface RouteStep { tileId: string; state: number }
 /**
  * A route is a list of wanted positions. Optional safety data turns it into an interlocked route:
  * `from`/`to` are the first and last block, `signal` the start signal (it only clears once everything else is set),
+ * `blocks` the blocks in between, in driving order (blocks without a turnout cannot be derived from `steps`),
  * `flank` positions of turnouts that are not driven over but must be locked to keep other movements away.
  */
-export interface Route { id: string; name: string; steps: RouteStep[]; from?: string; to?: string; signal?: string; flank?: RouteStep[] }
+export interface Route { id: string; name: string; steps: RouteStep[]; from?: string; to?: string; blocks?: string[]; signal?: string; flank?: RouteStep[] }
 /** A track section that is reported occupied as soon as one of its tiles' detectors says so. */
 export interface Block { id: string; name: string; tileIds: string[] }
 export interface Layout { cols: number; rows: number; tiles: Tile[]; routes: Route[]; blocks?: Block[] }
@@ -323,6 +325,7 @@ export function validateLayout(input: unknown): Layout {
       const o = (s ?? {}) as Record<string, unknown>;
       const tile = byId.get(String(o.tileId)) ?? fail(`${where}: verweist auf ein Feld, das es nicht gibt`);
       if (seen.has(tile.id)) fail(`${where}: Feld mehrfach enthalten`);
+      if (stateCount(tile) === 0) fail(`${where}: Feld ${tile.id} ist nicht schaltbar und kann kein Schritt sein`);
       seen.add(tile.id);
       return { tileId: tile.id, state: int(o.state, 0, Math.max(0, stateCount(tile) - 1), `${where}: Stellung`) };
     });
@@ -333,6 +336,9 @@ export function validateLayout(input: unknown): Layout {
     const to = blockRef(r.to, "Ziel");
     if (from) route.from = from;
     if (to) route.to = to;
+    const between = [...new Set((Array.isArray(r.blocks) ? r.blocks : []).map(String))].filter((b) => b !== from && b !== to);
+    for (const b of between) if (!blockIds.has(b)) fail(`${where}: Zwischenblock ${b} gibt es nicht`);
+    if (between.length) route.blocks = between;
     if (r.signal !== undefined && r.signal !== null && r.signal !== "") {
       const sig = byId.get(String(r.signal));
       if (sig?.kind !== "signal") fail(`${where}: Startsignal ist kein Signal`);

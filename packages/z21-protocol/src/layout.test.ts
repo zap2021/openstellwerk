@@ -15,6 +15,16 @@ describe("geometry", () => {
     expect(tilePaths({ kind: "curve", rot: 3 })).toEqual([[7, 4]]); // the mirrored bend needs no extra tile
     expect(tilePaths({ kind: "bufferStop", rot: 6 })).toEqual([[2, -1]]);
   });
+  it("has a 90° bend that turns west into south and rotates like the others", () => {
+    expect(tilePaths({ kind: "curve90", rot: 0 })).toEqual([[4, 2]]);
+    expect(tilePaths({ kind: "curve90", rot: 2 })).toEqual([[6, 4]]); // west->south turned a quarter: north to west
+    expect(tilePaths({ kind: "curve", rot: 0 })).toEqual([[4, 1]]); // the 45° bend is unchanged
+    const t = tile({ kind: "curve90", feedback: { bus: "rbus", module: 1, input: 1 } });
+    expect(stateCount(t)).toBe(0); // plain track, not switchable
+    expect(tileOccupied(t, live({ rmbus: [{ module: 1, inputs: [true] }] }))).toBe(true);
+    const v = validateLayout({ cols: 4, rows: 4, tiles: [{ id: "k", x: 1, y: 1, kind: "curve90", rot: 3, feedback: { bus: "rbus", module: 1, input: 1 } }], routes: [] });
+    expect(v.tiles[0]).toMatchObject({ kind: "curve90", rot: 3, feedback: { bus: "rbus", module: 1, input: 1 } });
+  });
   it("highlights only the set branch", () => {
     const t = tile({ kind: "turnoutRight" });
     expect(activePaths(t, 0)).toEqual([0]);
@@ -123,6 +133,19 @@ describe("blocks", () => {
     expect(bad((c) => { c.blocks![1]!.id = "b1"; })).toThrow(/doppelt/);
     expect(bad((c) => { c.routes[0]!.from = "zzz"; })).toThrow(/Block, den es nicht gibt/);
     expect(bad((c) => { c.routes[0]!.signal = "g1"; })).toThrow(/kein Signal/);
+  });
+  it("keeps the blocks between start and target in order and checks them", () => {
+    const withBlocks = (blocks: string[]) => validateLayout({ ...l, routes: [{ id: "r", name: "x", steps: [], from: "b1", to: "b2", blocks }] });
+    const extra: Layout = { ...l, blocks: [...l.blocks!, { id: "b3", name: "Mitte", tileIds: [] }, { id: "b4", name: "Mitte 2", tileIds: [] }] };
+    const ok = validateLayout({ ...extra, routes: [{ id: "r", name: "x", steps: [], from: "b1", to: "b2", blocks: ["b4", "b3", "b4", "b1", "b2"] }] });
+    expect(ok.routes[0]!.blocks).toEqual(["b4", "b3"]); // order kept, duplicates and start/target dropped
+    expect(() => withBlocks(["nope"])).toThrow(/Zwischenblock nope/);
+  });
+  it("refuses route steps on tiles that cannot be switched", () => {
+    const route = (steps: { tileId: string; state: number }[]) => () => validateLayout({ ...l, routes: [{ id: "r", name: "x", steps }] });
+    expect(route([{ tileId: "g1", state: 0 }])).toThrow(/nicht schaltbar/);
+    expect(() => validateLayout({ ...l, routes: [{ id: "r", name: "x", steps: [], flank: [{ tileId: "g1", state: 0 }] }] })).toThrow(/nicht schaltbar/);
+    expect(route([{ tileId: "w1", state: 1 }])).not.toThrow();
   });
 });
 

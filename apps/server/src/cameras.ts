@@ -54,22 +54,40 @@ export class CameraStore {
   save(input: Partial<Camera> & { id?: string }): Camera {
     const cur = input.id ? this.map.get(input.id) : undefined;
     if (input.id && !cur) throw Object.assign(new Error("Kamera nicht gefunden"), { statusCode: 404 });
-    const kind = (input.kind ?? cur?.kind ?? "mjpeg") as CameraKind;
-    if (!["mjpeg", "snapshot", "iframe"].includes(kind)) throw bad("Unbekannter Typ");
-    const name = String(input.name ?? cur?.name ?? "").trim().slice(0, 40);
-    if (!name) throw bad("Bitte einen Namen angeben");
-    const url = checkUrl(input.url ?? cur?.url, kind);
-    const refresh = input.refreshMs ?? cur?.refreshMs;
-    const next: Camera = {
-      id: cur?.id ?? randomBytes(4).toString("hex"),
-      name, kind, url,
-      username: (input.username ?? cur?.username)?.trim().slice(0, 80) || undefined,
-      password: input.password === undefined ? cur?.password : input.password.slice(0, 120) || undefined,
-      insecureTls: (input.insecureTls ?? cur?.insecureTls) ? true : undefined,
-      refreshMs: kind === "snapshot" ? Math.min(60_000, Math.max(200, Math.round(Number(refresh) || 1000))) : undefined,
-    };
+    const next = prepare(input, cur);
     this.map.set(next.id, next);
     this.persist();
+    return next;
+  }
+
+  /**
+   * Replace all cameras (restore from a backup). Everything is checked first, so a bad entry changes nothing.
+   * A camera without password in the backup keeps the password stored under the same id, if there is one.
+   */
+  replaceAll(list: unknown): Camera[] {
+    this.map = this.build(list);
+    this.persist();
+    return this.list();
+  }
+
+  /** Dry run of replaceAll: throws on the first bad entry, stores nothing. */
+  check(list: unknown): void { this.build(list); }
+
+  private build(list: unknown): Map<string, Camera> {
+    if (!Array.isArray(list)) throw bad("Kameras: Liste erwartet");
+    if (list.length > 50) throw bad("Kameras: zu viele Einträge");
+    const next = new Map<string, Camera>();
+    for (const [i, raw] of list.entries()) {
+      const o = (raw ?? {}) as Partial<Camera>;
+      const id = typeof o.id === "string" && /^[A-Za-z0-9_-]{1,24}$/.test(o.id) ? o.id : undefined;
+      try {
+        const cam = prepare({ ...o, id: undefined, password: o.password ?? undefined }); // the backup decides every field ...
+        const keepId = id && !next.has(id);
+        cam.id = keepId ? id : cam.id;
+        if (o.password === undefined && keepId) cam.password = this.map.get(id)?.password; // ... except a missing password
+        next.set(cam.id, cam);
+      } catch (e) { throw bad(`Kamera ${i + 1}: ${(e as Error).message}`); }
+    }
     return next;
   }
 
@@ -80,6 +98,24 @@ export class CameraStore {
   }
 
   private persist() { this.store.write(() => this.list()); }
+}
+
+/** Validate and normalise a camera; `cur` supplies values the input leaves out. */
+function prepare(input: Partial<Camera>, cur?: Camera): Camera {
+  const kind = (input.kind ?? cur?.kind ?? "mjpeg") as CameraKind;
+  if (!["mjpeg", "snapshot", "iframe"].includes(kind)) throw bad("Unbekannter Typ");
+  const name = String(input.name ?? cur?.name ?? "").trim().slice(0, 40);
+  if (!name) throw bad("Bitte einen Namen angeben");
+  const url = checkUrl(input.url ?? cur?.url, kind);
+  const refresh = input.refreshMs ?? cur?.refreshMs;
+  return {
+    id: cur?.id ?? randomBytes(4).toString("hex"),
+    name, kind, url,
+    username: (input.username ?? cur?.username)?.trim().slice(0, 80) || undefined,
+    password: input.password === undefined ? cur?.password : input.password.slice(0, 120) || undefined,
+    insecureTls: (input.insecureTls ?? cur?.insecureTls) ? true : undefined,
+    refreshMs: kind === "snapshot" ? Math.min(60_000, Math.max(200, Math.round(Number(refresh) || 1000))) : undefined,
+  };
 }
 
 export const toPublic = ({ password, ...rest }: Camera): PublicCamera => ({ ...rest, hasPassword: !!password });

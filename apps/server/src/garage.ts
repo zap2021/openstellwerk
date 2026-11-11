@@ -50,6 +50,12 @@ export class Garage {
     return next;
   }
 
+  /** Replace the whole registry (restore from a backup); `list` comes from parseGarage. */
+  replaceAll(list: GarageLoco[]) {
+    this.map = new Map(list.map((l) => [l.address, l]));
+    this.save();
+  }
+
   remove(address: number) {
     const had = this.map.delete(address);
     if (had) this.save();
@@ -67,4 +73,24 @@ function cleanNames(names: Record<number, string>) {
     if (Number.isInteger(n) && n >= 0 && n <= 31 && text) out[n] = text;
   }
   return out;
+}
+
+const SOURCES: GarageSource[] = ["scan", "prog", "manual", "railcom", "detector", "active"];
+
+/** Strict check of a loco list from a backup file; throws a readable German error and changes nothing. */
+export function parseGarage(raw: unknown): GarageLoco[] {
+  if (!Array.isArray(raw)) throw new Error("Lokliste: Liste erwartet");
+  if (raw.length > 1000) throw new Error("Lokliste: zu viele Einträge");
+  const seen = new Set<number>();
+  return raw.map((e: unknown, i: number) => {
+    const o = (e ?? {}) as Record<string, unknown>;
+    const address = o.address;
+    if (typeof address !== "number" || !Number.isInteger(address) || address < 1 || address > 9999) throw new Error(`Lokliste, Eintrag ${i + 1}: Adresse muss zwischen 1 und 9999 liegen`);
+    if (seen.has(address)) throw new Error(`Lokliste: Adresse ${address} doppelt`);
+    seen.add(address);
+    const sources = (Array.isArray(o.sources) ? o.sources : []).filter((x): x is GarageSource => SOURCES.includes(x as GarageSource));
+    const name = typeof o.name === "string" ? o.name.trim().slice(0, 40) || undefined : undefined;
+    const lastSeen = typeof o.lastSeen === "number" && Number.isFinite(o.lastSeen) ? o.lastSeen : undefined;
+    return { address, name, sources: [...new Set(sources)], functionNames: cleanNames((o.functionNames ?? {}) as Record<number, string>), lastSeen };
+  });
 }

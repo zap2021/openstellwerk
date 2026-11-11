@@ -1,11 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import {
-  EMPTY_LAYOUT, feedbackBuses, routeCommands, tileCommands, turnoutAddresses, validateLayout,
+  EMPTY_LAYOUT, feedbackBuses, routeCommands, stateCount, tileCommands, turnoutAddresses, validateLayout,
   type Layout, type LayoutCommand,
 } from "@z21/protocol";
 import { Interlocking, type RouteState } from "@z21/interlocking";
 import { JsonFile } from "./json-file.js";
 import type { RouteRun, Station } from "./station.js";
+
+interface Job { total: number; sent: number; resolve: () => void; reject: (e: Error) => void; onStep?: (done: number) => void }
 
 const httpError = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode });
 
@@ -16,7 +18,8 @@ const httpError = (statusCode: number, message: string) => Object.assign(new Err
 export class SignalBox {
   private layout: Layout;
   private file: JsonFile<Layout>;
-  private queue: Promise<unknown> = Promise.resolve();
+  private pending: { c: LayoutCommand; job: Job }[] = [];
+  private draining = false;
   private routeRun?: RouteRun;
   private il: Interlocking;
   private ticker?: NodeJS.Timeout;
@@ -74,19 +77,40 @@ export class SignalBox {
     else this.station.setExtAccessory(c.address, c.value);
   }
 
-  /** Run commands one after the other with a pause in between; resolves when the last one is out. */
-  private enqueue(commands: LayoutCommand[], onStep?: (done: number) => void): Promise<void> {
-    const run = async () => {
-      for (let i = 0; i < commands.length; i++) {
-        if (!this.station.client.connected) throw httpError(409, "not connected");
-        this.send(commands[i]!);
-        onStep?.(i + 1);
+  /**
+   * Run commands one after the other with a pause in between; resolves when the last one is out.
+   * `urgent` commands (the interlocking's signal Halt, releases) go to the front: they must not wait behind
+   * a long, unrelated switching job. Still one command at a time, so two solenoids never draw current together.
+   */
+  private enqueue(commands: LayoutCommand[], onStep?: (done: number) => void, urgent = false): Promise<void> {
+    if (!commands.length) return Promise.resolve();
+    return new Promise<void>((resolve, reject) => {
+      const job: Job = { total: commands.length, sent: 0, resolve, reject, onStep };
+      const items = commands.map((c) => ({ c, job }));
+      if (urgent) this.pending.unshift(...items); else this.pending.push(...items);
+      void this.drain();
+    });
+  }
+
+  private async drain() {
+    if (this.draining) return;
+    this.draining = true;
+    try {
+      while (this.pending.length) {
+        const { c, job } = this.pending.shift()!;
+        if (!this.station.client.connected) {
+          const jobs = new Set([job, ...this.pending.map((i) => i.job)]);
+          this.pending = [];
+          for (const j of jobs) j.reject(httpError(409, "not connected"));
+          break;
+        }
+        this.send(c);
+        job.sent++; // not inside the optional call: `onStep?.(++sent)` skips its argument when there is no onStep
+        job.onStep?.(job.sent);
         await new Promise((r) => setTimeout(r, this.gapMs));
+        if (job.sent === job.total) job.resolve();
       }
-    };
-    const p = this.queue.then(run, run);
-    this.queue = p.catch(() => undefined);
-    return p;
+    } finally { this.draining = false; }
   }
 
   async setTile(id: string, state: number) {
@@ -99,6 +123,23 @@ export class SignalBox {
     if (!this.station.client.connected) throw httpError(409, "not connected");
     await this.enqueue(commands);
     return { ok: true, commands: commands.length };
+  }
+
+  /**
+   * Refuse switching a turnout or DCCext address by hand while an interlocked route holds a tile that uses it.
+   * Called by the direct switching endpoints, which do not go through setTile().
+   */
+  assertAddressFree(type: "turnout" | "ext", address: number) {
+    const locked = this.il.lockedTiles();
+    if (!locked.size) return;
+    for (const t of this.layout.tiles) {
+      if (!locked.has(t.id)) continue;
+      const uses = Array.from({ length: stateCount(t) }, (_, i) => tileCommands(t, i)).flat().some((c) => c.type === type && c.address === address);
+      if (uses) {
+        const route = this.layout.routes.find((r) => r.id === this.il.lockedBy(t.id));
+        throw httpError(409, `Adresse ${address} ist durch Fahrstraße „${route?.name ?? "?"}“ verriegelt`);
+      }
+    }
   }
 
   /* ---------- interlocked routes ---------- */
@@ -118,7 +159,8 @@ export class SignalBox {
   releaseRoute(id: string, force = false) {
     const out = this.il.release(id, force);
     if (!out.ok) throw httpError(409, out.reason ?? "Auflösen nicht möglich");
-    this.dispatch(out.commands);
+    this.dispatch(out.commands, true); // Halt for the signal
+    if (!this.il.states().length) this.stopTicker();
     this.station.notify();
     return { ok: true };
   }
@@ -127,15 +169,16 @@ export class SignalBox {
 
   /** Called on every station update. Frozen while disconnected: stale detector data must not release anything. */
   private evaluate() {
-    if (!this.il.states().length || !this.station.client.connected) return;
+    if (!this.il.states().length) { this.stopTicker(); return; }
+    if (!this.station.client.connected) return;
     const commands = this.il.step(this.station.snapshot(), Date.now());
-    if (commands.length) this.dispatch(commands);
+    this.dispatch(commands, true); // signals to Halt (or Fahrt after the positions are confirmed) do not wait in line
     if (!this.il.states().length) this.stopTicker();
   }
 
-  private dispatch(commands: LayoutCommand[]) {
+  private dispatch(commands: LayoutCommand[], urgent = false) {
     if (!commands.length) return;
-    this.enqueue(commands).catch((e: Error) => console.error("Fahrstraßen-Befehl fehlgeschlagen:", e.message));
+    this.enqueue(commands, undefined, urgent).catch((e: Error) => console.error("Fahrstraßen-Befehl fehlgeschlagen:", e.message));
   }
 
   /** Timeouts need a clock even when nothing changes. */

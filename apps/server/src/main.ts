@@ -13,6 +13,7 @@ import { discover } from "./z21-client.js";
 import { exposureProblem, registerAuth } from "./auth.js";
 import { registerLayoutRoutes, SignalBox } from "./layout.js";
 import { Demo, registerDemoRoutes } from "./demo.js";
+import { BackupService, registerBackupRoutes } from "./backup.js";
 import { readTls, tlsFilesFromEnv, watchTls } from "./tls.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -71,7 +72,9 @@ app.post<{ Params: { addr: string; fn: string }; Body: { action: "on" | "off" | 
 });
 
 app.post<{ Params: { addr: string }; Body: { output: 0 | 1 } }>("/api/turnout/:addr", async (req) => {
-  station.setTurnout(int(req.params.addr, 1, 16384, "address"), int(req.body.output, 0, 1, "output") as 0 | 1);
+  const addr = int(req.params.addr, 1, 16384, "address");
+  box.assertAddressFree("turnout", addr); // a turnout locked by an interlocked route must not be moved by hand
+  station.setTurnout(addr, int(req.body.output, 0, 1, "output") as 0 | 1);
   return { ok: true };
 });
 
@@ -137,7 +140,11 @@ registerLayoutRoutes(app, box);
 registerDemoRoutes(app, demo);
 
 /* ---------- cameras ---------- */
-registerCameraRoutes(app, new CameraStore(path.join(dataDir, "cameras.json")));
+const cameraStore = new CameraStore(path.join(dataDir, "cameras.json"));
+registerCameraRoutes(app, cameraStore);
+
+/* ---------- backup: everything the user maintains that the Z21 does not store ---------- */
+registerBackupRoutes(app, new BackupService(station.garage, box, cameraStore, () => station.notify()));
 
 /* ---------- network settings (read-only) ---------- */
 app.get("/api/network", async () => {
@@ -176,7 +183,9 @@ app.post<{ Params: { addr: string }; Body: { state: number; on: boolean } }>("/a
 
 /* ---------- DCCext accessories / signals ---------- */
 app.post<{ Params: { addr: string }; Body: { value: number } }>("/api/accessory/:addr", async (req) => {
-  station.setExtAccessory(int(req.params.addr, 1, 2044, "address"), int(req.body?.value, 0, 255, "value"));
+  const addr = int(req.params.addr, 1, 2044, "address");
+  box.assertAddressFree("ext", addr);
+  station.setExtAccessory(addr, int(req.body?.value, 0, 255, "value"));
   return { ok: true };
 });
 app.get<{ Params: { addr: string } }>("/api/accessory/:addr", async (req) => station.getExtAccessory(int(req.params.addr, 1, 2044, "address")));

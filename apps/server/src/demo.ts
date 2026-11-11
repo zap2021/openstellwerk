@@ -78,19 +78,23 @@ export class Demo {
     const layout = this.box.get();
     const route = layout.routes.find((x) => x.id === routeId);
     if (!route) return;
-    const alive = () => session === this.session && !!this.sim;
+    // The train only runs while its route is still requested: released or replaced routes end it.
+    const alive = () => session === this.session && !!this.sim && !!this.station.snapshot().interlocking?.some((r) => r.routeId === routeId);
     const wait = async (ms: number) => { await sleep(ms / this.pace); return alive(); };
-    // Block order along the route: start block, blocks the route crosses, target block.
-    const path = [route.from, ...blocksOnRoute(layout, routeId), route.to].filter((b, i, a): b is string => !!b && a.indexOf(b) === i);
-    if (!(await wait(2500))) return;
+    // Block order along the route: start block, blocks in between, target block.
+    const path = [route.from, ...routeBlocks(layout, routeId), route.to].filter((b, i, a): b is string => !!b && a.indexOf(b) === i);
     let prev: string | undefined;
-    for (const b of path) {
-      this.occupy(layout, b, true);
-      if (prev) this.occupy(layout, prev, false);
-      prev = b;
-      if (!(await wait(3000))) return;
+    try {
+      if (!(await wait(2500))) return;
+      for (const b of path) {
+        this.occupy(layout, b, true);
+        if (prev) this.occupy(layout, prev, false);
+        prev = b;
+        if (!(await wait(3000))) return;
+      }
+    } finally {
+      if (prev) this.occupy(layout, prev, false); // the train always leaves, also when the route ended early
     }
-    if (prev) this.occupy(layout, prev, false);
   }
 
   private occupy(layout: Layout, blockId: string, on: boolean) {
@@ -106,11 +110,12 @@ export class Demo {
   }
 }
 
-/** Blocks (other than from/to) that contain a tile of the route. */
-function blocksOnRoute(layout: Layout, routeId: string): string[] {
+/** Blocks between start and target: the ones the route names, then those found through its turnouts. */
+function routeBlocks(layout: Layout, routeId: string): string[] {
   const route = layout.routes.find((r) => r.id === routeId)!;
   const tiles = new Set([...route.steps, ...(route.flank ?? [])].map((s) => s.tileId));
-  return (layout.blocks ?? []).filter((b) => b.id !== route.from && b.id !== route.to && b.tileIds.some((t) => tiles.has(t))).map((b) => b.id);
+  const derived = (layout.blocks ?? []).filter((b) => b.tileIds.some((t) => tiles.has(t))).map((b) => b.id);
+  return [...new Set([...(route.blocks ?? []), ...derived])].filter((b) => b !== route.from && b !== route.to);
 }
 
 export function registerDemoRoutes(app: FastifyInstance, demo: Demo) {

@@ -8,8 +8,10 @@
  *  - Routes lock their blocks and turnouts; a second route may only share a turnout in the same position
  *    and never a block.
  *  - Turnouts are driven first, the signal is cleared last and only once every position is reported back.
- *  - Once a train has entered, the signal goes back to Halt. The route is released only after all its blocks
- *    report free again (whole-route release; per-block release needs the track graph, see the roadmap).
+ *  - Once a train has entered, the signal goes back to Halt. The route is released only after the train has
+ *    reached the target block and all blocks report free again. A momentary "all free" while the train moves from
+ *    one block to the next therefore releases nothing. (Whole-route release; per-block release needs the track
+ *    graph, see the roadmap.)
  *  - A locked turnout that moves, or a block that is taken while the route is still being set, is a fault:
  *    the signal goes to Halt and the locks stay until the operator releases the route.
  */
@@ -45,6 +47,8 @@ interface Active extends RouteState {
   signals: RouteStep[];
   blocks: string[];
   signalCleared: boolean;
+  /** blocks that have been reported occupied since the route was cleared */
+  seen: Set<string>;
 }
 
 export interface InterlockingOptions {
@@ -77,6 +81,11 @@ export class Interlocking {
     return undefined;
   }
 
+  /** All tiles (turnouts, signals) held by active routes; callers use it to refuse switching them by address. */
+  lockedTiles(): Set<string> {
+    return new Set([...this.active.values()].flatMap((a) => [...a.switches, ...a.signals].map((s) => s.tileId)));
+  }
+
   /** Blocks that belong to an active route. */
   lockedBlocks(): Set<string> {
     return new Set([...this.active.values()].flatMap((a) => a.blocks));
@@ -105,9 +114,12 @@ export class Interlocking {
       }
     }
 
-    this.active.set(routeId, { routeId, route, switches, signals, blocks, status: "setting", since: now, signalCleared: false });
+    // Work out the commands first: if that fails, nothing may stay locked.
+    let commands: LayoutCommand[];
+    try { commands = switches.flatMap((s) => this.drive(s, live)); } catch (e) { return refuse(`Fahrstraße nicht stellbar: ${(e as Error).message}`); }
+    this.active.set(routeId, { routeId, route, switches, signals, blocks, status: "setting", since: now, signalCleared: false, seen: new Set() });
     // Only drive what is not already in place; the rest is already locked by the entry above.
-    return { ok: true, commands: switches.flatMap((s) => this.drive(s, live)) };
+    return { ok: true, commands };
   }
 
   /**
@@ -138,10 +150,11 @@ export class Interlocking {
       const moved = a.switches.find((s) => !this.inPlace(s, live) && tileState(this.tiles.get(s.tileId)!, live) !== undefined);
       if (moved) { out.push(...this.fail(a, `${this.label(moved.tileId)} wurde verstellt`, now)); continue; }
 
+      a.blocks.forEach((bid, i) => { if (occupied[i] === true) a.seen.add(bid); });
       if (a.status === "set" && occupied.some((o) => o === true)) {
         out.push(...this.haltSignals(a));
         this.to(a, "running", now);
-      } else if (a.status === "running" && occupied.every((o) => o === false)) {
+      } else if (a.status === "running" && occupied.every((o) => o === false) && this.reachedTarget(a)) {
         this.active.delete(a.routeId);
       } else if (a.status === "set" && occupied.some((o) => o === undefined)) {
         out.push(...this.fail(a, "Melder ausgefallen", now));
@@ -172,9 +185,15 @@ export class Interlocking {
     const ids = new Set<string>();
     if (route.from) ids.add(route.from);
     if (route.to) ids.add(route.to);
+    for (const b of route.blocks ?? []) ids.add(b);
     const tileIds = new Set([...route.steps, ...(route.flank ?? [])].map((s) => s.tileId));
     for (const b of this.layout.blocks ?? []) if (b.tileIds.some((t) => tileIds.has(t))) ids.add(b.id);
     return [...ids];
+  }
+
+  /** The train has arrived: the target block was occupied (without a target block: every block of the route was). */
+  private reachedTarget(a: Active): boolean {
+    return a.route.to ? a.seen.has(a.route.to) : a.blocks.every((b) => a.seen.has(b));
   }
 
   /** Splits a route into turnout steps (incl. flank protection, driven first) and signal steps (cleared last). */

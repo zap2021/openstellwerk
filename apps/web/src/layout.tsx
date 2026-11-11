@@ -12,10 +12,10 @@ type Tool = "select" | "erase" | TileKind;
 const S = 44; // tile size in px
 const VEC: [number, number][] = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
 const KIND_LABEL: Record<TileKind, string> = {
-  straight: "Gerade", curve: "Bogen", turnoutLeft: "Weiche links", turnoutRight: "Weiche rechts", threeWay: "Dreiwegweiche",
+  straight: "Gerade", curve: "Bogen", curve90: "90° Bogen", turnoutLeft: "Weiche links", turnoutRight: "Weiche rechts", threeWay: "Dreiwegweiche",
   doubleSlip: "Kreuzungsweiche", crossing: "Kreuzung 45°", crossing90: "Kreuzung 90°", bufferStop: "Prellbock", signal: "Signal", text: "Text",
 };
-const PALETTE: TileKind[] = ["straight", "curve", "turnoutLeft", "turnoutRight", "threeWay", "doubleSlip", "crossing", "crossing90", "bufferStop", "signal", "text"];
+const PALETTE: TileKind[] = ["straight", "curve", "curve90", "turnoutLeft", "turnoutRight", "threeWay", "doubleSlip", "crossing", "crossing90", "bufferStop", "signal", "text"];
 const newId = () => Math.random().toString(36).slice(2, 10);
 /** Remove tiles and everything that refers to them (route steps, blocks, signal references). */
 function dropTiles(l: Layout, gone: Set<string>) {
@@ -42,7 +42,9 @@ function TileView({ tile, state, occupied, selected, hint, wanted }: { tile: Til
     const [a, b] = paths[i]!;
     const [x1, y1] = point(cx, cy, a);
     const [x2, y2] = point(cx, cy, b);
-    return `M${x1} ${y1} L${cx} ${cy} L${x2} ${y2}`;
+    // a 90° bend (edges two steps apart) is drawn rounded, the 45° bend and straights as a plain polyline
+    const quarter = a !== CENTER && b !== CENTER && (b - a + 8) % 8 !== 0 && Math.min((b - a + 8) % 8, (a - b + 8) % 8) === 2;
+    return quarter ? `M${x1} ${y1} Q${cx} ${cy} ${x2} ${y2}` : `M${x1} ${y1} L${cx} ${cy} L${x2} ${y2}`;
   };
   const cls = (i: number) => {
     if (switchable && state === undefined) return "trk unknown";
@@ -113,12 +115,14 @@ function Diagram({ layout, live, grid, selected, hint, routeSteps, marked, onCel
   );
 }
 
+/** Signal box for everyday use: set routes, switch, look at the diagram. Editing lives in the administration. */
 export function LayoutTab({ state, run }: { state: StationState; run: Run }) {
-  const saved = state.layout ?? EMPTY_LAYOUT;
-  const [editing, setEditing] = useState(false);
-  return editing
-    ? <Editor saved={saved} state={state} run={run} close={() => setEditing(false)} />
-    : <Operate layout={saved} state={state} run={run} edit={() => setEditing(true)} />;
+  return <Operate layout={state.layout ?? EMPTY_LAYOUT} state={state} run={run} />;
+}
+
+/** Administration page: edit the track diagram, its blocks and routes. `done` leaves the page. */
+export function LayoutEditorPage({ state, run, done }: { state: StationState; run: Run; done: () => void }) {
+  return <Editor saved={state.layout ?? EMPTY_LAYOUT} state={state} run={run} close={done} />;
 }
 
 const STATUS: Record<string, string> = { setting: "wird gestellt …", set: "Fahrt frei", running: "befahren", fault: "Störung" };
@@ -126,7 +130,7 @@ const STATUS: Record<string, string> = { setting: "wird gestellt …", set: "Fah
 /** A route with start or target block is interlocked; the others are plain switch lists. */
 export const isSafeRoute = (l: Layout, r: Route) => !!l.blocks?.length && !!(r.from || r.to);
 
-function Operate({ layout, state, run, edit }: { layout: Layout; state: StationState; run: Run; edit: () => void }) {
+function Operate({ layout, state, run }: { layout: Layout; state: StationState; run: Run }) {
   const running = state.routeRun?.running ? state.routeRun : undefined;
   const il = new Map((state.interlocking ?? []).map((r) => [r.routeId, r]));
   const click = (_x: number, _y: number, tile?: Tile) => {
@@ -139,10 +143,6 @@ function Operate({ layout, state, run, edit }: { layout: Layout; state: StationS
   const plain = layout.routes.filter((r) => !isSafeRoute(layout, r));
   return (
     <section>
-      <div className="row">
-        <h2 className="grow">Stellwerk</h2>
-        <button onClick={edit}>Gleisbild bearbeiten</button>
-      </div>
       {safe.length > 0 && (
         <div className="routes">
           {safe.map((r) => {
@@ -178,7 +178,7 @@ function Operate({ layout, state, run, edit }: { layout: Layout; state: StationS
       )}
       {state.routeRun?.error && <div className="error">Fahrstraße abgebrochen: {state.routeRun.error}</div>}
       {layout.tiles.length === 0
-        ? <p>Noch kein Gleisbild vorhanden. Mit „Gleisbild bearbeiten“ legst du eines an.</p>
+        ? <p>Noch kein Gleisbild vorhanden. Unter Verwaltung → Gleisbild bearbeiten legst du eines an.</p>
         : <Diagram layout={layout} live={state} onCell={click} />}
       <p className="hint">
         Klick auf eine Weiche oder ein Signal schaltet um; Felder in einer eingestellten Fahrstraße sind verriegelt.
@@ -308,7 +308,7 @@ function Editor({ saved, state, run, close }: { saved: Layout; state: StationSta
     a.click();
     URL.revokeObjectURL(a.href);
   };
-  const importFile = (f?: File) => f && run(f.text().then((t) => { setDraft(validateLayout(JSON.parse(t))); setDirty(true); setSelected(undefined); setRouteId(undefined); }));
+  const importFile = (f?: File) => f && (draft.tiles.length === 0 || window.confirm("Das aktuelle Gleisbild im Editor wird durch die Datei ersetzt (gespeichert wird erst mit „Speichern“). Fortfahren?")) && run(f.text().then((t) => { setDraft(validateLayout(JSON.parse(t))); setDirty(true); setSelected(undefined); setRouteId(undefined); }));
   /** Send the commands of one position straight to the station, without saving the diagram first. */
   const test = (t: Tile, s: number) => run((async () => {
     for (const c of tileCommands(t, s)) {
@@ -449,7 +449,7 @@ function Editor({ saved, state, run, close }: { saved: Layout; state: StationSta
                     ? <input className="grow" value={b.name} maxLength={40} autoFocus onChange={(e) => change((l) => { l.blocks!.find((q) => q.id === b.id)!.name = e.target.value; })} />
                     : <button className="loco-item" onClick={() => { setBlockId(b.id); setRouteId(undefined); setSelected(undefined); }}><span className="meta"><strong>{b.name}</strong><small>{b.tileIds.length} Felder, {b.tileIds.some((id) => draft.tiles.find((t) => t.id === id)?.feedback) ? "mit Melder" : "ohne Melder"}</small></span></button>}
                   {blockId === b.id && <button onClick={() => setBlockId(undefined)}>Fertig</button>}
-                  <button className="x" title="Block löschen" onClick={() => { change((l) => { l.blocks = l.blocks!.filter((q) => q.id !== b.id); for (const r of l.routes) { if (r.from === b.id) delete r.from; if (r.to === b.id) delete r.to; } if (!l.blocks.length) delete l.blocks; }); if (blockId === b.id) setBlockId(undefined); }}>×</button>
+                  <button className="x" title="Block löschen" onClick={() => { change((l) => { l.blocks = l.blocks!.filter((q) => q.id !== b.id); for (const r of l.routes) { if (r.from === b.id) delete r.from; if (r.to === b.id) delete r.to; if (r.blocks) { r.blocks = r.blocks.filter((x) => x !== b.id); if (!r.blocks.length) delete r.blocks; } } if (!l.blocks.length) delete l.blocks; }); if (blockId === b.id) setBlockId(undefined); }}>×</button>
                 </li>
               ))}
             </ul>
@@ -475,6 +475,20 @@ function Editor({ saved, state, run, close }: { saved: Layout; state: StationSta
               <button onClick={exportFile}>Exportieren</button>
               <button onClick={() => fileInput.current?.click()}>Importieren</button>
               <input ref={fileInput} type="file" accept="application/json,.json" hidden onChange={(e) => { void importFile(e.target.files?.[0]); e.target.value = ""; }} />
+            </div>
+            <div className="row tight">
+              <button onClick={() => {
+                const a = document.createElement("a");
+                const dataStr = JSON.stringify(draft, null, 2);
+                const dataUri = "data:application/json;charset=utf-8,"+ encodeURIComponent(dataStr);
+                a.href = dataUri;
+                a.download = `z21-layout-${new Date().toISOString().slice(0, 10)}.json`;
+                a.click();
+              }}>Sichern (Backup)</button>
+              <button onClick={() => {
+                if (!window.confirm("Wollen Sie wirklich alle aktuellen Einstellungen überschreiben? Alle nicht gespeicherten Änderungen gehen verloren.")) return;
+                fileInput.current?.click();
+              }}>Wiederherstellen aus Backup</button>
             </div>
           </div>
         </div>
@@ -507,7 +521,24 @@ function RouteRow({ route, blocks, signals, active, select, change }: {
           {pick("from", blocks, "Start (Block)")}
           {pick("to", blocks, "Ziel (Block)")}
           {pick("signal", signals.map((t) => ({ id: t.id, name: t.label ?? `Signal ${t.address ?? t.id}` })), "Startsignal")}
-          <p className="hint">Mit Start- oder Ziel-Block wird die Fahrstraße gesichert: Besetzt-Prüfung, Verriegelung, automatische Auflösung.</p>
+          <fieldset className="between">
+            <legend>Blöcke dazwischen (in Fahrtrichtung anklicken)</legend>
+            {blocks.filter((b) => b.id !== route.from && b.id !== route.to).map((b) => {
+              const pos = route.blocks?.indexOf(b.id) ?? -1;
+              return (
+                <label key={b.id} className="check">
+                  <input
+                    type="checkbox"
+                    checked={pos >= 0}
+                    onChange={(e) => edit((r) => { r.blocks = e.target.checked ? [...(r.blocks ?? []), b.id] : (r.blocks ?? []).filter((x) => x !== b.id); if (!r.blocks.length) delete r.blocks; })}
+                  />
+                  {pos >= 0 ? `${pos + 1}. ` : ""}{b.name}
+                </label>
+              );
+            })}
+            {blocks.length <= 2 && <small className="hint">Weitere Blöcke legst du oben unter „Blöcke“ an.</small>}
+          </fieldset>
+          <p className="hint">Mit Start- oder Ziel-Block wird die Fahrstraße gesichert: Besetzt-Prüfung, Verriegelung, automatische Auflösung. Streckenblöcke ohne Weiche müssen unter „Blöcke dazwischen“ eingetragen werden, sonst werden sie nicht geprüft. Die Fahrstraße löst sich erst auf, wenn der Zug den Zielblock erreicht hat.</p>
         </div>
       )}
     </li>

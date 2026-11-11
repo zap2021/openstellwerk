@@ -97,3 +97,38 @@ it("refuses a route when its block is occupied, and lets the operator force-rele
   expect((await post("/api/interlocking/r2/release")).statusCode).toBe(409);
   expect((await post("/api/interlocking/nope/request")).statusCode).toBe(409);
 });
+
+it("refuses switching a locked address by hand, also for the direct endpoints", async () => {
+  box.assertAddressFree("turnout", 11); // nothing locked yet
+  expect((await post("/api/interlocking/r1/request")).statusCode).toBe(200);
+  await until(() => status("r1") === "set");
+  expect(() => box.assertAddressFree("turnout", 11)).toThrow(/Adresse 11.*„1 nach 2“.*verriegelt/);
+  expect(() => box.assertAddressFree("ext", 5)).toThrow(/verriegelt/); // the start signal
+  expect(() => box.assertAddressFree("turnout", 99)).not.toThrow();
+  expect(() => box.assertAddressFree("ext", 6)).not.toThrow();
+  expect((await post("/api/interlocking/r1/release")).statusCode).toBe(200);
+  expect(() => box.assertAddressFree("turnout", 11)).not.toThrow();
+});
+
+it("stops its timer when the last route is released by hand", async () => {
+  expect((await post("/api/interlocking/r1/request")).statusCode).toBe(200);
+  expect((box as unknown as { ticker?: unknown }).ticker).toBeDefined();
+  await until(() => status("r1") === "set");
+  await post("/api/interlocking/r1/release");
+  expect((box as unknown as { ticker?: unknown }).ticker).toBeUndefined();
+});
+
+it("lets signal Halt overtake a long switching job", async () => {
+  await until(() => !(box as unknown as { draining: boolean }).draining); // earlier tests may still be sending
+  const sent: number[] = [];
+  const orig = station.setTurnout.bind(station);
+  station.setTurnout = (addr: number, out: 0 | 1) => { sent.push(addr); orig(addr, out); };
+  const q = box as unknown as { enqueue(c: { type: "turnout"; address: number; output: 0 | 1 }[], onStep?: undefined, urgent?: boolean): Promise<void> };
+  const t = (address: number) => ({ type: "turnout" as const, address, output: 1 as const });
+  const slow = q.enqueue([t(101), t(102), t(103), t(104), t(105), t(106)]);
+  for (let i = 0; i < 400 && !sent.includes(101); i++) await new Promise((r) => setTimeout(r, 1)); // 101 is out, 102 is next
+  const urgent = q.enqueue([t(900)], undefined, true);
+  await Promise.all([slow, urgent]);
+  station.setTurnout = orig;
+  expect(sent.filter((a) => a >= 100)).toEqual([101, 900, 102, 103, 104, 105, 106]); // one at a time, Halt right after the one in flight
+});

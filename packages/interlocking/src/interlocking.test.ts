@@ -25,6 +25,7 @@ const layout: Layout = validateLayout({
     { id: "r2", name: "3 nach 2", from: "b3", to: "b2", steps: [{ tileId: "w1", state: 1 }] }, // shares b2 with r1
     { id: "r3", name: "3 nach 4", from: "b3", to: "b4", steps: [{ tileId: "w1", state: 0 }] }, // other position of w1
     { id: "r4", name: "ohne Block", steps: [{ tileId: "w2", state: 1 }] },
+    { id: "r5", name: "1 über 3 nach 4", from: "b1", to: "b4", blocks: ["b3"], steps: [{ tileId: "w1", state: 1 }] }, // b3 has no turnout
   ],
 });
 
@@ -160,5 +161,56 @@ describe("releasing", () => {
     expect(il.lockedBy("w2")).toBe("r1"); // flank protection counts
     expect(il.lockedBy("g4")).toBeUndefined();
     expect([...il.lockedBlocks()].sort()).toEqual(["b1", "b2"]);
+  });
+});
+
+describe("review findings", () => {
+  const train = (...occ: number[]) => ({ ...settled(), rmbus: [{ module: 1, inputs: [1, 2, 3, 4].map((i) => occ.includes(i)) }] });
+
+  it("does not release while the train is between two blocks (all detectors momentarily free)", () => {
+    const il = new Interlocking(layout);
+    il.request("r1", live(), 0);
+    il.step(settled(), 100);
+    il.step(train(1), 200);          // train in b1
+    il.step(train(), 300);           // b1 frees before b2 reports: a gap
+    expect(il.states()[0]!.status).toBe("running");
+    expect(il.request("r2", live(), 350).ok).toBe(false); // b2 is still locked
+    il.step(train(2), 400);          // arrives at the target block
+    il.step(train(), 500);           // and leaves
+    expect(il.states()).toEqual([]);
+  });
+
+  it("keeps a route locked when the train never reaches the target and goes back", () => {
+    const il = new Interlocking(layout);
+    il.request("r1", live(), 0);
+    il.step(settled(), 100);
+    il.step(train(1), 200);
+    il.step(train(), 300);
+    expect(il.states()[0]!.status).toBe("running"); // needs the emergency release
+    expect(il.release("r1", true).ok).toBe(true);
+  });
+
+  it("checks and locks the blocks listed in between, even without a turnout in them", () => {
+    const il = new Interlocking(layout);
+    expect(il.request("r5", live({ occ: [3] }), 0).reason).toMatch(/Gleis 3.*besetzt/);
+    expect(il.request("r5", live(), 0).ok).toBe(true);
+    expect([...il.lockedBlocks()].sort()).toEqual(["b1", "b3", "b4"]);
+    expect(il.request("r2", live(), 1).reason).toMatch(/Gleis 3.*„1 über 3 nach 4“/); // r2 starts in b3
+  });
+
+  it("leaves nothing locked when a request fails halfway", () => {
+    const bad = JSON.parse(JSON.stringify(layout)) as Layout;
+    bad.routes.push({ id: "kaputt", name: "kaputt", from: "b1", steps: [{ tileId: "g1", state: 0 }] } as never); // not switchable: slips past validation
+    const il = new Interlocking(bad);
+    const r = il.request("kaputt", live(), 0);
+    expect(r).toMatchObject({ ok: false, reason: expect.stringMatching(/nicht stellbar/) });
+    expect(il.states()).toEqual([]);
+    expect(il.request("r1", live(), 1).ok).toBe(true); // b1 is not stuck
+  });
+
+  it("lists the locked tiles", () => {
+    const il = new Interlocking(layout);
+    il.request("r1", live(), 0);
+    expect([...il.lockedTiles()].sort()).toEqual(["s1", "w1", "w2"]);
   });
 });

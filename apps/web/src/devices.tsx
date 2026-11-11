@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type BoosterSystemState, type DecoderState, type StationState } from "./api";
+import { ifSure } from "./confirm";
 import { age, MonitorSwitch, useMonitor, useNow } from "./monitors";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
@@ -88,7 +89,7 @@ export function RmBusTab({ state, run }: { state: StationState; run: Run }) {
         <p className="hint">Nur genau EIN Modul am R-BUS anschließen. Die Programmiersequenz läuft, bis sie mit Adresse 0 beendet wird.</p>
         <div className="row">
           <label>Neue Adresse (1–20) <input type="number" min={1} max={20} value={prog} onChange={(e) => setProg(Number(e.target.value))} /></label>
-          <button onClick={() => run(post("/api/rmbus/program", { address: prog }))}>Starten</button>
+          <button onClick={() => ifSure(`Das angeschlossene R-BUS-Modul auf Adresse ${prog} programmieren? Es darf nur dieses eine Modul am R-BUS hängen.`, () => run(post("/api/rmbus/program", { address: prog })))}>Starten</button>
           <button onClick={() => run(post("/api/rmbus/program", { address: 0 }))}>Beenden</button>
         </div>
       </details>
@@ -152,7 +153,7 @@ export function ClockTab({ state, run }: { state: StationState; run: Run }) {
             <label>Std <input type="number" min={0} max={23} value={startForm.hour} onChange={(e) => setStartForm({ ...startForm, hour: Number(e.target.value) })} /></label>
             <label>Min <input type="number" min={0} max={59} value={startForm.minute} onChange={(e) => setStartForm({ ...startForm, minute: Number(e.target.value) })} /></label>
             <label>Faktor <input type="number" min={0} max={63} value={startForm.rate} onChange={(e) => setStartForm({ ...startForm, rate: Number(e.target.value) })} /></label>
-            <button onClick={() => run(put("/api/clock/settings", { settings: flags, rate: startForm.rate, start: { weekday: startForm.weekday, hour: startForm.hour, minute: startForm.minute } }))}>
+            <button onClick={() => ifSure("Startzeit und Einstellungen dauerhaft in der Z21 speichern?", () => run(put("/api/clock/settings", { settings: flags, rate: startForm.rate, start: { weekday: startForm.weekday, hour: startForm.hour, minute: startForm.minute } })))}>
               Startzeit speichern
             </button>
           </div>
@@ -197,7 +198,7 @@ export function BoostersTab({ state, run }: { state: StationState; run: Run }) {
                     <td>{o.railComActive ? "aktiv" : "–"}</td>
                     <td>{age(o.ts, now)}</td>
                     <td>
-                      <button onClick={() => run(put(`/api/can-boosters/${b.nid}/power`, { power: (o.outputPort << 4) | (o.outputDisabled ? 0x01 : 0x00) }))}>
+                      <button onClick={() => ifSure(`Booster-Ausgang ${o.outputPort} ${o.outputDisabled ? "einschalten" : "abschalten"}? Angeschlossene Gleisabschnitte ${o.outputDisabled ? "bekommen Spannung" : "werden stromlos"}.`, () => run(put(`/api/can-boosters/${b.nid}/power`, { power: (o.outputPort << 4) | (o.outputDisabled ? 0x01 : 0x00) })))}>
                         {o.outputDisabled ? "Einschalten" : "Abschalten"}
                       </button>
                     </td>
@@ -206,8 +207,8 @@ export function BoostersTab({ state, run }: { state: StationState; run: Run }) {
               </tbody>
             </table>
             <div className="row">
-              <button onClick={() => run(put(`/api/can-boosters/${b.nid}/power`, { power: 0x00 }))}>Alle Ausgänge aus</button>
-              <button onClick={() => run(put(`/api/can-boosters/${b.nid}/power`, { power: 0xff }))}>Alle Ausgänge ein</button>
+              <button onClick={() => ifSure("Alle Ausgänge dieses Boosters abschalten? Die Gleisabschnitte werden stromlos.", () => run(put(`/api/can-boosters/${b.nid}/power`, { power: 0x00 })))}>Alle Ausgänge aus</button>
+              <button onClick={() => ifSure("Alle Ausgänge dieses Boosters einschalten?", () => run(put(`/api/can-boosters/${b.nid}/power`, { power: 0xff })))}>Alle Ausgänge ein</button>
             </div>
           </div>
         );
@@ -237,15 +238,15 @@ function BoosterPanel({ s, run }: { s: BoosterSystemState; run: Run }) {
               <td>{s.current[i]} mA</td>
               <td>{s.temperature[i]} °C</td>
               <td>{s.railComActive[i] ? "aktiv" : "–"}</td>
-              <td><button onClick={() => run(put("/api/device/booster-power", { port: i + 1, on: s.outputDisabled[i] }))}>{s.outputDisabled[i] ? "Einschalten" : "Abschalten"}</button></td>
+              <td><button onClick={() => ifSure(`Ausgang ${i + 1} ${s.outputDisabled[i] ? "einschalten" : "abschalten"}?`, () => run(put("/api/device/booster-power", { port: i + 1, on: s.outputDisabled[i] })))}>{s.outputDisabled[i] ? "Einschalten" : "Abschalten"}</button></td>
             </tr>
           ))}
         </tbody>
       </table>
       <p>Versorgung: {(s.supplyVoltage / 1000).toFixed(1)} V</p>
       <div className="row">
-        <button onClick={() => run(put("/api/device/booster-power", { port: 3, on: false }))}>Alle Ausgänge aus</button>
-        <button onClick={() => run(put("/api/device/booster-power", { port: 3, on: true }))}>Alle Ausgänge ein</button>
+        <button onClick={() => ifSure("Alle Ausgänge dieses Boosters abschalten?", () => run(put("/api/device/booster-power", { port: 3, on: false })))}>Alle Ausgänge aus</button>
+        <button onClick={() => ifSure("Alle Ausgänge dieses Boosters einschalten?", () => run(put("/api/device/booster-power", { port: 3, on: true })))}>Alle Ausgänge ein</button>
       </div>
       <p className="hint">Ein Ausgang lässt sich nur einschalten, wenn die Z21 ein gültiges Gleissignal liefert. Die Einstellung wird nicht gespeichert.</p>
     </>
