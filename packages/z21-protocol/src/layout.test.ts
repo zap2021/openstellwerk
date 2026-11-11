@@ -1,6 +1,7 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  activePaths, feedbackBuses, routeCommands, routeIsSet, stateCount, tileCommands, tileOccupied, tilePaths, tileState,
+  activePaths, blockOccupied, feedbackBuses, routeCommands, routeIsSet, stateCount, tileCommands, tileOccupied, tilePaths, tileState,
   turnoutAddresses, validateLayout, type Layout, type LayoutLiveState, type Tile,
 } from "./layout.js";
 
@@ -98,6 +99,33 @@ describe("routes", () => {
   });
 });
 
+describe("blocks", () => {
+  const l: Layout = {
+    ...sample,
+    tiles: [...sample.tiles, tile({ id: "g2", x: 4, feedback: { bus: "rbus", module: 1, input: 2 } }), tile({ id: "g3", x: 5 })],
+    blocks: [{ id: "b1", name: "Gleis 1", tileIds: ["g1", "g2"] }, { id: "b2", name: "Ohne Melder", tileIds: ["g3"] }],
+  };
+  it("is occupied if any detector is, free only if all report free, otherwise unknown", () => {
+    const b1 = l.blocks![0]!;
+    expect(blockOccupied(l, b1, live({ rmbus: [{ module: 1, inputs: [false, true] }] }))).toBe(true);
+    expect(blockOccupied(l, b1, live({ rmbus: [{ module: 1, inputs: [false, false] }] }))).toBe(false);
+    expect(blockOccupied(l, b1, live())).toBeUndefined(); // detectors have not reported: never "free"
+    expect(blockOccupied(l, l.blocks![1]!, live())).toBeUndefined(); // no detector linked
+  });
+  it("validates blocks and the route's safety data", () => {
+    const ok = validateLayout({ ...l, routes: [{ ...l.routes[0], from: "b1", to: "b2", signal: "s1", flank: [{ tileId: "w2", state: 0 }] }].map((r) => ({ ...r, steps: r.steps!.filter((s) => s.tileId !== "w2") })) });
+    expect(ok.blocks).toHaveLength(2);
+    expect(ok.routes[0]).toMatchObject({ from: "b1", to: "b2", signal: "s1", flank: [{ tileId: "w2", state: 0 }] });
+    expect(validateLayout(sample).blocks).toBeUndefined(); // old files stay valid and unchanged
+    const bad = (patch: (x: Layout) => void) => { const c = JSON.parse(JSON.stringify(l)) as Layout; patch(c); return () => validateLayout(c); };
+    expect(bad((c) => { c.blocks![1]!.tileIds = ["g1"]; })).toThrow(/gehört schon zu Block b1/);
+    expect(bad((c) => { c.blocks![1]!.tileIds = ["nope"]; })).toThrow(/nicht gibt/);
+    expect(bad((c) => { c.blocks![1]!.id = "b1"; })).toThrow(/doppelt/);
+    expect(bad((c) => { c.routes[0]!.from = "zzz"; })).toThrow(/Block, den es nicht gibt/);
+    expect(bad((c) => { c.routes[0]!.signal = "g1"; })).toThrow(/kein Signal/);
+  });
+});
+
 describe("validation", () => {
   it("accepts and normalises a good layout", () => {
     const v = validateLayout(JSON.parse(JSON.stringify({ ...sample, tiles: [...sample.tiles, { id: "x", x: 5, y: 1, kind: "text", rot: 0, label: "  Bahnhof ", address: 9, feedback: { bus: "rbus", module: 1, input: 1 } }] })));
@@ -118,5 +146,13 @@ describe("validation", () => {
     expect(bad((l) => { l.tiles[3]!.feedback = { bus: "rbus", module: 21, input: 1 }; })).toThrow(/R-BUS/);
     expect(() => validateLayout(null)).toThrow();
     expect(() => validateLayout({ cols: 2, rows: 5, tiles: [] })).toThrow(/Spaltenzahl/);
+  });
+});
+
+describe("example layout", () => {
+  it("docs/beispiel-gleisbild.json stays valid, with interlocked routes", () => {
+    const v = validateLayout(JSON.parse(readFileSync(new URL("../../../docs/beispiel-gleisbild.json", import.meta.url), "utf8")));
+    expect(v.blocks).toHaveLength(3);
+    expect(v.routes.map((r) => [r.from, r.to])).toEqual([["zufahrt", "g1"], ["zufahrt", "g2"]]);
   });
 });

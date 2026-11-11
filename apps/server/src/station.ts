@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import type { RouteState } from "@z21/interlocking";
 import {
   Broadcast, cmd, LocoNetDetectorPoll,
   type BoosterSystemState, type CanBoosterState, type DecoderState, type FastClockSettings, type FastClockTime,
@@ -106,6 +107,8 @@ export interface StationState {
   scan?: ScanState;
   layout?: Layout;
   routeRun?: RouteRun;
+  /** Interlocked routes that are not idle (see @z21/interlocking). */
+  interlocking?: RouteState[];
 }
 
 /** Progress of a route that is being set. */
@@ -114,7 +117,7 @@ export interface RouteRun { routeId: string; done: number; total: number; runnin
 /** Holds the live model of the connected command station and exposes high-level operations. */
 export class Station extends EventEmitter<{ state: [StationState]; loconet: [LocoNetLine]; connected: [] }> {
   /** Lets other modules (signal box) add their part to the snapshot that every browser receives. */
-  extra: () => Pick<StationState, "layout" | "routeRun"> = () => ({});
+  extra: () => Pick<StationState, "layout" | "routeRun" | "interlocking"> = () => ({});
   /** Monitors that must stay on no matter which tab is open (the track diagram needs its detectors). */
   private pinned: Partial<Monitors> = {};
   readonly client = new Z21Client();
@@ -317,6 +320,7 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
     this.hw = undefined;
     this.serial = undefined;
     await this.client.connect(host, port, BASE_FLAGS);
+    this.setMonitors({}); // pinned subscriptions (e.g. the diagram's detectors) must be on from the start
     this.emit("state", this.snapshot());
     this.emit("connected");
   }

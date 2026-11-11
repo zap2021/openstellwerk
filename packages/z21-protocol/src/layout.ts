@@ -56,8 +56,15 @@ export interface Tile {
 }
 
 export interface RouteStep { tileId: string; state: number }
-export interface Route { id: string; name: string; steps: RouteStep[] }
-export interface Layout { cols: number; rows: number; tiles: Tile[]; routes: Route[] }
+/**
+ * A route is a list of wanted positions. Optional safety data turns it into an interlocked route:
+ * `from`/`to` are the first and last block, `signal` the start signal (it only clears once everything else is set),
+ * `flank` positions of turnouts that are not driven over but must be locked to keep other movements away.
+ */
+export interface Route { id: string; name: string; steps: RouteStep[]; from?: string; to?: string; signal?: string; flank?: RouteStep[] }
+/** A track section that is reported occupied as soon as one of its tiles' detectors says so. */
+export interface Block { id: string; name: string; tileIds: string[] }
+export interface Layout { cols: number; rows: number; tiles: Tile[]; routes: Route[]; blocks?: Block[] }
 
 export const EMPTY_LAYOUT: Layout = { cols: 24, rows: 12, tiles: [], routes: [] };
 
@@ -166,6 +173,26 @@ export function tileOccupied(t: Tile, live: LayoutLiveState): boolean | undefine
   return live.canDetectors.find((d) => d.nid === f.nid)?.ports.find((p) => p.port === f.port)?.occupied;
 }
 
+/**
+ * Occupancy of a block: true as soon as any linked detector reports occupied; false only when every detector
+ * reports free (and there is at least one); undefined while one is unknown or none is linked.
+ * Interlocking treats undefined as "not safe", never as free.
+ */
+export function blockOccupied(layout: Layout, block: Block, live: LayoutLiveState): boolean | undefined {
+  const byId = new Map(layout.tiles.map((t) => [t.id, t]));
+  let linked = 0;
+  let unknown = 0;
+  for (const id of block.tileIds) {
+    const t = byId.get(id);
+    if (!t?.feedback) continue;
+    linked++;
+    const o = tileOccupied(t, live);
+    if (o === true) return true;
+    if (o === undefined) unknown++;
+  }
+  return linked > 0 && unknown === 0 ? false : undefined;
+}
+
 export function routeCommands(layout: Layout, route: Route): LayoutCommand[] {
   const byId = new Map(layout.tiles.map((t) => [t.id, t]));
   return route.steps.flatMap((s) => { const t = byId.get(s.tileId); return t ? tileCommands(t, s.state) : []; });
@@ -262,6 +289,26 @@ export function validateLayout(input: unknown): Layout {
     return t;
   });
   const byId = new Map(tiles.map((t) => [t.id, t]));
+  const rawBlocks = Array.isArray(src.blocks) ? src.blocks : [];
+  if (rawBlocks.length > 200) fail("Zu viele Blöcke");
+  const blockIds = new Set<string>();
+  const blockOfTile = new Map<string, string>();
+  const blocks: Block[] = rawBlocks.map((raw: unknown, i: number) => {
+    const r = (raw ?? {}) as Record<string, unknown>;
+    const where = `Block ${i + 1}`;
+    const id = typeof r.id === "string" && ID.test(r.id) ? r.id : fail(`${where}: ungültige ID`);
+    if (blockIds.has(id)) fail(`${where}: ID doppelt`);
+    blockIds.add(id);
+    const tileIds = [...new Set((Array.isArray(r.tileIds) ? r.tileIds : []).map(String))].map((tid) => {
+      const t = byId.get(tid) ?? fail(`${where}: verweist auf ein Feld, das es nicht gibt`);
+      if (!hasTrack(t)) fail(`${where}: Feld ${tid} hat kein Gleis`);
+      const other = blockOfTile.get(tid);
+      if (other) fail(`${where}: Feld ${tid} gehört schon zu Block ${other}`);
+      blockOfTile.set(tid, id);
+      return tid;
+    });
+    return { id, name: text(r.name, 40) || `Block ${i + 1}`, tileIds };
+  });
   const rawRoutes = Array.isArray(src.routes) ? src.routes : [];
   if (rawRoutes.length > 200) fail("Zu viele Fahrstraßen");
   const routeIds = new Set<string>();
@@ -272,14 +319,28 @@ export function validateLayout(input: unknown): Layout {
     if (routeIds.has(id)) fail(`${where}: ID doppelt`);
     routeIds.add(id);
     const seen = new Set<string>();
-    const steps = (Array.isArray(r.steps) ? r.steps : []).slice(0, 200).map((s: unknown) => {
+    const cleanSteps = (list: unknown) => (Array.isArray(list) ? list : []).slice(0, 200).map((s: unknown) => {
       const o = (s ?? {}) as Record<string, unknown>;
       const tile = byId.get(String(o.tileId)) ?? fail(`${where}: verweist auf ein Feld, das es nicht gibt`);
       if (seen.has(tile.id)) fail(`${where}: Feld mehrfach enthalten`);
       seen.add(tile.id);
       return { tileId: tile.id, state: int(o.state, 0, Math.max(0, stateCount(tile) - 1), `${where}: Stellung`) };
     });
-    return { id, name: text(r.name, 40) || `Fahrstraße ${i + 1}`, steps };
+    const steps = cleanSteps(r.steps);
+    const route: Route = { id, name: text(r.name, 40) || `Fahrstraße ${i + 1}`, steps };
+    const blockRef = (v: unknown, what: string) => (v === undefined || v === null || v === "" ? undefined : blockIds.has(String(v)) ? String(v) : fail(`${where}: ${what} verweist auf einen Block, den es nicht gibt`));
+    const from = blockRef(r.from, "Start");
+    const to = blockRef(r.to, "Ziel");
+    if (from) route.from = from;
+    if (to) route.to = to;
+    if (r.signal !== undefined && r.signal !== null && r.signal !== "") {
+      const sig = byId.get(String(r.signal));
+      if (sig?.kind !== "signal") fail(`${where}: Startsignal ist kein Signal`);
+      route.signal = sig!.id;
+    }
+    const flank = cleanSteps(r.flank);
+    if (flank.length) route.flank = flank;
+    return route;
   });
-  return { cols, rows, tiles, routes };
+  return blocks.length ? { cols, rows, tiles, routes, blocks } : { cols, rows, tiles, routes };
 }

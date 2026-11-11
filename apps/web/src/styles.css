@@ -1,12 +1,13 @@
 :root {
-  --bg: #fff; --fg: #1b1f24; --muted: #5b6672; --line: #d5dae0; --accent: #1f6feb; --danger: #c62828; --ok: #2e7d32; --warn: #ed9b00;
-  color-scheme: light dark;
-}
-@media (prefers-color-scheme: dark) {
-  :root { --bg: #14171b; --fg: #e6e9ed; --muted: #9aa5b1; --line: #2d343c; --accent: #5b9dff; --danger: #ef5350; --ok: #66bb6a; --warn: #ffb300; }
+  /* Dunkles Stellwerk-Design: fest dunkel, damit Gleisbild und Statusfarben bei wenig Licht am Anlagenrand gut lesbar sind. */
+  --bg: #0f1216; --surface: #171b21; --surface-2: #1e242c;
+  --fg: #e8ecf1; --muted: #8d99a8; --line: #2b333d;
+  --accent: #4d9aff; --danger: #ff5c57; --ok: #4cc77a; --warn: #ffb020;
+  --radius: 10px; --touch: 40px;
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 system-ui, sans-serif; }
+body { margin: 0; background: radial-gradient(1200px 600px at 50% -200px, #1a2230, var(--bg)); background-color: var(--bg); color: var(--fg); font: 15px/1.45 system-ui, sans-serif; }
 .app { max-width: 960px; margin: 0 auto; padding: 0 16px 32px; }
 header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 0; border-bottom: 1px solid var(--line); }
 h1 { font-size: 20px; margin: 0 8px 0 0; }
@@ -17,9 +18,10 @@ h2 { font-size: 16px; margin: 20px 0 8px; }
 .pill { padding: 2px 10px; border-radius: 12px; border: 1px solid var(--line); font-size: 13px; }
 .pill.on { color: var(--ok); } .pill.shortCircuit, .pill.emergencyStop { color: var(--danger); }
 nav { display: flex; flex-wrap: wrap; gap: 4px; margin: 12px 0; }
-button, input { font: inherit; color: inherit; background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; }
+button, input { font: inherit; color: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; }
+button { min-height: var(--touch); transition: border-color .12s, background .12s; }
 button { cursor: pointer; } button:hover { border-color: var(--accent); }
-button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.active { background: var(--accent); border-color: var(--accent); color: #07101c; font-weight: 600; }
 button.danger { border-color: var(--danger); color: var(--danger); }
 .row, .throttle { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
 .throttle input[type=range] { flex: 1 1 240px; padding: 0; }
@@ -120,7 +122,7 @@ header .push { margin-left: auto; }
 .trk.set { stroke: var(--accent); }
 .trk.occ { stroke: var(--danger); }
 .trk.unknown { stroke: var(--muted); stroke-width: 3; stroke-dasharray: 4 5; }
-.tile.wanted .trk.set, .tile.wanted .lamp { filter: drop-shadow(0 0 3px var(--warn)); }
+.tile.wanted .trk, .tile.wanted .lamp { filter: drop-shadow(0 0 4px var(--warn)); }
 .mast { stroke: var(--muted); stroke-width: 2; }
 .lamp { stroke: var(--bg); stroke-width: 1.5; } .lamp.stop { fill: var(--danger); } .lamp.go { fill: var(--ok); } .lamp.unknown { fill: var(--muted); }
 .lbl { fill: var(--muted); font-size: 9px; text-anchor: middle; pointer-events: none; } .lbl.big { fill: var(--fg); font-size: 13px; }
@@ -132,3 +134,27 @@ header .push { margin-left: auto; }
 .editor textarea { font: inherit; color: var(--fg); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
 @media (max-width: 900px) { .editor { grid-template-columns: 1fr; } }
 .form label.check { flex-direction: row; align-items: center; gap: 6px; }
+
+/* ---- Stellwerk: gesicherte Fahrstraßen ---- */
+.routes { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin: 10px 0 14px; }
+.route { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: var(--radius); }
+.route .status { margin-left: auto; font-size: 13px; color: var(--muted); }
+.route .msg { flex-basis: 100%; color: var(--danger); }
+.route.setting { border-left-color: var(--warn); } .route.setting .status { color: var(--warn); }
+.route.set { border-left-color: var(--ok); } .route.set .status { color: var(--ok); }
+.route.running { border-left-color: var(--accent); } .route.running .status { color: var(--accent); }
+.route.fault { border-left-color: var(--danger); } .route.fault .status { color: var(--danger); }
+li.open .form.wide { flex-basis: 100%; }
+
+/* ---- Anzeige (zweiter Bildschirm, nur ansehen) ---- */
+.display { min-height: 100vh; padding: 20px 28px; cursor: default; user-select: none; }
+.display-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; margin-bottom: 18px; }
+.display-clock { font: 600 64px/1 ui-monospace, "SF Mono", monospace; letter-spacing: 2px; }
+.display-clock small { font-size: 22px; margin-left: 10px; color: var(--muted); }
+.display-routes { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; }
+.chip { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 16px; }
+.chip.setting { color: var(--warn); border-color: var(--warn); } .chip.set { color: var(--ok); border-color: var(--ok); }
+.chip.running { color: var(--accent); border-color: var(--accent); } .chip.fault { color: var(--danger); border-color: var(--danger); }
+.muted { color: var(--muted); }
+.display .diagram { border: 0; background: var(--surface); padding: 14px; border-radius: 14px; }
+.display .diagram svg { width: 100%; height: auto; pointer-events: none; }

@@ -15,11 +15,12 @@ Ein Browser kann weder UDP noch zuverlässig serielle Ports ansprechen (Web Seri
 | Paket | Inhalt |
 |---|---|
 | `packages/z21-protocol` | Frames, XOR-Checksummen, Befehle, Antwort-Parser. Reines TypeScript, ohne I/O, mit Tests. |
+| `packages/interlocking` | Stellwerkslogik (Sicherung): Zustandsautomat für Fahrstraßen mit Verriegelung, Belegtprüfung und Auflösung. Rein, ohne I/O, mit Tests. |
 | `packages/z21-simulator` | Z21 in Software (UDP). Entwicklung und Tests ohne Hardware. |
 | `apps/server` | UDP-Client mit Keepalive, `Station`-Modell (Zustand der Zentrale), REST- und WebSocket-API. |
 | `apps/web` | Oberfläche: Zentrale, Fahren, Weichen, CV-Programmierung, Protokoll-Monitor. |
 
-Spätere Steuerungsfunktionen (Fahrstraßen, Blocksicherung, Fahrplan/Automatik, Gleisbild, Rückmelder) kommen als eigene Module im Server oberhalb von `Station` und als weitere Pakete (`packages/interlocking`, …). `Station` ist die einzige Stelle, die Hardware-Zustand besitzt.
+Die Sicherung (`packages/interlocking`) läuft im Server oberhalb von `Station` und nutzt die Schaltqueue der `SignalBox`. Fahrplan und Zugfahrten (Automatik) folgen darauf aufbauend als weitere Module. `Station` ist die einzige Stelle, die Hardware-Zustand besitzt.
 
 ## Starten
 
@@ -73,7 +74,7 @@ Umgesetzt ist das **gesamte öffentliche Z21-LAN-Protokoll** (Spezifikation V1.1
 |---|---|---|
 | Zentrale | Suche im Netz, Status, Firmware (BCD), Seriennummer, z21-start-Sperre, Strom/Spannung/Temperatur | 2 |
 | Fahren | Geschwindigkeit, Richtung, F0–F31, Lok-Nothalt, Lok entfernen, Ausgabeformat DCC/Motorola, Binärzustände | 3, 4 |
-| Stellwerk | Gleisbild-Editor auf Kachelraster, verknüpft mit Weichen, Signalen (Weichenadresse oder DCCext) und Besetztmeldern (R-BUS, LocoNet, CAN); Fahrstraßen ohne Verriegelung. Beispiel zum Importieren: `docs/beispiel-gleisbild.json` | 5, 7–10 |
+| Stellwerk | Gleisbild-Editor auf Kachelraster, verknüpft mit Weichen, Signalen (Weichenadresse oder DCCext) und Besetztmeldern (R-BUS, LocoNet, CAN); Blöcke und gesicherte Fahrstraßen (siehe unten). Beispiel zum Importieren: `docs/beispiel-gleisbild.json` | 5, 7–10 |
 | Weichen | Schalten, Ausgabeformat DCC/Motorola | 3, 5 |
 | Signale | DCCext (RCN-213): Signalbilder 10837, Weichen mit Schaltzeit 10836, Zubehör-Nothalt | 5.4–5.6 |
 | CV-Programmierung | Programmiergleis (direkt), POM Lok (Byte/Bit/Lesen per RailCom), POM Zubehör, Registermodus, Motorola | 6 |
@@ -84,6 +85,21 @@ Umgesetzt ist das **gesamte öffentliche Z21-LAN-Protokoll** (Spezifikation V1.1
 | RailCom, LocoNet, Melder | Monitore, LocoNet-Rohnachrichten, LocoNet-/CAN-Gleisbesetztmelder | 8, 9, 10.1 |
 
 Die Monitore (RailCom, LocoNet, Melder, R-BUS, Booster, Uhr) sind standardmäßig aus, weil sie viel Netzwerkverkehr erzeugen; der Server aktiviert die Broadcast-Flags nur, solange der Reiter offen ist.
+
+### Gesicherte Fahrstraßen und Anzeige
+
+Im Gleisbild-Editor fasst du Gleisfelder zu **Blöcken** zusammen; ein Block gilt als belegt, sobald einer seiner Melder belegt meldet. Eine Fahrstraße mit Start- oder Ziel-Block ist **gesichert**:
+
+- Sie wird nur eingestellt, wenn alle ihre Blöcke sicher frei sind. Ein Melder, der noch nichts gemeldet hat, zählt nicht als frei.
+- Weichen werden zuerst gestellt, das Startsignal erst, wenn alle Lagen zurückgemeldet sind. Sie bleiben verriegelt; Handschaltung und ungesicherte Fahrstraßen auf diese Felder werden abgelehnt.
+- Fährt der Zug ein, geht das Signal auf Halt. Sind danach alle Blöcke der Fahrstraße wieder frei, löst sie sich auf.
+- Wird eine verriegelte Weiche verstellt, fällt ein Block aus oder melden die Weichen nicht rechtzeitig (15 s), geht die Fahrstraße in **Störung**: Signal auf Halt, Verriegelung bleibt, bis du sie quittierst. Eine Fahrstraße mit Zug darin löst nur die Notauflösung.
+- Bei getrennter Verbindung friert die Sicherung ein und löst nichts auf.
+- Gleisbild-Änderungen sind nur ohne angeforderte Fahrstraßen möglich.
+
+Die Sicherung braucht Belegtmelder. Ohne sie lassen sich Fahrstraßen nicht einstellen (im Simulator über `sim.extras.setRmBus` testen). Auflösung gibt es bisher nur für die ganze Fahrstraße, nicht blockweise; Flankenschutz-Weichen lassen sich über die JSON-Datei (`flank`) eintragen, noch nicht im Editor.
+
+**Anzeige für einen zweiten Bildschirm:** `http://<adresse>:3001/#/anzeige` zeigt Modellbahn-Uhr, eingestellte Fahrstraßen und das Gleisbild live, ohne Bedienelemente. Die Seite braucht dieselbe Anmeldung wie die Bedienung (Sitzung bleibt 30 Tage). Eine Abfahrtstafel folgt mit dem Fahrplan.
 
 ### Noch nicht enthalten
 

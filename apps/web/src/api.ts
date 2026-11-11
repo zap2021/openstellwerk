@@ -56,6 +56,8 @@ export interface StationState {
   garage: GarageLoco[];
   layout?: Layout;
   routeRun?: { routeId: string; done: number; total: number; running: boolean; error?: string };
+  /** Interlocked routes that are not idle (mirrors RouteState of @z21/interlocking). */
+  interlocking?: { routeId: string; status: "setting" | "set" | "running" | "fault"; since: number; message?: string }[];
   scan?: { running: boolean; from: number; to: number; current: number; found: number[]; error?: string };
 }
 

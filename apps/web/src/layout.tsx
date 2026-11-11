@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  activePaths, CENTER, EMPTY_LAYOUT, hasTrack, isSwitchable, needsSecondAddress, routeIsSet, signalAspects, stateCount, stateName,
+  activePaths, blockOccupied, CENTER, EMPTY_LAYOUT, hasTrack, isSwitchable, needsSecondAddress, routeIsSet, signalAspects, stateCount, stateName,
   tileCommands, tileOccupied, tilePaths, tileState, validateLayout,
-  type FeedbackRef, type Layout, type Route, type Tile, type TileKind,
+  type Block, type FeedbackRef, type Layout, type Route, type Tile, type TileKind,
 } from "@z21/protocol/layout";
 import { api, type StationState } from "./api";
 
@@ -17,6 +17,16 @@ const KIND_LABEL: Record<TileKind, string> = {
 };
 const PALETTE: TileKind[] = ["straight", "curve", "turnoutLeft", "turnoutRight", "threeWay", "doubleSlip", "crossing", "crossing90", "bufferStop", "signal", "text"];
 const newId = () => Math.random().toString(36).slice(2, 10);
+/** Remove tiles and everything that refers to them (route steps, blocks, signal references). */
+function dropTiles(l: Layout, gone: Set<string>) {
+  l.tiles = l.tiles.filter((t) => !gone.has(t.id));
+  for (const r of l.routes) {
+    r.steps = r.steps.filter((s) => !gone.has(s.tileId));
+    if (r.flank) { r.flank = r.flank.filter((s) => !gone.has(s.tileId)); if (!r.flank.length) delete r.flank; }
+    if (r.signal && gone.has(r.signal)) delete r.signal;
+  }
+  for (const b of l.blocks ?? []) b.tileIds = b.tileIds.filter((id) => !gone.has(id));
+}
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const point = (cx: number, cy: number, d: number): [number, number] => (d === CENTER ? [cx, cy] : [cx + (VEC[d]![0] * S) / 2, cy + (VEC[d]![1] * S) / 2]);
@@ -62,8 +72,10 @@ function TileView({ tile, state, occupied, selected, hint, wanted }: { tile: Til
   );
 }
 
-function Diagram({ layout, live, grid, selected, hint, routeSteps, onCell }: {
+function Diagram({ layout, live, grid, selected, hint, routeSteps, marked, onCell }: {
   layout: Layout; live: StationState; grid?: boolean; selected?: string; hint?: boolean;
+  /** tiles to highlight (e.g. the members of the block being edited) */
+  marked?: Set<string>;
   /** when a route is being edited: show its wanted positions instead of the live ones */
   routeSteps?: Map<string, number>;
   onCell: (x: number, y: number, tile?: Tile) => void;
@@ -92,7 +104,7 @@ function Diagram({ layout, live, grid, selected, hint, routeSteps, onCell }: {
             state={routeSteps ? (routeSteps.has(t.id) ? routeSteps.get(t.id) : isSwitchable(t) ? undefined : 0) : tileState(t, live)}
             occupied={routeSteps ? undefined : tileOccupied(t, live)}
             selected={selected === t.id}
-            wanted={routeSteps?.has(t.id)}
+            wanted={routeSteps?.has(t.id) || marked?.has(t.id)}
             hint={hint}
           />
         ))}
@@ -109,24 +121,52 @@ export function LayoutTab({ state, run }: { state: StationState; run: Run }) {
     : <Operate layout={saved} state={state} run={run} edit={() => setEditing(true)} />;
 }
 
+const STATUS: Record<string, string> = { setting: "wird gestellt …", set: "Fahrt frei", running: "befahren", fault: "Störung" };
+
+/** A route with start or target block is interlocked; the others are plain switch lists. */
+export const isSafeRoute = (l: Layout, r: Route) => !!l.blocks?.length && !!(r.from || r.to);
+
 function Operate({ layout, state, run, edit }: { layout: Layout; state: StationState; run: Run; edit: () => void }) {
   const running = state.routeRun?.running ? state.routeRun : undefined;
+  const il = new Map((state.interlocking ?? []).map((r) => [r.routeId, r]));
   const click = (_x: number, _y: number, tile?: Tile) => {
     if (!tile || !isSwitchable(tile)) return;
     const cur = tileState(tile, state);
     const next = cur === undefined ? 0 : (cur + 1) % stateCount(tile);
     void run(api("POST", `/api/layout/tile/${tile.id}/set`, { state: next }));
   };
+  const safe = layout.routes.filter((r) => isSafeRoute(layout, r));
+  const plain = layout.routes.filter((r) => !isSafeRoute(layout, r));
   return (
     <section>
       <div className="row">
         <h2 className="grow">Stellwerk</h2>
         <button onClick={edit}>Gleisbild bearbeiten</button>
       </div>
-      {layout.routes.length > 0 && (
+      {safe.length > 0 && (
+        <div className="routes">
+          {safe.map((r) => {
+            const s = il.get(r.id);
+            return (
+              <div key={r.id} className={`route ${s?.status ?? "idle"}`}>
+                <strong>{r.name}</strong>
+                <span className="status">{s ? STATUS[s.status] : "frei"}</span>
+                {s?.message && <small className="msg">{s.message}</small>}
+                {!s && <button onClick={() => run(api("POST", `/api/interlocking/${r.id}/request`))}>Fahrstraße einstellen</button>}
+                {s && s.status !== "running" && <button onClick={() => run(api("POST", `/api/interlocking/${r.id}/release`))}>Auflösen</button>}
+                {s && s.status === "running" && (
+                  <button className="danger" onClick={() => window.confirm(`Notauflösung „${r.name}“? Das hebt die Verriegelung auf, obwohl ein Zug in der Fahrstraße ist.`) && run(api("POST", `/api/interlocking/${r.id}/release`, { force: true }))}>Notauflösung</button>
+                )}
+                {s?.status === "fault" && <button className="danger" onClick={() => run(api("POST", `/api/interlocking/${r.id}/release`, { force: true }))}>Störung quittieren</button>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {plain.length > 0 && (
         <div className="row">
-          <span className="hint">Fahrstraßen:</span>
-          {layout.routes.map((r) => (
+          <span className="hint">Ungesicherte Fahrstraßen (nur Schaltliste):</span>
+          {plain.map((r) => (
             <button
               key={r.id}
               className={routeIsSet(layout, r, state) ? "active" : ""}
@@ -140,8 +180,37 @@ function Operate({ layout, state, run, edit }: { layout: Layout; state: StationS
       {layout.tiles.length === 0
         ? <p>Noch kein Gleisbild vorhanden. Mit „Gleisbild bearbeiten“ legst du eines an.</p>
         : <Diagram layout={layout} live={state} onCell={click} />}
-      <p className="hint">Klick auf eine Weiche oder ein Signal schaltet um. Blau = gestellter Weg, rot = belegt, gestrichelt = Lage noch nicht gemeldet. Fahrstraßen stellen nur, es gibt keine Verriegelung.</p>
+      <p className="hint">
+        Klick auf eine Weiche oder ein Signal schaltet um; Felder in einer eingestellten Fahrstraße sind verriegelt.
+        Blau = gestellter Weg, rot = belegt, gestrichelt = Lage noch nicht gemeldet.
+      </p>
     </section>
+  );
+}
+
+/** Read-only view for a second screen: model clock and the live track diagram, no controls. */
+export function DisplayView({ state }: { state?: StationState }) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
+  const z = state?.clock?.time;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const time = z ? `${pad(z.hour)}:${pad(z.minute)}` : `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const layout = state?.layout;
+  const il = new Map((state?.interlocking ?? []).map((r) => [r.routeId, r]));
+  const active = (layout?.routes ?? []).filter((r) => il.has(r.id));
+  return (
+    <div className="display">
+      <header className="display-head">
+        <div className="display-clock" title={z ? "Modellbahn-Uhr der Z21" : "Uhrzeit dieses Geräts (keine Modellbahn-Uhr gemeldet)"}>{time}{z && z.rate > 1 ? <small>×{z.rate}</small> : null}</div>
+        <div className="display-routes">
+          {active.length === 0 ? <span className="muted">Keine Fahrstraße eingestellt</span> : active.map((r) => <span key={r.id} className={`chip ${il.get(r.id)!.status}`}>{r.name} · {STATUS[il.get(r.id)!.status]}</span>)}
+        </div>
+        <span className={`dot ${state?.connected ? "ok" : "bad"}`} title={state?.connected ? "mit Zentrale verbunden" : "keine Verbindung"} />
+      </header>
+      {layout && layout.tiles.length > 0
+        ? <Diagram layout={layout} live={state!} onCell={() => undefined} />
+        : <p className="muted">Noch kein Gleisbild vorhanden.</p>}
+    </div>
   );
 }
 
@@ -159,18 +228,17 @@ function Editor({ saved, state, run, close }: { saved: Layout; state: StationSta
   const [tool, setTool] = useState<Tool>("select");
   const [selected, setSelected] = useState<string>();
   const [routeId, setRouteId] = useState<string>();
+  const [blockId, setBlockId] = useState<string>();
   const lastRot = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const change = (fn: (l: Layout) => void) => { setDraft((d) => { const n = structuredClone(d); fn(n); return n; }); setDirty(true); };
   const tile = draft.tiles.find((t) => t.id === selected);
   const route = draft.routes.find((r) => r.id === routeId);
+  const block = (draft.blocks ?? []).find((b) => b.id === blockId);
   const routeSteps = useMemo(() => (route ? new Map(route.steps.map((s) => [s.tileId, s.state])) : undefined), [route]);
   const patch = (p: Partial<Tile>) => change((l) => { const t = l.tiles.find((x) => x.id === selected); if (t) Object.assign(t, p); });
-  const removeTile = (id: string) => change((l) => {
-    l.tiles = l.tiles.filter((t) => t.id !== id);
-    for (const r of l.routes) r.steps = r.steps.filter((s) => s.tileId !== id);
-  });
+  const removeTile = (id: string) => change((l) => dropTiles(l, new Set([id])));
 
   const onCell = (x: number, y: number, hit?: Tile) => {
     if (route) { // editing a route: clicking cycles the wanted position, the last click takes the tile out again
@@ -181,6 +249,16 @@ function Editor({ saved, state, run, close }: { saved: Layout; state: StationSta
         if (!step) r.steps.push({ tileId: hit.id, state: 0 });
         else if (step.state + 1 < stateCount(hit)) step.state += 1;
         else r.steps = r.steps.filter((s) => s !== step);
+      });
+      return;
+    }
+    if (block) { // editing a block: clicking track tiles adds or removes them
+      if (!hit || !hasTrack(hit)) return;
+      change((l) => {
+        const b = l.blocks!.find((q) => q.id === blockId)!;
+        const has = b.tileIds.includes(hit.id);
+        for (const o of l.blocks!) o.tileIds = o.tileIds.filter((id) => id !== hit.id); // a tile belongs to one block only
+        if (!has) b.tileIds.push(hit.id);
       });
       return;
     }
@@ -197,8 +275,10 @@ function Editor({ saved, state, run, close }: { saved: Layout; state: StationSta
     } else {
       change((l) => {
         const i = l.tiles.findIndex((t) => t.id === hit.id);
-        l.tiles[i] = { id: hit.id, x, y, kind: tool, rot: hit.rot, label: hit.label };
-        for (const r of l.routes) r.steps = r.steps.filter((s) => s.tileId !== hit.id);
+        const blocks = (l.blocks ?? []).filter((b) => b.tileIds.includes(hit.id));
+        dropTiles(l, new Set([hit.id])); // refs to the old tile go; a track tile keeps its block
+        l.tiles.splice(i, 0, { id: hit.id, x, y, kind: tool, rot: hit.rot, label: hit.label });
+        if (hasTrack({ kind: tool } as Tile)) for (const b of blocks) b.tileIds.push(hit.id);
       });
       setSelected(hit.id);
     }
@@ -218,9 +298,7 @@ function Editor({ saved, state, run, close }: { saved: Layout; state: StationSta
   const resize = (cols: number, rows: number) => change((l) => {
     l.cols = Math.max(4, Math.min(80, cols || 4));
     l.rows = Math.max(4, Math.min(50, rows || 4));
-    const gone = new Set(l.tiles.filter((t) => t.x >= l.cols || t.y >= l.rows).map((t) => t.id));
-    l.tiles = l.tiles.filter((t) => !gone.has(t.id));
-    for (const r of l.routes) r.steps = r.steps.filter((s) => !gone.has(s.tileId));
+    dropTiles(l, new Set(l.tiles.filter((t) => t.x >= l.cols || t.y >= l.rows).map((t) => t.id)));
   });
   const exportFile = () => {
     const a = document.createElement("a");
@@ -251,7 +329,7 @@ function Editor({ saved, state, run, close }: { saved: Layout; state: StationSta
       <div className="row palette">
         <button className={tool === "select" ? "active" : ""} onClick={() => setTool("select")} title="Feld auswählen">Auswählen</button>
         {PALETTE.map((k) => (
-          <button key={k} className={`pal ${tool === k ? "active" : ""}`} onClick={() => { setTool(k); setRouteId(undefined); }} title={KIND_LABEL[k]}>
+          <button key={k} className={`pal ${tool === k ? "active" : ""}`} onClick={() => { setTool(k); setRouteId(undefined); setBlockId(undefined); }} title={KIND_LABEL[k]}>
             <svg width={S * 0.7} height={S * 0.7} viewBox={`0 0 ${S} ${S}`}>
               {k === "text" ? <text className="lbl big" x={S / 2} y={S / 2 + 5}>Abc</text> : <TileView tile={{ id: "p", x: 0, y: 0, kind: k, rot: 0 }} state={0} />}
             </svg>
@@ -262,13 +340,14 @@ function Editor({ saved, state, run, close }: { saved: Layout; state: StationSta
       <p className="hint">
         Art wählen und ins Raster klicken. Ein weiterer Klick auf dasselbe Feld dreht es (auch Taste R), Entf löscht das gewählte Feld.
         {route && <strong> Fahrstraße „{route.name}“: Weichen und Signale anklicken, bis die gewünschte Stellung gezeigt wird.</strong>}
+        {block && <strong> Block „{block.name}“: Gleisfelder anklicken, um sie aufzunehmen oder zu entfernen (ein Feld gehört zu höchstens einem Block).</strong>}
       </p>
 
       <div className="editor">
-        <Diagram layout={draft} live={state} grid hint selected={selected} routeSteps={routeSteps} onCell={onCell} />
+        <Diagram layout={draft} live={state} grid hint selected={selected} routeSteps={routeSteps} marked={block ? new Set(block.tileIds) : undefined} onCell={onCell} />
 
         <div className="inspector">
-          {tile && !route && (
+          {tile && !route && !block && (
             <div className="panel">
               <h2>{KIND_LABEL[tile.kind]}</h2>
               <div className="form">
@@ -359,10 +438,28 @@ function Editor({ saved, state, run, close }: { saved: Layout; state: StationSta
           )}
 
           <div className="panel">
+            <h2>Blöcke</h2>
+            <p className="hint">Ein Block ist ein Gleisabschnitt. Er gilt als belegt, sobald ein Melder in ihm belegt meldet. Ohne Blöcke gibt es keine Sicherung.</p>
+            <ul className="loco-list">
+              {(draft.blocks ?? []).length === 0 && <li className="empty">Noch kein Block.</li>}
+              {(draft.blocks ?? []).map((b) => (
+                <li key={b.id}>
+                  {blockId === b.id
+                    ? <input className="grow" value={b.name} maxLength={40} autoFocus onChange={(e) => change((l) => { l.blocks!.find((q) => q.id === b.id)!.name = e.target.value; })} />
+                    : <button className="loco-item" onClick={() => { setBlockId(b.id); setRouteId(undefined); setSelected(undefined); }}><span className="meta"><strong>{b.name}</strong><small>{b.tileIds.length} Felder, {b.tileIds.some((id) => draft.tiles.find((t) => t.id === id)?.feedback) ? "mit Melder" : "ohne Melder"}</small></span></button>}
+                  {blockId === b.id && <button onClick={() => setBlockId(undefined)}>Fertig</button>}
+                  <button className="x" title="Block löschen" onClick={() => { change((l) => { l.blocks = l.blocks!.filter((q) => q.id !== b.id); for (const r of l.routes) { if (r.from === b.id) delete r.from; if (r.to === b.id) delete r.to; } if (!l.blocks.length) delete l.blocks; }); if (blockId === b.id) setBlockId(undefined); }}>×</button>
+                </li>
+              ))}
+            </ul>
+            <button onClick={() => { const id = newId(); change((l) => { l.blocks = [...(l.blocks ?? []), { id, name: `Block ${(l.blocks?.length ?? 0) + 1}`, tileIds: [] }]; }); setBlockId(id); setRouteId(undefined); }}>+ Neuer Block</button>
+          </div>
+
+          <div className="panel">
             <h2>Fahrstraßen</h2>
             <ul className="loco-list">
               {draft.routes.length === 0 && <li className="empty">Noch keine Fahrstraße.</li>}
-              {draft.routes.map((r) => <RouteRow key={r.id} route={r} active={routeId === r.id} select={() => setRouteId(routeId === r.id ? undefined : r.id)} change={change} />)}
+              {draft.routes.map((r) => <RouteRow key={r.id} route={r} blocks={draft.blocks ?? []} signals={draft.tiles.filter((t) => t.kind === "signal")} active={routeId === r.id} select={() => { setRouteId(routeId === r.id ? undefined : r.id); setBlockId(undefined); }} change={change} />)}
             </ul>
             <button onClick={() => { const id = newId(); change((l) => { l.routes.push({ id, name: `Fahrstraße ${l.routes.length + 1}`, steps: [] }); }); setRouteId(id); }}>+ Neue Fahrstraße</button>
           </div>
@@ -385,14 +482,33 @@ function Editor({ saved, state, run, close }: { saved: Layout; state: StationSta
   );
 }
 
-function RouteRow({ route, active, select, change }: { route: Route; active: boolean; select: () => void; change: (fn: (l: Layout) => void) => void }) {
+function RouteRow({ route, blocks, signals, active, select, change }: {
+  route: Route; blocks: Block[]; signals: Tile[]; active: boolean; select: () => void; change: (fn: (l: Layout) => void) => void;
+}) {
+  const edit = (fn: (r: Route) => void) => change((l) => fn(l.routes.find((r) => r.id === route.id)!));
+  const pick = (key: "from" | "to" | "signal", list: { id: string; name: string }[], label: string) => (
+    <label>{label}
+      <select value={route[key] ?? ""} onChange={(e) => edit((r) => { if (e.target.value) r[key] = e.target.value; else delete r[key]; })}>
+        <option value="">–</option>
+        {list.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+      </select>
+    </label>
+  );
   return (
-    <li>
+    <li className={active ? "open" : ""}>
       {active
-        ? <input className="grow" value={route.name} maxLength={40} autoFocus onChange={(e) => change((l) => { l.routes.find((r) => r.id === route.id)!.name = e.target.value; })} />
-        : <button className="loco-item" onClick={select}><span className="meta"><strong>{route.name}</strong><small>{route.steps.length} Felder</small></span></button>}
+        ? <input className="grow" value={route.name} maxLength={40} autoFocus onChange={(e) => edit((r) => { r.name = e.target.value; })} />
+        : <button className="loco-item" onClick={select}><span className="meta"><strong>{route.name}</strong><small>{route.steps.length} Felder{route.from || route.to ? ", gesichert" : ", ungesichert"}</small></span></button>}
       {active && <button onClick={select}>Fertig</button>}
       <button className="x" title="Fahrstraße löschen" onClick={() => change((l) => { l.routes = l.routes.filter((r) => r.id !== route.id); })}>×</button>
+      {active && (
+        <div className="form wide">
+          {pick("from", blocks, "Start (Block)")}
+          {pick("to", blocks, "Ziel (Block)")}
+          {pick("signal", signals.map((t) => ({ id: t.id, name: t.label ?? `Signal ${t.address ?? t.id}` })), "Startsignal")}
+          <p className="hint">Mit Start- oder Ziel-Block wird die Fahrstraße gesichert: Besetzt-Prüfung, Verriegelung, automatische Auflösung.</p>
+        </div>
+      )}
     </li>
   );
 }

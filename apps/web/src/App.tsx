@@ -5,7 +5,7 @@ import { DetectorsTab, LocoNetTab, RailComTab } from "./monitors";
 import { DriveTab, ModeSelect } from "./drive";
 import { NetworkTab } from "./network";
 import { Login, useSession } from "./login";
-import { LayoutTab } from "./layout";
+import { DisplayView, LayoutTab } from "./layout";
 import { CameraSidebar, CamerasTab, useCameras } from "./camera";
 
 type Tab =
@@ -88,11 +88,18 @@ function Main({ logout }: { logout?: () => void }) {
   );
 }
 
+/** Read-only second screen, opened as /#/anzeige. */
+function Display() {
+  const { state } = useStation();
+  return <DisplayView state={state} />;
+}
+
 /** Shows the login form when the server asks for a password, the application otherwise. */
 export function App() {
   const session = useSession();
   if (!session.known) return null;
   if (!session.authenticated) return <Login onDone={session.refresh} />;
+  if (window.location.hash.startsWith("#/anzeige")) return <Display />;
   return <Main logout={session.required ? session.logout : undefined} />;
 }
 
