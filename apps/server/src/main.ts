@@ -14,6 +14,8 @@ import { exposureProblem, registerAuth } from "./auth.js";
 import { registerLayoutRoutes, SignalBox } from "./layout.js";
 import { Demo, registerDemoRoutes } from "./demo.js";
 import { BackupService, registerBackupRoutes } from "./backup.js";
+import { registerTrainRoutes, TrainStore } from "./trains.js";
+import { registerTimetableRoutes, TimetableRunner } from "./timetable.js";
 import { readTls, tlsFilesFromEnv, watchTls } from "./tls.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -138,6 +140,13 @@ const box = new SignalBox(station, path.join(dataDir, "layout.json"));
 const demo = new Demo(station, box); // used by /api/connect above, which only runs after start-up
 registerLayoutRoutes(app, box);
 registerDemoRoutes(app, demo);
+
+/* ---------- trains and timetable ---------- */
+const trains = new TrainStore(path.join(dataDir, "trains.json"));
+const runner = new TimetableRunner(station, box, trains, path.join(dataDir, "timetable.json"));
+registerTrainRoutes(app, trains, { blockIds: () => new Set((box.get().blocks ?? []).map((b) => b.id)), onRemove: (id) => runner.removeTripsOf(id) });
+registerTimetableRoutes(app, runner);
+runner.start();
 
 /* ---------- cameras ---------- */
 const cameraStore = new CameraStore(path.join(dataDir, "cameras.json"));

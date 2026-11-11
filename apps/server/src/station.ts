@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import type { RouteState } from "@z21/interlocking";
+import type { TimetableSnapshot } from "@z21/timetable";
 import {
   Broadcast, cmd, LocoNetDetectorPoll,
   type BoosterSystemState, type CanBoosterState, type DecoderState, type FastClockSettings, type FastClockTime,
@@ -111,6 +112,8 @@ export interface StationState {
   interlocking?: RouteState[];
   /** true while the built-in simulator stands in for a real command station */
   demo?: boolean;
+  /** Timetable clock, trains and upcoming departures (see TimetableRunner). */
+  timetable?: TimetableSnapshot;
 }
 
 /** Progress of a route that is being set. */
