@@ -85,3 +85,13 @@ it("tracks LocoNet and CAN detectors, including polling", async () => {
     { address: 3, direction: "forward" }, { address: 1000, direction: "backward" }, { address: 12, direction: "forward" },
   ]);
 });
+
+it("merges the parts of several modules into the snapshot", () => {
+  const s = new Station();
+  s.addExtra(() => ({ demo: true }));
+  s.addExtra(() => ({ routeRun: { routeId: "x", done: 0, total: 1, running: false } }));
+  s.addExtra(() => ({ demo: false }));
+  const snap = s.snapshot();
+  expect(snap.routeRun).toEqual({ routeId: "x", done: 0, total: 1, running: false });
+  expect(snap.demo).toBe(false); // last one wins
+});

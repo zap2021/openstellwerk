@@ -32,7 +32,7 @@ export class SignalBox {
       try { this.layout = validateLayout(stored); } catch (e) { console.error("layout.json ignoriert:", (e as Error).message); }
     }
     this.il = new Interlocking(this.layout);
-    station.extra = () => ({ layout: this.layout, routeRun: this.routeRun, interlocking: this.il.states() });
+    station.addExtra(() => ({ layout: this.layout, routeRun: this.routeRun, interlocking: this.il.states() }));
     station.on("connected", () => this.sync());
     station.on("state", () => this.evaluate());
     this.pin();

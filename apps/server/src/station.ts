@@ -118,10 +118,10 @@ export interface RouteRun { routeId: string; done: number; total: number; runnin
 
 /** Holds the live model of the connected command station and exposes high-level operations. */
 export class Station extends EventEmitter<{ state: [StationState]; loconet: [LocoNetLine]; connected: [] }> {
-  /** Lets other modules (signal box) add their part to the snapshot that every browser receives. */
   /** Set by the demo mode; shown in the snapshot so the UI can say it is not real. */
   demo = false;
-  extra: () => Pick<StationState, "layout" | "routeRun" | "interlocking"> = () => ({});
+  /** Parts that other modules (signal box, timetable, ...) add to the snapshot; later ones win. */
+  private extras: (() => Partial<StationState>)[] = [];
   /** Monitors that must stay on no matter which tab is open (the track diagram needs its detectors). */
   private pinned: Partial<Monitors> = {};
   readonly client = new Z21Client();
@@ -183,8 +183,13 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
       garage: this.garage.list(),
       scan: this.scanState,
       demo: this.demo || undefined,
-      ...this.extra(),
+      ...Object.assign({}, ...this.extras.map((f) => f())),
     };
+  }
+
+  /** Lets a module contribute fields to the snapshot that every browser receives. */
+  addExtra(fn: () => Partial<StationState>): void {
+    this.extras.push(fn);
   }
 
   private apply(m: Message) {
