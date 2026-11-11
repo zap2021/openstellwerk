@@ -143,7 +143,10 @@ export function DriveTab({ state, run }: { state: StationState; run: Run }) {
           <input type="checkbox" checked={state.monitors.railcom} onChange={(e) => run(put("/api/monitors", { railcom: e.target.checked }))} />
           RailCom-Erkennung (dauerhaft)
         </label>
-        <p className="hint">Gefunden wird, was die Zentrale kennt (Handregler, Apps, Lichter an) und was per RailCom oder Melder auf dem Gleis gemeldet wird. Eine stehende, unbenutzte Lok ohne RailCom lässt sich nicht erkennen – dann Adresse unten eintragen oder vom Programmiergleis lesen.</p>
+        <details>
+          <summary>Wie funktioniert die Lok-Erkennung?</summary>
+          <p className="hint">Gefunden wird, was die Zentrale kennt (Handregler, Apps, Lichter an) und was per RailCom oder Melder auf dem Gleis gemeldet wird. Eine stehende, unbenutzte Lok ohne RailCom lässt sich nicht erkennen – dann Adresse unten eintragen oder vom Programmiergleis lesen.</p>
+        </details>
 
         <ul className="loco-list">
           {candidates.length === 0 && <li className="empty">Noch keine Lok erkannt.</li>}
