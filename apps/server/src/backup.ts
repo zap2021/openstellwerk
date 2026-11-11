@@ -73,9 +73,9 @@ export class BackupService {
       ? (check(() => validateTrains(b.trains, { blockIds: new Set((layoutAfter.blocks ?? []).map((x) => x.id)) })) as Train[])
       : undefined;
     const trainIds = new Set((trains ?? this.trains.list()).map((x) => x.id));
+    const routeIds = new Set((layoutAfter.routes ?? []).map((r) => r.id));
     let timetable: { trips: Trip[]; lateLimit: number } | undefined;
     if (chosen.includes("timetable")) {
-      const routeIds = new Set(layoutAfter.routes.map((r) => r.id));
       const trips = check(() => validateTrips(t.trips, { trainIds, routeIds })) as Trip[];
       const settings = check(() => validateSettings(t.settings)) as { lateLimit: number };
       timetable = { trips, lateLimit: settings.lateLimit };
@@ -83,6 +83,11 @@ export class BackupService {
     } else if (trains) {
       const orphan = this.timetable.get().trips.find((x) => !trainIds.has(x.trainId));
       if (orphan) throw httpError(400, `Fahrt ${orphan.id} verweist auf einen Zug, den es nach der Wiederherstellung nicht mehr gibt`);
+    }
+    if (layout && !timetable) {
+      // The trips stay as they are, so they must still fit the routes of the layout that replaces the current one.
+      const orphan = this.timetable.get().trips.find((x) => !routeIds.has(x.routeId));
+      if (orphan) throw httpError(400, `Fahrt ${orphan.id} verweist auf eine Fahrstraße, die es nach der Wiederherstellung nicht mehr gibt`);
     }
 
     // 2. apply

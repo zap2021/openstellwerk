@@ -186,3 +186,28 @@ it("refuses to restore the timetable while a departure is running, changing noth
   expect(garage.get(78)).toBeDefined();
   expect(garage.get(5)).toBeUndefined();
 });
+
+it("restoring only the layout fails when a current trip points to a route that will be gone", async () => {
+  setup();
+  const b = await get();
+  b.layout.routes = [];
+  garage.upsert(79, { name: "Bleibt ebenfalls" });
+  const res = await restore({ backup: b, parts: ["garage", "layout"] });
+  expect(res.statusCode).toBe(400);
+  expect(res.json().message).toBe("Fahrt f1 verweist auf eine Fahrstraße, die es nach der Wiederherstellung nicht mehr gibt");
+  expect(box.get().routes.map((r) => r.id)).toEqual(["r1"]); // nothing changed
+  expect(garage.get(79)).toBeDefined();
+  expect(runner.get().trips).toHaveLength(1);
+
+  // layout and trains together, timetable left out: the current trips are still checked against the new routes
+  expect((await restore({ backup: b, parts: ["layout", "trains"] })).statusCode).toBe(400);
+  expect(box.get().routes.map((r) => r.id)).toEqual(["r1"]);
+
+  // with the timetable from the same file the trips are checked as part of it (and fail there)
+  expect((await restore({ backup: b, parts: ["layout", "timetable"] })).statusCode).toBe(400);
+
+  // a layout that keeps the route is fine
+  b.layout.routes = [{ id: "r1", name: "umbenannt", from: "b1", to: "b1", steps: [] }];
+  expect((await restore({ backup: b, parts: ["layout"] })).statusCode).toBe(200);
+  expect(box.get().routes[0]!.name).toBe("umbenannt");
+});
