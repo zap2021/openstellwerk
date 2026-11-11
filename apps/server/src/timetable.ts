@@ -44,9 +44,13 @@ export class TimetableRunner {
   private timer?: NodeJS.Timeout;
   private store: JsonFile<Stored>;
   private tickMs: number;
+  /** A running clock is written to the file this often (real ms), so a restart resumes near where it was. */
+  private clockSaveMs: number;
+  private lastSave = Date.now();
 
-  constructor(private station: Station, private box: SignalBox, private trains: TrainStore, file?: string, opts: { tickMs?: number } = {}) {
+  constructor(private station: Station, private box: SignalBox, private trains: TrainStore, file?: string, opts: { tickMs?: number; clockSaveMs?: number } = {}) {
     this.tickMs = opts.tickMs ?? 1000;
+    this.clockSaveMs = opts.clockSaveMs ?? 30_000;
     this.store = new JsonFile(file);
     const raw = this.store.read() as Partial<Record<keyof Stored, unknown>> | undefined;
     let invalid = raw === undefined; // unparseable, or no file (keepInvalid is a no-op then)
@@ -101,7 +105,7 @@ export class TimetableRunner {
   }
 
   removeTrip(id: string): boolean {
-    if (!this.trips.some((t) => t.id === id)) return false;
+    if (!this.trips.some((t) => t.id === id)) throw err("Fahrt nicht gefunden", 404);
     if (this.dispatcher.hasActive(id)) throw err("Die Fahrt hat eine aktive Abfahrt", 409);
     this.trips = this.trips.filter((t) => t.id !== id);
     this.changed();
@@ -122,6 +126,8 @@ export class TimetableRunner {
 
   setSettings(input: unknown): { lateLimit: number } {
     let s: { lateLimit: number };
+    // The default of validateSettings is for loading files; a request has to say what it wants.
+    if (!input || typeof input !== "object" || (input as Record<string, unknown>).lateLimit === undefined) throw err("Verspätungsgrenze fehlt", 400);
     try { s = validateSettings(input); } catch (e) { throw err((e as Error).message, 400); }
     this.lateLimit = s.lateLimit;
     this.changed();
@@ -198,8 +204,14 @@ export class TimetableRunner {
 
   /** Persist and react at once (no waiting for the next tick). */
   private changed() {
-    this.store.write(() => ({ trips: this.trips, settings: { lateLimit: this.lateLimit }, clock: this.clock }));
+    this.persist();
     this.tick();
+  }
+
+  /** A running clock is stored as it stands at the moment of writing: after a restart it is stopped at that time. */
+  private persist() {
+    this.lastSave = Date.now();
+    this.store.write(() => ({ trips: this.trips, settings: { lateLimit: this.lateLimit }, clock: stopClock(this.clock, Date.now()) }));
   }
 
   private tick() {
@@ -214,11 +226,12 @@ export class TimetableRunner {
       // Paused: no drainEnded, no step; the clock stops once and stays stopped until the operator starts it.
       if (this.clock.running) {
         this.clock = stopClock(this.clock, now);
-        this.store.write(() => ({ trips: this.trips, settings: { lateLimit: this.lateLimit }, clock: this.clock }));
+        this.persist();
       }
       this.publish();
       return;
     }
+    if (this.clock.running && now - this.lastSave >= this.clockSaveMs) this.persist();
     const routes = new Map<string, RouteInfo>(layout.routes.map((r) => [r.id, { from: r.from, to: r.to }]));
     const base = { now, clock: this.clock, lateLimit: this.lateLimit, trips: this.trips, routes, connected: true };
     const ended = this.box.drainEnded();

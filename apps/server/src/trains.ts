@@ -109,14 +109,14 @@ export function registerTrainRoutes(
   app.post<{ Body: unknown }>("/api/trains", async (req) => store.save(req.body));
   app.put<{ Params: { id: string }; Body: unknown }>("/api/trains/:id", async (req) => store.save(req.body, req.params.id));
   app.delete<{ Params: { id: string } }>("/api/trains/:id", async (req) => {
-    if (store.get(req.params.id)) {
-      if (deps.hasActiveDeparture(req.params.id)) throw err("Der Zug hat eine aktive Abfahrt", 409); // before anything is removed
-      deps.onRemove(req.params.id);
-    }
+    if (!store.get(req.params.id)) throw err("Zug nicht gefunden", 404);
+    if (deps.hasActiveDeparture(req.params.id)) throw err("Der Zug hat eine aktive Abfahrt", 409); // before anything is removed
+    deps.onRemove(req.params.id);
     return { removed: store.remove(req.params.id) };
   });
   app.put<{ Params: { id: string }; Body: { blockId?: string | null } }>("/api/trains/:id/location", async (req) => {
-    const blockId = req.body?.blockId ?? null;
+    if (!req.body || typeof req.body !== "object" || req.body.blockId === undefined) throw err("blockId fehlt", 400); // null clears, a missing key does not
+    const blockId = req.body.blockId;
     if (blockId !== null && (typeof blockId !== "string" || !deps.blockIds().has(blockId))) throw err("Block nicht gefunden", 400);
     return store.setLocation(req.params.id, blockId);
   });

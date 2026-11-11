@@ -121,3 +121,24 @@ it("a missing trains.json is silent and leaves no copy", () => {
     expect(readdirSync(d)).toEqual([]);
   } finally { log.mockRestore(); rmSync(d, { recursive: true, force: true }); }
 });
+
+it("DELETE of an unknown train answers 404", async () => {
+  const { app, removed } = await setup();
+  const res = await app.inject({ method: "DELETE", url: "/api/trains/zzz" });
+  expect(res.statusCode).toBe(404);
+  expect(res.json().message).toBe("Zug nicht gefunden");
+  expect(removed).toEqual([]);
+});
+
+it("the location needs a blockId key; only an explicit null clears", async () => {
+  const { app, store } = await setup();
+  const t = store.save({ name: "A", address: 3 });
+  store.setLocation(t.id, "b1");
+  const url = `/api/trains/${t.id}/location`;
+  for (const res of [await app.inject({ method: "PUT", url }), await app.inject({ method: "PUT", url, payload: {} }), await app.inject({ method: "PUT", url, payload: { block: "b2" } })]) {
+    expect(res.statusCode).toBe(400);
+    expect(res.json().message).toBe("blockId fehlt");
+  }
+  expect(store.get(t.id)?.location?.blockId).toBe("b1"); // not cleared by accident
+  expect((await app.inject({ method: "PUT", url, payload: { blockId: null } })).json().location).toBeUndefined();
+});

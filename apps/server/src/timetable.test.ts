@@ -433,3 +433,38 @@ it("DELETE /api/trains/:id is refused while the train has an active departure", 
   expect(runner.get().trips.some((t) => t.trainId === t3)).toBe(false);
   await settle();
 });
+
+it("DELETE of an unknown trip answers 404; settings need a lateLimit key", async () => {
+  const del = await app.inject({ method: "DELETE", url: "/api/trips/unknown" });
+  expect(del.statusCode).toBe(404);
+  expect(del.json().message).toBe("Fahrt nicht gefunden");
+  for (const res of [await app.inject({ method: "PUT", url: "/api/timetable/settings" }), await app.inject({ method: "PUT", url: "/api/timetable/settings", payload: {} })]) {
+    expect(res.statusCode).toBe(400);
+    expect(res.json().message).toBe("Verspätungsgrenze fehlt");
+  }
+  expect(runner.get().lateLimit).toBe(120); // not reset to the default
+});
+
+it("a running clock is saved periodically, so a restart does not roll it back to its start time", async () => {
+  const r = runner as unknown as { clockSaveMs: number };
+  const before = r.clockSaveMs;
+  expect(before).toBe(30_000);
+  const stored = () => (JSON.parse(readFileSync(files.timetable, "utf8")) as { clock: { running: boolean; baseModel: number } }).clock;
+  at("19:00");
+  await sleep(400); // the debounced write of the start itself
+  const first = stored().baseModel;
+  await sleep(200);
+  expect(stored().baseModel).toBe(first); // default interval: nothing newer yet
+  r.clockSaveMs = 300; // longer than the debounce of the file write
+  try {
+    await until(() => stored().baseModel >= first + 20); // factor 60: a model minute per real second
+    expect(tt().clock.running).toBe(true); // the clock itself keeps running, unchanged
+    expect(tt().clock.baseModel).toBe(19 * 3600);
+    const runner2 = new TimetableRunner(new Station(), box, new TrainStore(), files.timetable, { tickMs: 20 });
+    expect(runner2.get().clock.running).toBe(false);
+    expect(runner2.get().clock.baseModel).toBeGreaterThanOrEqual(first + 20);
+  } finally {
+    r.clockSaveMs = before;
+    runner.clockAction({ action: "stop" });
+  }
+});
