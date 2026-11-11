@@ -49,17 +49,19 @@ export class TimetableRunner {
     this.tickMs = opts.tickMs ?? 1000;
     this.store = new JsonFile(file);
     const raw = this.store.read() as Partial<Record<keyof Stored, unknown>> | undefined;
+    let invalid = raw === undefined; // unparseable, or no file (keepInvalid is a no-op then)
     if (raw !== undefined) {
       const part = <T>(what: () => T, fallback: T): T => {
-        try { return what(); } catch (e) { console.error("timetable.json ignoriert:", (e as Error).message); return fallback; }
+        try { return what(); } catch (e) { console.error("timetable.json ignoriert:", (e as Error).message); invalid = true; return fallback; }
       };
-      if (raw === null || typeof raw !== "object") console.error("timetable.json ignoriert:", "kein Objekt");
+      if (raw === null || typeof raw !== "object") { console.error("timetable.json ignoriert:", "kein Objekt"); invalid = true; }
       else {
         this.trips = part(() => validateTrips(raw.trips), []); // references are checked when a trip runs
         this.lateLimit = part(() => validateSettings(raw.settings).lateLimit, 5);
         if (raw.clock !== undefined) this.clock = part(() => restoreClock(raw.clock), { ...DEFAULT_CLOCK });
       }
     }
+    if (invalid) this.store.keepInvalid(); // before any write replaces what could not be used
     station.addExtra(() => ({ timetable: this.view() }));
   }
 

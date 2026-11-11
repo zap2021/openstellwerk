@@ -1,8 +1,8 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import Fastify from "fastify";
-import { afterAll, expect, it } from "vitest";
+import { afterAll, expect, it, vi } from "vitest";
 import { registerTrainRoutes, TrainStore } from "./trains.js";
 
 const dir = mkdtempSync(path.join(tmpdir(), "trains-"));
@@ -77,4 +77,47 @@ it("marks locations uncertain after a reload; carried clears it; dropUnknownBloc
   expect(again.get(t.id)?.location).toBeUndefined();
   await wait(350);
   expect(JSON.parse(readFileSync(file, "utf8"))[0].name).toBe("N");
+});
+
+/** Writes `bytes` as trains.json in a fresh folder, loads a store from it and returns the folder's other files. */
+function loadBroken(bytes: string) {
+  const d = mkdtempSync(path.join(tmpdir(), "trains-bad-"));
+  const f = path.join(d, "trains.json");
+  writeFileSync(f, bytes);
+  const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  try {
+    const store = new TrainStore(f);
+    const copies = readdirSync(d).filter((n) => /^trains\.json\.invalid-\d+\.json$/.test(n));
+    return { store, copies: copies.map((n) => readFileSync(path.join(d, n), "utf8")), logs: log.mock.calls.map((c) => c.join(" ")), cleanup: () => rmSync(d, { recursive: true, force: true }) };
+  } finally { log.mockRestore(); }
+}
+
+it("keeps an unparseable trains.json as a .invalid copy and starts empty", () => {
+  const bytes = '[{"id":"a1", "name": "ICE", ';
+  const r = loadBroken(bytes);
+  try {
+    expect(r.store.list()).toEqual([]);
+    expect(r.copies).toEqual([bytes]);
+    expect(r.logs.some((l) => l.startsWith("trains.json nicht lesbar:"))).toBe(true);
+    expect(r.logs.some((l) => l.includes(".invalid-"))).toBe(true); // tells where the copy is
+  } finally { r.cleanup(); }
+});
+
+it("keeps a trains.json with a duplicate address as a .invalid copy and starts empty", () => {
+  const bytes = JSON.stringify([{ id: "a1", name: "A", address: 3 }, { id: "a2", name: "B", address: 3 }]);
+  const r = loadBroken(bytes);
+  try {
+    expect(r.store.list()).toEqual([]);
+    expect(r.copies).toEqual([bytes]);
+  } finally { r.cleanup(); }
+});
+
+it("a missing trains.json is silent and leaves no copy", () => {
+  const d = mkdtempSync(path.join(tmpdir(), "trains-none-"));
+  const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  try {
+    expect(new TrainStore(path.join(d, "trains.json")).list()).toEqual([]);
+    expect(log).not.toHaveBeenCalled();
+    expect(readdirSync(d)).toEqual([]);
+  } finally { log.mockRestore(); rmSync(d, { recursive: true, force: true }); }
 });

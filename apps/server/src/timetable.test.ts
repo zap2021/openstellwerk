@@ -1,8 +1,8 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import Fastify from "fastify";
-import { afterAll, beforeAll, expect, it } from "vitest";
+import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { Z21Simulator } from "@z21/simulator";
 import type { Layout } from "@z21/protocol";
 import type { Instance } from "@z21/timetable";
@@ -363,4 +363,33 @@ it("removeTripsOf drops every trip of a train, also via DELETE /api/trains/:id",
   runner.saveTrip({ trainId: t2, routeId: "r2", departure: 1310 });
   expect((await app.inject({ method: "DELETE", url: `/api/trains/${t2}` })).json()).toEqual({ removed: true });
   expect(runner.get().trips.some((t) => t.trainId === t2)).toBe(false);
+});
+
+it("keeps a timetable.json with a bad trip as a .invalid copy and starts without trips", () => {
+  const d = mkdtempSync(path.join(tmpdir(), "timetable-bad-"));
+  const f = path.join(d, "timetable.json");
+  const bytes = JSON.stringify({ trips: [{ id: "x", trainId: "z", routeId: "r1", departure: 9999, dwell: 0 }], settings: { lateLimit: 7 } });
+  writeFileSync(f, bytes);
+  const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  try {
+    const r = new TimetableRunner(new Station(), box, new TrainStore(), f);
+    expect(r.get().trips).toEqual([]);
+    expect(r.get().lateLimit).toBe(7); // the valid parts are still used
+    const copies = readdirSync(d).filter((n) => /^timetable\.json\.invalid-\d+\.json$/.test(n));
+    expect(copies.map((n) => readFileSync(path.join(d, n), "utf8"))).toEqual([bytes]);
+  } finally { log.mockRestore(); rmSync(d, { recursive: true, force: true }); }
+});
+
+it("keeps an unparseable timetable.json as a .invalid copy", () => {
+  const d = mkdtempSync(path.join(tmpdir(), "timetable-bad-"));
+  const f = path.join(d, "timetable.json");
+  writeFileSync(f, "{ nope");
+  const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  try {
+    const r = new TimetableRunner(new Station(), box, new TrainStore(), f);
+    expect(r.get().trips).toEqual([]);
+    expect(log.mock.calls.some((c) => c[0] === "timetable.json nicht lesbar:")).toBe(true);
+    const copies = readdirSync(d).filter((n) => /^timetable\.json\.invalid-\d+\.json$/.test(n));
+    expect(copies.map((n) => readFileSync(path.join(d, n), "utf8"))).toEqual(["{ nope"]);
+  } finally { log.mockRestore(); rmSync(d, { recursive: true, force: true }); }
 });

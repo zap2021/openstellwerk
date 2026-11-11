@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 /**
@@ -10,9 +10,30 @@ export class JsonFile<T> {
 
   constructor(private file: string | undefined, private opts: { mode?: number; delayMs?: number } = {}) {}
 
+  /** The parsed content; undefined when there is no file (silent) or it cannot be parsed (logged). */
   read(): T | undefined {
-    if (!this.file) return undefined;
-    try { return JSON.parse(readFileSync(this.file, "utf8")) as T; } catch { return undefined; }
+    if (!this.file || !existsSync(this.file)) return undefined;
+    try { return JSON.parse(readFileSync(this.file, "utf8")) as T; } catch (e) {
+      console.error(`${path.basename(this.file)} nicht lesbar:`, (e as Error).message);
+      return undefined;
+    }
+  }
+
+  private exists(): boolean { return !!this.file && existsSync(this.file); }
+
+  /**
+   * Copy the file aside as `<file>.invalid-<epoch ms>.json` before a later write replaces it (best effort).
+   * Called by stores that could not use what they loaded.
+   */
+  keepInvalid(): void {
+    if (!this.exists()) return;
+    const copy = `${this.file}.invalid-${Date.now()}.json`;
+    try {
+      copyFileSync(this.file!, copy);
+      console.error(`${path.basename(this.file!)}: ungültige Datei aufbewahrt unter`, copy);
+    } catch (e) {
+      console.error(`${path.basename(this.file!)}: Kopie der ungültigen Datei fehlgeschlagen:`, (e as Error).message);
+    }
   }
 
   /** Schedule a write; `get` is called when it happens, so several changes in a row cost one write. */

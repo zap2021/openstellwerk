@@ -13,7 +13,8 @@ export class TrainStore {
   constructor(file?: string) {
     this.store = new JsonFile(file);
     const raw = this.store.read();
-    if (raw !== undefined) {
+    if (raw === undefined) this.store.keepInvalid(); // unparseable (no-op when there is no file)
+    else {
       try {
         for (const [i, t] of validateTrains(raw).entries()) {
           const had = (raw as unknown as Array<Record<string, unknown>>)[i]?.location !== undefined;
@@ -23,6 +24,7 @@ export class TrainStore {
       } catch (e) {
         console.error("trains.json ignoriert:", (e as Error).message);
         this.map.clear();
+        this.store.keepInvalid(); // the next write would replace it
       }
     }
     this.markAllUncertain();
