@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { imageUrl } from "./loco-image";
+import { LocoPicture } from "./loco-picture";
 import { api, type GarageLoco, type StationState } from "./api";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
@@ -39,6 +41,7 @@ interface Candidate {
   busy: boolean;
   active: boolean;
   via: string[];
+  imageVersion?: number;
 }
 
 /** Everything we have learned about which loco addresses are in use, from all sources, one row per address. */
@@ -55,6 +58,7 @@ function useCandidates(state: StationState): Candidate[] {
       const c = get(g.address);
       c.saved = true;
       c.name = g.name;
+      c.imageVersion = g.imageVersion;
     }
     for (const l of state.locos) {
       if (!isActive(l)) continue;
@@ -156,6 +160,7 @@ export function DriveTab({ state, run }: { state: StationState; run: Run }) {
             return (
               <li key={c.address}>
                 <button className={`loco-item ${selected === c.address ? "active" : ""}`} onClick={() => select(c.address)}>
+                  {c.imageVersion ? <img className="thumb" src={imageUrl(c.address, c.imageVersion)} alt="" loading="lazy" /> : null}
                   <span className="addr">{c.address}</span>
                   <span className="meta">
                     <strong>{c.name || `Lok ${c.address}`}</strong>
@@ -220,6 +225,7 @@ function Throttle({ addr, state, run, garage }: { addr: number; state: StationSt
   return (
     <div className="panel">
       <div className="head">
+        <LocoPicture address={addr} version={garage?.imageVersion} run={run} />
         <h2>Fahrpult – Lok {addr}</h2>
         <input
           className="name"

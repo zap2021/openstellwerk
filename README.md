@@ -146,6 +146,10 @@ Die gesicherten Fahrstraßen aus Phase 1 verlangen, dass alle ihre Blöcke frei 
 
 Diese Teile sind vorgesehen, sobald Testhardware vorhanden ist.
 
+## Lok-Bilder
+
+Unter **Bedienen → Fahren** lässt sich zu jeder Lok ein kleines Bild hinzufügen („Bild hinzufügen“ im Kopf des Fahrpults, auf dem Handy auch direkt mit der Kamera). Der Browser verkleinert das Foto auf höchstens 256 Pixel Kantenlänge und lädt es als JPEG hoch; der Server nimmt nur echte JPEG-Dateien bis 200 KB an. Das Bild erscheint in der Lokliste und im Fahrpult. Gespeichert wird es als Datei im Datenordner (`loco-images/<adresse>.jpg`); im Zustand, den der Server an die Browser schickt, steht nur eine Versionsnummer. Wird eine Lok aus der Liste entfernt, verschwindet auch ihr Bild.
+
 ## Datensicherung
 
 Unter **Verwaltung → Datensicherung** lädst du alles herunter, was du in der Oberfläche pflegst und was nicht in der Z21 gespeichert ist:
@@ -153,6 +157,7 @@ Unter **Verwaltung → Datensicherung** lädst du alles herunter, was du in der 
 - **Loks:** Namen, Funktionsbezeichnungen und von Hand ergänzte Loks
 - **Gleisbild:** Felder, Blöcke und Fahrstraßen
 - **Züge und Fahrplan:** Züge (ohne Standort), Fahrten und Verspätungsgrenze
+- **Lok-Bilder:** die kleinen Bilder der Loks (standardmäßig dabei, über „Lok-Bilder einschließen“ abwählbar); die Datei wird dadurch etwas größer
 - **Kameras:** Kamera-Passwörter nur, wenn du sie ausdrücklich einschließt (sie stehen dann im Klartext in der Datei)
 
 Beim Wiederherstellen wählst du die Teile einzeln aus. Alles wird vorher geprüft; ist ein Teil fehlerhaft, ändert sich nichts. Das Gleisbild lässt sich nicht ersetzen, solange Fahrstraßen angefordert sind. Fahrzustand, Weichenlagen, CVs, Uhr und Netzwerk-Einstellungen liegen in der Z21 selbst und gehören nicht dazu. Das Gleisbild allein kannst du weiter im Editor exportieren und importieren.

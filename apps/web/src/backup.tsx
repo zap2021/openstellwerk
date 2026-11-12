@@ -2,17 +2,19 @@ import { useRef, useState } from "react";
 import { api } from "./api";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
-type Part = "garage" | "layout" | "cameras" | "trains" | "timetable";
+type Part = "garage" | "layout" | "cameras" | "trains" | "timetable" | "locoImages";
 
-const LABEL: Record<Part, string> = { garage: "Loks (Namen, Funktionsbezeichnungen, von Hand ergänzte Loks)", layout: "Gleisbild mit Blöcken und Fahrstraßen", cameras: "Kameras", trains: "Züge (ohne Standort)", timetable: "Fahrplan" };
+const LABEL: Record<Part, string> = { garage: "Loks (Namen, Funktionsbezeichnungen, von Hand ergänzte Loks)", layout: "Gleisbild mit Blöcken und Fahrstraßen", cameras: "Kameras", trains: "Züge (ohne Standort)", timetable: "Fahrplan", locoImages: "Lok-Bilder" };
 const countOf = (b: Record<string, unknown>, p: Part) =>
   p === "layout" ? (b.layout as { tiles?: unknown[] } | undefined)?.tiles?.length
   : p === "timetable" ? (b.timetable as { trips?: unknown[] } | undefined)?.trips?.length
+  : p === "locoImages" ? (b.locoImages && typeof b.locoImages === "object" ? Object.keys(b.locoImages).length : undefined)
   : (b[p] as unknown[] | undefined)?.length;
 
 /** Backup of everything maintained in this application that the Z21 does not store. */
 export function BackupPanel({ run }: { run: Run }) {
   const [passwords, setPasswords] = useState(false);
+  const [images, setImages] = useState(true);
   const [file, setFile] = useState<{ name: string; backup: Record<string, unknown> }>();
   const [chosen, setChosen] = useState<Part[]>([]);
   const [done, setDone] = useState<string>();
@@ -50,8 +52,9 @@ export function BackupPanel({ run }: { run: Run }) {
         das Gleisbild mit Blöcken und Fahrstraßen sowie die Kameras. Fahrzustand, Weichenlagen, CVs, Uhr und Netzwerk-Einstellungen liegen in der Z21 selbst.
       </p>
       <div className="row">
-        <a className="button" href={`/api/backup${passwords ? "?passwords=1" : ""}`} download>Sicherung herunterladen</a>
+        <a className="button" href={`/api/backup${[passwords ? "passwords=1" : "", images ? "" : "images=0"].filter(Boolean).map((q, i) => (i ? "&" : "?") + q).join("")}`} download>Sicherung herunterladen</a>
         <label className="check"><input type="checkbox" checked={passwords} onChange={(e) => setPasswords(e.target.checked)} /> Kamera-Passwörter einschließen</label>
+        <label className="check"><input type="checkbox" checked={images} onChange={(e) => setImages(e.target.checked)} /> Lok-Bilder einschließen</label>
       </div>
       {passwords && <p className="hint warn">Die Datei enthält dann Passwörter im Klartext. Nur an einem sicheren Ort aufbewahren.</p>}
       <div className="row">
@@ -69,7 +72,7 @@ export function BackupPanel({ run }: { run: Run }) {
               return (
                 <label key={p} className="check">
                   <input type="checkbox" disabled={n === undefined} checked={chosen.includes(p)} onChange={(e) => setChosen(e.target.checked ? [...chosen, p] : chosen.filter((x) => x !== p))} />
-                  {LABEL[p]}{n === undefined ? " – nicht in der Datei" : ` – ${n} ${p === "layout" ? "Felder" : p === "timetable" ? "Fahrten" : "Einträge"}`}
+                  {LABEL[p]}{n === undefined ? " – nicht in der Datei" : ` – ${n} ${p === "layout" ? "Felder" : p === "timetable" ? "Fahrten" : p === "locoImages" ? "Bilder" : "Einträge"}`}
                 </label>
               );
             })}

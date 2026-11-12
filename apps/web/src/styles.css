@@ -209,3 +209,10 @@ header .status { color: var(--muted); }
 .board td.time { font: 600 28px ui-monospace, "SF Mono", monospace; }
 .board tr.past { opacity: .55; }
 .board .reason { font-size: 16px; color: var(--muted); }
+
+/* ---- Lok-Bilder ---- */
+.loco-item .thumb { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; flex: none; background: var(--surface-2); }
+.panel .head { align-items: center; }
+.loco-picture { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.loco-pic { width: 72px; height: 72px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); }
+.loco-pic.empty { display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 11px; text-align: center; }

@@ -71,6 +71,8 @@ export interface GarageLoco {
   sources: ("scan" | "prog" | "manual" | "railcom" | "detector" | "active")[];
   functionNames: Record<number, string>;
   lastSeen?: number;
+  /** version of the loco's picture (ms timestamp); absent = no picture */
+  imageVersion?: number;
 }
 
 export interface LocoNetLine {
