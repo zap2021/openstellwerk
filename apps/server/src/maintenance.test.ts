@@ -1,7 +1,8 @@
 import dgram from "node:dgram";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { buildReadRequest, decryptWords, encryptWords, MaintenanceRead, parseMaintenanceResponse, parseNetworkSettings } from "@z21/protocol";
-import { readNetworkSettings } from "./maintenance.js";
+import Fastify from "fastify";
+import { readNetworkSettings, registerMaintenanceRoutes } from "./maintenance.js";
 
 it("matches the reference vectors of the original tool's cipher", () => {
   expect(buildReadRequest(0x182, 12, 0x1234).toString("hex")).toBe("10808201000034125cdb30deda2ab604");
@@ -40,4 +41,42 @@ it("reads settings and MAC over the maintenance channel and detects the byte ord
 
 it("reports a clear timeout when nothing answers", async () => {
   await expect(readNetworkSettings("127.0.0.1", { port: 21778, timeoutMs: 300 })).rejects.toMatchObject({ statusCode: 504 });
+});
+
+it("does not mistake its own request for the answer when the target is the local machine (issue #2)", async () => {
+  // Default port 21106 on 127.0.0.1: the request is sent from local port 21106 to itself. The echo has the same
+  // address and sequence number as a real answer, but it is not one.
+  await expect(readNetworkSettings("127.0.0.1", { timeoutMs: 300 })).rejects.toMatchObject({ statusCode: 504 });
+});
+
+it("names what it ignored when nothing valid arrives, so a timeout can be diagnosed (issue #2)", async () => {
+  const stray = dgram.createSocket("udp4");
+  await new Promise<void>((r) => {
+    stray.on("message", (buf, rinfo) => {
+      const wrong = Buffer.from(buf);
+      wrong.writeUInt16LE((wrong.readUInt16LE(6) + 1) & 0xffff, 6); // an answer to some other request
+      stray.send(wrong, rinfo.port, rinfo.address);
+    });
+    stray.bind(21779, "127.0.0.1", r);
+  });
+  try {
+    const err = await readNetworkSettings("127.0.0.1", { port: 21779, timeoutMs: 300 }).catch((e) => e as Error);
+    expect(err).toMatchObject({ statusCode: 504 });
+    expect((err as Error).message).toMatch(/Keine Antwort/);
+    expect((err as Error).message).toMatch(/1 andere\(s\) Datagramm\(e\) ignoriert/);
+    expect((err as Error).message).toMatch(/127\.0\.0\.1:\d+/); // where it came from
+  } finally { stray.close(); }
+});
+
+it("refuses the network query in demo mode with a clear message, and without a connection (issue #2)", async () => {
+  const app = Fastify();
+  const station = { demo: true, client: { host: "127.0.0.1" } };
+  registerMaintenanceRoutes(app, station as never);
+  const demo = await app.inject({ method: "GET", url: "/api/network" });
+  expect(demo.statusCode).toBe(409);
+  expect(demo.json().message).toMatch(/Demo-Modus/);
+  station.demo = false;
+  station.client.host = undefined as never;
+  expect((await app.inject({ method: "GET", url: "/api/network" })).statusCode).toBe(409);
+  await app.close();
 });
