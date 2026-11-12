@@ -7,6 +7,7 @@ import websocket from "@fastify/websocket";
 import fastifyStatic from "@fastify/static";
 import { Station } from "./station.js";
 import { Garage } from "./garage.js";
+import { LocoImageStore, registerLocoImageRoutes, syncGarageImages } from "./loco-images.js";
 import { readNetworkSettings } from "./maintenance.js";
 import { CameraStore, registerCameraRoutes } from "./cameras.js";
 import { discover } from "./z21-client.js";
@@ -161,6 +162,11 @@ app.get("/api/network", async () => {
   return readNetworkSettings(station.client.host);
 });
 
+/* ---------- loco pictures ---------- */
+const locoImages = new LocoImageStore(path.join(dataDir, "loco-images"));
+syncGarageImages(station.garage, locoImages);
+registerLocoImageRoutes(app, station.garage, locoImages, () => station.notify());
+
 /* ---------- garage: known locos, discovery ---------- */
 app.post<{ Body: { from?: number; to?: number } }>("/api/garage/scan", async (req) => {
   const from = int(req.body?.from ?? 1, 1, 9999, "from");
@@ -177,7 +183,11 @@ app.put<{ Params: { addr: string }; Body: { name?: string; functionNames?: Recor
     name: req.body?.name === undefined ? undefined : String(req.body.name),
     functionNames: req.body?.functionNames && typeof req.body.functionNames === "object" ? req.body.functionNames : undefined,
   }));
-app.delete<{ Params: { addr: string } }>("/api/garage/:addr", async (req) => ({ removed: station.removeGarageEntry(int(req.params.addr, 1, 9999, "address")) }));
+app.delete<{ Params: { addr: string } }>("/api/garage/:addr", async (req) => {
+  const address = int(req.params.addr, 1, 9999, "address");
+  locoImages.remove(address); // the picture goes with the loco
+  return { removed: station.removeGarageEntry(address) };
+});
 
 app.post<{ Params: { addr: string } }>("/api/loco/:addr/estop", async (req) => { station.locoEStop(int(req.params.addr, 1, 9999, "address")); return { ok: true }; });
 app.post<{ Params: { addr: string } }>("/api/loco/:addr/purge", async (req) => { station.purgeLoco(int(req.params.addr, 1, 9999, "address")); return { ok: true }; });

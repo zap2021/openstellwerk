@@ -10,6 +10,8 @@ export interface GarageLoco {
   /** user-defined function labels, F-number → text */
   functionNames: Record<number, string>;
   lastSeen?: number;
+  /** ms timestamp of the last uploaded picture (see loco-images.ts); only the version is kept here, never the picture */
+  imageVersion?: number;
 }
 
 /** Small JSON-file backed registry of known locos. Without a file it only lives in memory (tests). */
@@ -23,7 +25,7 @@ export class Garage {
       const raw = this.store.read();
       for (const l of Array.isArray(raw) ? raw : []) {
         if (Number.isInteger(l.address) && l.address >= 1 && l.address <= 9999) {
-          this.map.set(l.address, { address: l.address, name: l.name, sources: l.sources ?? [], functionNames: l.functionNames ?? {}, lastSeen: l.lastSeen });
+          this.map.set(l.address, { address: l.address, name: l.name, sources: l.sources ?? [], functionNames: l.functionNames ?? {}, lastSeen: l.lastSeen, imageVersion: typeof l.imageVersion === "number" ? l.imageVersion : undefined });
         }
       }
     }
@@ -48,6 +50,14 @@ export class Garage {
     this.map.set(address, next);
     this.save();
     return next;
+  }
+
+  /** Record (or clear) the version of a loco's picture. Does nothing for an address that is not in the garage. */
+  setImageVersion(address: number, version: number | undefined) {
+    const cur = this.map.get(address);
+    if (!cur || cur.imageVersion === version) return;
+    this.map.set(address, { ...cur, imageVersion: version });
+    this.save();
   }
 
   /** Replace the whole registry (restore from a backup); `list` comes from parseGarage. */
