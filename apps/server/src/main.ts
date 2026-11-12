@@ -153,19 +153,19 @@ registerDemoRoutes(app, demo);
 const cameraStore = new CameraStore(path.join(dataDir, "cameras.json"));
 registerCameraRoutes(app, cameraStore);
 
+/* ---------- loco pictures ---------- */
+const locoImages = new LocoImageStore(path.join(dataDir, "loco-images"));
+syncGarageImages(station.garage, locoImages);
+registerLocoImageRoutes(app, station.garage, locoImages, () => station.notify());
+
 /* ---------- backup: everything the user maintains that the Z21 does not store ---------- */
-registerBackupRoutes(app, new BackupService(station.garage, box, cameraStore, trains, runner, () => station.notify()));
+registerBackupRoutes(app, new BackupService(station.garage, box, cameraStore, trains, runner, locoImages, () => station.notify()));
 
 /* ---------- network settings (read-only) ---------- */
 app.get("/api/network", async () => {
   if (!station.client.host) throw Object.assign(new Error("not connected"), { statusCode: 409 });
   return readNetworkSettings(station.client.host);
 });
-
-/* ---------- loco pictures ---------- */
-const locoImages = new LocoImageStore(path.join(dataDir, "loco-images"));
-syncGarageImages(station.garage, locoImages);
-registerLocoImageRoutes(app, station.garage, locoImages, () => station.notify());
 
 /* ---------- garage: known locos, discovery ---------- */
 app.post<{ Body: { from?: number; to?: number } }>("/api/garage/scan", async (req) => {

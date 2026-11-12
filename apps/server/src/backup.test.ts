@@ -6,6 +6,7 @@ import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { BackupService, registerBackupRoutes } from "./backup.js";
 import { CameraStore } from "./cameras.js";
 import { Garage } from "./garage.js";
+import { LocoImageStore } from "./loco-images.js";
 import { SignalBox } from "./layout.js";
 import { Station } from "./station.js";
 import { TrainStore } from "./trains.js";
@@ -17,6 +18,7 @@ const station = new Station(garage);
 const box = new SignalBox(station, path.join(dir, "layout.json"));
 const cameras = new CameraStore();
 const trains = new TrainStore();
+const images = new LocoImageStore();
 const runner = new TimetableRunner(station, box, trains);
 const app = Fastify();
 
@@ -27,7 +29,7 @@ const layout = {
 };
 
 beforeAll(async () => {
-  registerBackupRoutes(app, new BackupService(garage, box, cameras, trains, runner, () => station.notify()));
+  registerBackupRoutes(app, new BackupService(garage, box, cameras, trains, runner, images, () => station.notify()));
   await app.ready();
   garage.upsert(3, { name: "V 200", functionNames: { 0: "Licht", 2: "Horn" }, source: "manual" });
   garage.upsert(1000, { name: "Dampflok" });
@@ -210,4 +212,65 @@ it("restoring only the layout fails when a current trip points to a route that w
   b.layout.routes = [{ id: "r1", name: "umbenannt", from: "b1", to: "b1", steps: [] }];
   expect((await restore({ backup: b, parts: ["layout"] })).statusCode).toBe(200);
   expect(box.get().routes[0]!.name).toBe("umbenannt");
+});
+
+/** A stand-in for a JPEG (start and end markers); the server never decodes the picture. */
+const jpeg = (fill: number, size = 300) => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(size - 6, fill), Buffer.from([0xff, 0xd9])]);
+
+it("includes the loco pictures by default, leaves them out with images=0, and omits the part when there are none (issue #3)", async () => {
+  expect((await get()).locoImages).toBeUndefined(); // no pictures yet: the key is absent, older files look the same
+  images.set(3, jpeg(7));
+  images.set(1000, jpeg(8));
+  garage.setImageVersion(3, images.version(3));
+  garage.setImageVersion(1000, images.version(1000));
+  const b = await get();
+  expect(Object.keys(b.locoImages)).toEqual(["3", "1000"]);
+  expect(Buffer.from(b.locoImages["3"], "base64").equals(jpeg(7))).toBe(true);
+  expect((await get("?images=0")).locoImages).toBeUndefined();
+});
+
+it("round-trips the pictures, and restoring only the pictures leaves the rest alone (issue #3)", async () => {
+  const backup = await get();
+  images.remove(3);
+  garage.setImageVersion(3, undefined);
+  images.set(1000, jpeg(9)); // changed since the backup
+  const before = JSON.stringify(garage.list().map((l) => ({ ...l, imageVersion: undefined })));
+  const res = await restore({ backup, parts: ["locoImages"] });
+  expect(res.statusCode).toBe(200);
+  expect(res.json()).toEqual({ restored: { locoImages: 2 } });
+  expect(images.get(3)!.equals(jpeg(7))).toBe(true);
+  expect(images.get(1000)!.equals(jpeg(8))).toBe(true);
+  expect(garage.get(3)!.imageVersion).toBe(images.version(3)); // the garage knows the versions again
+  expect(JSON.stringify(garage.list().map((l) => ({ ...l, imageVersion: undefined })))).toBe(before);
+});
+
+it("rejects a bad picture or a picture of an unknown loco and changes nothing (issue #3)", async () => {
+  const good = await get();
+  const state = () => JSON.stringify([garage.list(), images.addresses().map((a) => images.get(a)!.toString("base64")), cameras.list()]);
+  const before = state();
+  const bad = async (patch: (b: Record<string, unknown>) => void, message: RegExp) => {
+    const b = JSON.parse(JSON.stringify(good)) as Record<string, unknown>;
+    patch(b);
+    const res = await restore({ backup: b });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().message).toMatch(message);
+    expect(state()).toBe(before);
+  };
+  await bad((b) => { (b.locoImages as Record<string, string>)["3"] = Buffer.from("GIF89a" + "x".repeat(300)).toString("base64"); }, /Lok-Bild 3: Das ist kein gültiges JPEG/);
+  await bad((b) => { (b.locoImages as Record<string, string>)["3"] = "***not base64***"; }, /Lok-Bild 3: kein gültiges Base64/);
+  await bad((b) => { (b.locoImages as Record<string, string>)["3"] = jpeg(1, 250 * 1024).toString("base64"); }, /Lok-Bild 3: Das Bild ist zu groß/);
+  await bad((b) => { (b.locoImages as Record<string, string>)["4242"] = jpeg(1).toString("base64"); }, /Lok-Bild 4242: Diese Lok gibt es nach der Wiederherstellung nicht/);
+  await bad((b) => { (b.locoImages as Record<string, string>)["../x"] = jpeg(1).toString("base64"); }, /zwischen 1 und 9999/);
+  await bad((b) => { b.locoImages = ["a"]; }, /Liste erwartet/);
+  await bad((b) => { b.garage = [{ address: 3, name: "Nur 3" }]; (b.locoImages as Record<string, string>)["1000"] = jpeg(1).toString("base64"); }, /Lok-Bild 1000: Diese Lok gibt es nach der Wiederherstellung nicht/);
+});
+
+it("restoring the garage removes the pictures of locos that are gone, and keeps the others (issue #3)", async () => {
+  const backup = await get("?images=0");
+  backup.garage = backup.garage.filter((l: { address: number }) => l.address === 3); // 1000 is not in the file
+  const res = await restore({ backup, parts: ["garage"] });
+  expect(res.statusCode).toBe(200);
+  expect(images.has(1000)).toBe(false);
+  expect(images.has(3)).toBe(true);
+  expect(garage.get(3)!.imageVersion).toBe(images.version(3));
 });

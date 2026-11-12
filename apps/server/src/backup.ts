@@ -3,6 +3,7 @@ import { validateLayout, type Layout } from "@z21/protocol";
 import { validateSettings, validateTrains, validateTrips, type Train, type Trip } from "@z21/timetable";
 import type { Camera, CameraStore } from "./cameras.js";
 import { parseGarage, type Garage, type GarageLoco } from "./garage.js";
+import { checkJpeg, parseAddress, syncGarageImages, type LocoImageStore } from "./loco-images.js";
 import type { SignalBox } from "./layout.js";
 import type { TimetableRunner } from "./timetable.js";
 import type { TrainStore } from "./trains.js";
@@ -16,7 +17,7 @@ import type { TrainStore } from "./trains.js";
  * Loco speeds, turnout positions, CVs, clock and network settings live on the Z21 and are not part of it.
  */
 export const BACKUP_FORMAT = "z21-web-backup";
-export const BACKUP_PARTS = ["garage", "layout", "cameras", "trains", "timetable"] as const;
+export const BACKUP_PARTS = ["garage", "layout", "cameras", "trains", "timetable", "locoImages"] as const;
 export type BackupPart = (typeof BACKUP_PARTS)[number];
 
 export interface Backup {
@@ -27,15 +28,19 @@ export interface Backup {
   layout?: Layout;
   cameras?: Partial<Camera>[];
   trains?: Omit<Train, "location">[];
+  /** address → base64 of the small JPEG; only present when there are pictures (and they were asked for) */
+  locoImages?: Record<string, string>;
   timetable?: { trips: Trip[]; settings: { lateLimit: number } };
 }
 
 const httpError = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode });
 
 export class BackupService {
-  constructor(private garage: Garage, private box: SignalBox, private cameras: CameraStore, private trains: TrainStore, private timetable: TimetableRunner, private changed: () => void = () => {}) {}
+  constructor(private garage: Garage, private box: SignalBox, private cameras: CameraStore, private trains: TrainStore, private timetable: TimetableRunner, private images: LocoImageStore, private changed: () => void = () => {}) {}
 
-  create(opts: { passwords?: boolean } = {}): Backup {
+  create(opts: { passwords?: boolean; images?: boolean } = {}): Backup {
+    const locoImages: Record<string, string> = {};
+    if (opts.images !== false) for (const l of this.garage.list()) { const bytes = this.images.get(l.address); if (bytes) locoImages[l.address] = bytes.toString("base64"); }
     return {
       format: BACKUP_FORMAT,
       version: 1,
@@ -45,6 +50,7 @@ export class BackupService {
       cameras: this.cameras.list().map((c) => (opts.passwords ? c : { ...c, password: undefined })),
       trains: this.trains.list().map(({ location: _l, ...t }) => t),
       timetable: { trips: this.timetable.get().trips, settings: { lateLimit: this.timetable.get().lateLimit } },
+      ...(Object.keys(locoImages).length ? { locoImages } : {}),
     };
   }
 
@@ -90,9 +96,20 @@ export class BackupService {
       if (orphan) throw httpError(400, `Fahrt ${orphan.id} verweist auf eine Fahrstraße, die es nach der Wiederherstellung nicht mehr gibt`);
     }
 
+    // Pictures belong to locos that exist after the restore: the garage of the file if it is restored, else the current one.
+    const locoImages = chosen.includes("locoImages")
+      ? (check(() => parseLocoImages(b.locoImages, new Set((garage ?? this.garage.list()).map((l) => l.address)))) as Map<number, Buffer>)
+      : undefined;
+
     // 2. apply
     const restored: Record<string, number> = {};
     if (garage) { this.garage.replaceAll(garage); restored.garage = garage.length; }
+    if (locoImages) {
+      for (const a of this.images.addresses()) if (!locoImages.has(a)) this.images.remove(a);
+      for (const [a, bytes] of locoImages) this.images.set(a, bytes);
+      restored.locoImages = locoImages.size;
+    }
+    if (garage || locoImages) syncGarageImages(this.garage, this.images); // versions of the pictures, pictures of locos that are gone
     if (layout) { this.box.save(layout); restored.layout = layout.tiles.length; }
     if (cameras !== undefined) restored.cameras = this.cameras.replaceAll(cameras).length;
     if (trains) { this.trains.replaceAll(trains); restored.trains = trains.length; }
@@ -102,12 +119,27 @@ export class BackupService {
   }
 }
 
+/** Strict check of the pictures in a backup file: known address, valid base64, a real small JPEG. */
+function parseLocoImages(raw: unknown, addresses: Set<number>): Map<number, Buffer> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Lok-Bilder: Liste erwartet");
+  const entries = Object.entries(raw as Record<string, unknown>);
+  if (entries.length > 1000) throw new Error("Lok-Bilder: zu viele Einträge");
+  const out = new Map<number, Buffer>();
+  for (const [key, value] of entries) {
+    const address = parseAddress(key);
+    if (!addresses.has(address)) throw new Error(`Lok-Bild ${address}: Diese Lok gibt es nach der Wiederherstellung nicht`);
+    if (typeof value !== "string" || value.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) throw new Error(`Lok-Bild ${address}: kein gültiges Base64`);
+    try { out.set(address, checkJpeg(Buffer.from(value, "base64"))); } catch (e) { throw new Error(`Lok-Bild ${address}: ${(e as Error).message}`); }
+  }
+  return out;
+}
+
 export function registerBackupRoutes(app: FastifyInstance, service: BackupService) {
   // GET so the browser can simply download it; passwords only when asked for
-  app.get<{ Querystring: { passwords?: string } }>("/api/backup", async (req, reply) => {
+  app.get<{ Querystring: { passwords?: string; images?: string } }>("/api/backup", async (req, reply) => {
     const date = new Date().toISOString().slice(0, 10);
     reply.header("content-disposition", `attachment; filename="z21-web-backup-${date}.json"`).header("cache-control", "no-store");
-    return service.create({ passwords: req.query.passwords === "1" });
+    return service.create({ passwords: req.query.passwords === "1", images: req.query.images !== "0" });
   });
   app.post<{ Body: { backup?: unknown; parts?: string[] } }>("/api/backup/restore", { bodyLimit: 8 * 1024 * 1024 }, async (req) => {
     const parts = (req.body?.parts ?? [...BACKUP_PARTS]).filter((p): p is BackupPart => (BACKUP_PARTS as readonly string[]).includes(p));
