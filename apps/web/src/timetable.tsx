@@ -3,6 +3,7 @@ import { formatHHMM, modelNow, parseHHMM, statusText, timeOfDay, type ClockState
 import type { Layout, Route } from "@z21/protocol/layout";
 import { api, type StationState } from "./api";
 import { ifSure } from "./confirm";
+import { imageUrl } from "./loco-image";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
 
@@ -175,13 +176,15 @@ export interface BoardRow {
   key: string;
   id: string; trainId: string; time: string; number: string; destination: string; platform: string;
   status: Status; label: string; reason?: string;
+  /** Loco address and picture version, when the train has a loco picture. */
+  address: number; imageVersion?: number;
 }
 
 const FINISHED: Status[] = ["done", "failed", "cancelled"];
 const KEEP_FINISHED = 3;
 
 /** Rows of the departure board: open departures first-come by due, only the last few finished ones, cut to `limit` (open ones win). */
-export function boardRows(instances: Instance[], trips: Trip[], trains: Train[], layout: Layout | undefined, limit: number): BoardRow[] {
+export function boardRows(instances: Instance[], trips: Trip[], trains: Train[], layout: Layout | undefined, limit: number, images: ReadonlyMap<number, number> = new Map()): BoardRow[] {
   const sorted = [...instances].sort((a, b) => a.day - b.day || a.due - b.due || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const rows: { row: BoardRow; open: boolean }[] = [];
   for (const i of sorted) {
@@ -195,6 +198,7 @@ export function boardRows(instances: Instance[], trips: Trip[], trains: Train[],
       row: {
         key: `${i.day}:${i.id}`, id: i.id, trainId: train.id, time: formatHHMM(Math.floor(i.due / 60)), number: train.number ?? train.name,
         destination: trip.destination ?? target, platform: target, status: i.status, label: statusText(i.status), reason: i.reason,
+        address: train.address, imageVersion: images.get(train.address),
       },
     });
   }
@@ -312,7 +316,8 @@ export function DepartureBoard({ state, trips }: { state: StationState; trips?: 
   const fetched = useTrips(trips ? undefined : 60_000);
   if (!tt) return null;
   const all = trips ?? fetched;
-  const rows = boardRows(tt.instances, all, tt.trains, state.layout, 8);
+  const images = new Map(state.garage.flatMap((g) => (g.imageVersion ? [[g.address, g.imageVersion] as const] : [])));
+  const rows = boardRows(tt.instances, all, tt.trains, state.layout, 8, images);
   return (
     <table className="board">
       <thead><tr><th>Zeit</th><th>Zug</th><th>Ziel</th><th>Gleis</th><th>Status</th></tr></thead>
@@ -320,7 +325,8 @@ export function DepartureBoard({ state, trips }: { state: StationState; trips?: 
         {rows.length === 0 && <tr><td colSpan={5} className="muted">Keine Abfahrten</td></tr>}
         {rows.map((r) => (
           <tr key={r.key} className={FINISHED.includes(r.status) ? "past" : undefined}>
-            <td className="time">{r.time}</td><td>{r.number}</td><td>{r.destination}</td><td>{r.platform}</td>
+            <td className="time">{r.time}</td>
+            <td>{r.imageVersion ? <img className="board-pic" src={imageUrl(r.address, r.imageVersion)} alt="" /> : null}{r.number}</td><td>{r.destination}</td><td>{r.platform}</td>
             <td><span className={`st ${r.status}`}>{r.label}</span>{r.reason && <small className="reason"> {r.reason}</small>}</td>
           </tr>
         ))}
