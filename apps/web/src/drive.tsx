@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type GarageLoco, type StationState } from "./api";
+import { Automations } from "./automations";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
 const post = (url: string, body?: unknown) => api("POST", url, body);
@@ -188,6 +189,7 @@ export function DriveTab({ state, run }: { state: StationState; run: Run }) {
         <div className="controls">
           <Throttle key={selected} addr={selected} state={state} run={run} garage={state.garage?.find((g) => g.address === selected)} />
           <Functions key={`f${selected}`} addr={selected} state={state} run={run} garage={state.garage?.find((g) => g.address === selected)} />
+          <Automations key={`a${selected}`} addr={selected} names={{ ...DEFAULT_FN_NAMES, ...(state.garage?.find((g) => g.address === selected)?.functionNames ?? {}) }} run={run} />
         </div>
       ) : (
         <div className="panel"><p>Wähle links eine Lok oder trage eine Adresse ein.</p></div>

@@ -15,6 +15,7 @@ import { registerLayoutRoutes, SignalBox } from "./layout.js";
 import { Demo, registerDemoRoutes } from "./demo.js";
 import { BackupService, registerBackupRoutes } from "./backup.js";
 import { registerTrainRoutes, TrainStore } from "./trains.js";
+import { AutomationEngine, AutomationStore, registerAutomationRoutes } from "./automations.js";
 import { registerTimetableRoutes, TimetableRunner } from "./timetable.js";
 import { readTls, tlsFilesFromEnv, watchTls } from "./tls.js";
 
@@ -138,6 +139,13 @@ app.put<{ Params: { addr: string }; Body: { mode: string } }>("/api/turnout/:add
 /* ---------- signal box: track diagram, routes ---------- */
 const box = new SignalBox(station, path.join(dataDir, "layout.json"));
 registerLayoutRoutes(app, box);
+
+/* ---------- automations per loco ---------- */
+const automationStore = new AutomationStore(path.join(dataDir, "automations.json"));
+const automations = new AutomationEngine(automationStore, (a, fn, act) => station.setFunction(a, fn, act));
+station.on("locoChange", (prev, next) => automations.onLoco(prev, next));
+station.on("locosReset", () => automations.cancelPending());
+registerAutomationRoutes(app, automationStore);
 
 /* ---------- trains and timetable ---------- */
 const trains = new TrainStore(path.join(dataDir, "trains.json"));

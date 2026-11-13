@@ -209,3 +209,8 @@ header .status { color: var(--muted); }
 .board td.time { font: 600 28px ui-monospace, "SF Mono", monospace; }
 .board tr.past { opacity: .55; }
 .board .reason { font-size: 16px; color: var(--muted); }
+
+/* ---- Automatik ---- */
+.automation { border-top: 1px solid var(--line); padding: 8px 0; }
+.automation input[type=number] { width: 64px; }
+.automation input:not([type]) { flex: 1; min-width: 140px; }

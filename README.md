@@ -146,6 +146,16 @@ Die gesicherten Fahrstraßen aus Phase 1 verlangen, dass alle ihre Blöcke frei 
 
 Diese Teile sind vorgesehen, sobald Testhardware vorhanden ist.
 
+## Automatik je Lok
+
+Unter **Bedienen → Fahren** gibt es unter den Funktionen den Bereich **Automatik**. Ein Automatismus besteht aus **Auslöser → Bedingungen → Aktionen** (nach dem Muster von Home Assistant):
+
+- **Auslöser:** Lok fährt an, hält an, beschleunigt, bremst, Richtung wechselt, Lok-Nothalt, Funktion wird ein-/ausgeschaltet.
+- **Bedingungen** (alle müssen zutreffen): Richtung, fährt/steht, Funktion ein/aus.
+- **Aktionen:** Funktion F0–F28 ein-, ausschalten oder umschalten, optional mit Verzögerung und (beim Einschalten) mit Dauer.
+
+Die Funktionsbezeichnungen der Lok erscheinen in den Auswahlfeldern. Gespeichert wird in `automations.json` im Datenordner (noch nicht Teil der Datensicherung). Beschleunigen und Bremsen lösen höchstens alle 3 s aus, alle anderen Auslöser höchstens alle 0,5 s je Automatismus. Eine Funktion, die ein Automatismus eben selbst geschaltet hat, löst 1,5 s lang keinen weiteren aus (Schutz vor Schleifen). Offene Verzögerungen verfallen, wenn die Verbindung getrennt wird. REST: `GET/PUT /api/locos/:addr/automations`.
+
 ## Datensicherung
 
 Unter **Verwaltung → Datensicherung** lädst du alles herunter, was du in der Oberfläche pflegst und was nicht in der Z21 gespeichert ist:
