@@ -156,6 +156,10 @@ Unter **Bedienen → Fahren** gibt es unter den Funktionen den Bereich **Automat
 
 Die Funktionsbezeichnungen der Lok erscheinen in den Auswahlfeldern. Gespeichert wird in `automations.json` im Datenordner (noch nicht Teil der Datensicherung). Beschleunigen und Bremsen lösen höchstens alle 3 s aus, alle anderen Auslöser höchstens alle 0,5 s je Automatismus. Eine Funktion, die ein Automatismus eben selbst geschaltet hat, löst 1,5 s lang keinen weiteren aus (Schutz vor Schleifen). Offene Verzögerungen verfallen, wenn die Verbindung getrennt wird. REST: `GET/PUT /api/locos/:addr/automations`.
 
+## Erfolge
+
+Eine kleine Wertung **pro Anlage** (noch ohne Benutzerprofile). Gezählt wird serverseitig: Anfahren und Halten einer Lok, Lok-Nothalt und abgeschlossene Fahrplanfahrten. Beispiele: „Anfahrer“ (zehnmal anfahren), „Fahrdienstleiter“ (zehn Fahrplanfahrten). Die Liste mit Fortschritt steht unter **Verwaltung → Anlage → Erfolge**; dort lässt sich die Wertung auch zurücksetzen. Wird ein Erfolg freigeschaltet, blendet die Abfahrtstafel (`#/anzeige`) ihn 15 Sekunden lang groß ein. Gespeichert in `achievements.json`; Erfolge und Zähler sind Teil der Datensicherung.
+
 ## Datensicherung
 
 Unter **Verwaltung → Datensicherung** lädst du alles herunter, was du in der Oberfläche pflegst und was nicht in der Z21 gespeichert ist:
@@ -163,6 +167,7 @@ Unter **Verwaltung → Datensicherung** lädst du alles herunter, was du in der 
 - **Loks:** Namen, Funktionsbezeichnungen und von Hand ergänzte Loks
 - **Gleisbild:** Felder, Blöcke und Fahrstraßen
 - **Züge und Fahrplan:** Züge (ohne Standort), Fahrten und Verspätungsgrenze
+- **Automatismen** der Loks und **Erfolge** mit Zählern
 - **Kameras:** Kamera-Passwörter nur, wenn du sie ausdrücklich einschließt (sie stehen dann im Klartext in der Datei)
 
 Beim Wiederherstellen wählst du die Teile einzeln aus. Alles wird vorher geprüft; ist ein Teil fehlerhaft, ändert sich nichts. Das Gleisbild lässt sich nicht ersetzen, solange Fahrstraßen angefordert sind. Fahrzustand, Weichenlagen, CVs, Uhr und Netzwerk-Einstellungen liegen in der Z21 selbst und gehören nicht dazu. Das Gleisbild allein kannst du weiter im Editor exportieren und importieren.

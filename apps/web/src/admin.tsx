@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, type Camera, type LocoNetLine, type StationState } from "./api";
 import { BackupPanel } from "./backup";
+import { AchievementsPanel } from "./achievements";
 import { CamerasTab } from "./camera";
 import { ifSure } from "./confirm";
 import { BoostersTab, ClockTab, DeviceTab, RmBusTab } from "./devices";
@@ -16,13 +17,13 @@ const post = (url: string, body?: unknown) => api("POST", url, body);
 const put = (url: string, body?: unknown) => api("PUT", url, body);
 
 export type AdminPage =
-  | "station" | "network" | "layout" | "trains" | "timetable" | "cameras" | "backup" | "cv" | "rmbus" | "clock" | "boosters" | "device"
+  | "station" | "network" | "layout" | "trains" | "timetable" | "cameras" | "achievements" | "backup" | "cv" | "rmbus" | "clock" | "boosters" | "device"
   | "railcom" | "loconet" | "detectors" | "monitor";
 
 /** The administration area, grouped; the order here is the order in the navigation. */
 export const ADMIN_GROUPS: { title: string; pages: [AdminPage, string][] }[] = [
   { title: "Verbindung", pages: [["station", "Zentrale und Demo"], ["network", "Netzwerk"]] },
-  { title: "Anlage", pages: [["layout", "Gleisbild bearbeiten"], ["trains", "Züge"], ["timetable", "Fahrplan"], ["cameras", "Kameras einrichten"], ["backup", "Datensicherung"]] },
+  { title: "Anlage", pages: [["layout", "Gleisbild bearbeiten"], ["trains", "Züge"], ["timetable", "Fahrplan"], ["cameras", "Kameras einrichten"], ["achievements", "Erfolge"], ["backup", "Datensicherung"]] },
   { title: "Programmieren", pages: [["cv", "CV-Programmierung"]] },
   { title: "Hardware", pages: [["rmbus", "R-BUS"], ["clock", "Modellbahn-Uhr"], ["boosters", "Booster"], ["device", "Gerät"]] },
   { title: "Diagnose", pages: [["railcom", "RailCom"], ["loconet", "LocoNet"], ["detectors", "Melder"], ["monitor", "Rohdaten"]] },
@@ -240,6 +241,7 @@ export function AdminView({ state, wire, loconet, clearWire, clearLoconet, camer
         {!HAS_OWN_HEADING.includes(current) && <h2 className="pagetitle">{label}</h2>}
         {current === "station" && <StationTab state={state} run={run} />}
         {current === "cameras" && <CamerasTab cameras={cameras} reload={reloadCameras} run={run} />}
+        {current === "achievements" && <AchievementsPanel view={state?.achievements} run={run} />}
         {current === "backup" && <BackupPanel run={run} />}
         {current === "monitor" && <Monitor wire={wire} clear={clearWire} />}
         {current === "layout" && state && <LayoutEditorPage state={state} run={run} done={() => go({ area: "admin", page: "station" })} />}

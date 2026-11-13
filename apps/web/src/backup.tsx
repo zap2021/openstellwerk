@@ -2,12 +2,14 @@ import { useRef, useState } from "react";
 import { api } from "./api";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
-type Part = "garage" | "layout" | "cameras" | "trains" | "timetable";
+type Part = "garage" | "layout" | "cameras" | "trains" | "timetable" | "automations" | "achievements";
 
-const LABEL: Record<Part, string> = { garage: "Loks (Namen, Funktionsbezeichnungen, von Hand ergänzte Loks)", layout: "Gleisbild mit Blöcken und Fahrstraßen", cameras: "Kameras", trains: "Züge (ohne Standort)", timetable: "Fahrplan" };
+const LABEL: Record<Part, string> = { garage: "Loks (Namen, Funktionsbezeichnungen, von Hand ergänzte Loks)", layout: "Gleisbild mit Blöcken und Fahrstraßen", cameras: "Kameras", trains: "Züge (ohne Standort)", timetable: "Fahrplan", automations: "Automatismen der Loks", achievements: "Erfolge und Zähler" };
 const countOf = (b: Record<string, unknown>, p: Part) =>
   p === "layout" ? (b.layout as { tiles?: unknown[] } | undefined)?.tiles?.length
   : p === "timetable" ? (b.timetable as { trips?: unknown[] } | undefined)?.trips?.length
+  : p === "automations" ? (b.automations ? Object.values(b.automations as Record<string, unknown[]>).reduce((n, l) => n + l.length, 0) : undefined)
+  : p === "achievements" ? (b.achievements ? Object.keys((b.achievements as { unlocked?: object }).unlocked ?? {}).length : undefined)
   : (b[p] as unknown[] | undefined)?.length;
 
 /** Backup of everything maintained in this application that the Z21 does not store. */

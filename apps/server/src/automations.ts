@@ -147,10 +147,33 @@ export class AutomationStore {
 
   get(addr: number): Automation[] { return this.map.get(addr) ?? []; }
 
+  /** Alle Automatismen je Lokadresse (Datensicherung). */
+  all(): Record<string, Automation[]> { return Object.fromEntries([...this.map].map(([a, l]) => [String(a), l])); }
+
+  /** Prüft eine Sicherung vollständig; wirft bei Fehlern, ohne etwas zu ändern. */
+  static parseAll(raw: unknown): Map<number, Automation[]> {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) fail("Automatismen: ungültiger Aufbau");
+    const out = new Map<number, Automation[]>();
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      const addr = Number(k);
+      if (!Number.isInteger(addr) || addr < 1 || addr > 9999) fail(`Automatismen: Lokadresse ${k} ungültig`);
+      const list = validateAutomations(v);
+      if (list.length) out.set(addr, list);
+    }
+    return out;
+  }
+
+  replaceAll(map: Map<number, Automation[]>) {
+    this.map = new Map(map);
+    this.persist();
+  }
+
+  private persist() { this.store.write(() => this.all()); }
+
   set(addr: number, raw: unknown): Automation[] {
     const list = validateAutomations(raw);
     if (list.length) this.map.set(addr, list); else this.map.delete(addr);
-    this.store.write(() => Object.fromEntries([...this.map].map(([a, l]) => [String(a), l])));
+    this.persist();
     return list;
   }
 }

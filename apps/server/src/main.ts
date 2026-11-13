@@ -15,6 +15,8 @@ import { registerLayoutRoutes, SignalBox } from "./layout.js";
 import { Demo, registerDemoRoutes } from "./demo.js";
 import { BackupService, registerBackupRoutes } from "./backup.js";
 import { registerTrainRoutes, TrainStore } from "./trains.js";
+import { AchievementStore, registerAchievementRoutes } from "./achievements.js";
+import { detectEvents } from "./automations.js";
 import { AutomationEngine, AutomationStore, registerAutomationRoutes } from "./automations.js";
 import { registerTimetableRoutes, TimetableRunner } from "./timetable.js";
 import { readTls, tlsFilesFromEnv, watchTls } from "./tls.js";
@@ -143,8 +145,12 @@ registerLayoutRoutes(app, box);
 /* ---------- automations per loco ---------- */
 const automationStore = new AutomationStore(path.join(dataDir, "automations.json"));
 const automations = new AutomationEngine(automationStore, (a, fn, act) => station.setFunction(a, fn, act));
-station.on("locoChange", (prev, next) => automations.onLoco(prev, next));
+const achievements = new AchievementStore(path.join(dataDir, "achievements.json"), () => station.notify());
+station.addExtra(() => ({ achievements: achievements.view() }));
+registerAchievementRoutes(app, achievements);
+station.on("locoChange", (prev, next) => { automations.onLoco(prev, next); achievements.onLocoEvents(detectEvents(prev, next)); });
 station.on("locosReset", () => automations.cancelPending());
+station.on("state", (s) => { if (s.timetable) achievements.onInstances(s.timetable.instances); });
 registerAutomationRoutes(app, automationStore);
 
 /* ---------- trains and timetable ---------- */
@@ -161,7 +167,7 @@ const cameraStore = new CameraStore(path.join(dataDir, "cameras.json"));
 registerCameraRoutes(app, cameraStore);
 
 /* ---------- backup: everything the user maintains that the Z21 does not store ---------- */
-registerBackupRoutes(app, new BackupService(station.garage, box, cameraStore, trains, runner, () => station.notify()));
+registerBackupRoutes(app, new BackupService(station.garage, box, cameraStore, trains, runner, () => station.notify(), { automations: automationStore, achievements }));
 
 /* ---------- network settings (read-only) ---------- */
 app.get("/api/network", async () => {

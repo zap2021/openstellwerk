@@ -8,6 +8,7 @@ import {
   type Layout, type Message, type RailComData, type SystemState, type TrackPower,
 } from "@z21/protocol";
 import { Z21Client } from "./z21-client.js";
+import type { AchievementView } from "./achievements.js";
 import { Garage, type GarageLoco, type GarageSource } from "./garage.js";
 
 /** Progress of the address scan that looks for locos the command station already knows about. */
@@ -114,6 +115,7 @@ export interface StationState {
   demo?: boolean;
   /** Timetable clock, trains and upcoming departures (see TimetableRunner). */
   timetable?: TimetableSnapshot;
+  achievements?: AchievementView;
 }
 
 /** Progress of a route that is being set. */

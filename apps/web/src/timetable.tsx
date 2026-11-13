@@ -3,6 +3,7 @@ import { formatHHMM, modelNow, parseHHMM, statusText, timeOfDay, type ClockState
 import type { Layout, Route } from "@z21/protocol/layout";
 import { api, type StationState } from "./api";
 import { ifSure } from "./confirm";
+import { AchievementBanner } from "./achievements";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
 
@@ -314,6 +315,8 @@ export function DepartureBoard({ state, trips }: { state: StationState; trips?: 
   const all = trips ?? fetched;
   const rows = boardRows(tt.instances, all, tt.trains, state.layout, 8);
   return (
+    <>
+    <AchievementBanner view={state.achievements} />
     <table className="board">
       <thead><tr><th>Zeit</th><th>Zug</th><th>Ziel</th><th>Gleis</th><th>Status</th></tr></thead>
       <tbody>
@@ -326,5 +329,6 @@ export function DepartureBoard({ state, trips }: { state: StationState; trips?: 
         ))}
       </tbody>
     </table>
+    </>
   );
 }
