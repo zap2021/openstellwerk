@@ -39,6 +39,11 @@ describe("boardRows", () => {
     expect(boardRows(list, trips, bTrains, layout, 2).map((r) => r.id)).toEqual(["t1#4", "t1#9"]);
     expect(boardRows(list, trips, bTrains, layout, 4).map((r) => r.id)).toEqual(["t1#2", "t1#3", "t1#4", "t1#9"]);
   });
+  it("carries the loco picture version of the train", () => {
+    const [a, b] = boardRows([inst("t1#0", "t1", 36000), inst("t2#0", "t2", 36060)], trips, bTrains, layout, 5, new Map([[3, 7]]));
+    expect(a).toMatchObject({ address: 3, imageVersion: 7 });
+    expect(b.imageVersion).toBeUndefined();
+  });
   it("uses the target block as platform and as destination fallback", () => {
     const [a, b] = boardRows([inst("t1#0", "t1", 36000), inst("t2#0", "t2", 36060)], trips, bTrains, layout, 5);
     expect(a).toMatchObject({ platform: "Gleis 2", destination: "Gleis 2", number: "IC 101", time: "10:00" });
