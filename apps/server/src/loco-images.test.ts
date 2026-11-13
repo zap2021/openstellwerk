@@ -2,7 +2,7 @@ import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import Fastify from "fastify";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { Garage } from "./garage.js";
 import { checkJpeg, LocoImageStore, MAX_IMAGE_BYTES, parseAddress, registerLocoImageRoutes, syncGarageImages } from "./loco-images.js";
 
@@ -115,11 +115,32 @@ describe("routes", () => {
   });
   it("answers 404 without a picture and removes one on request", async () => {
     expect((await app.inject({ method: "GET", url: "/api/garage/500/image" })).statusCode).toBe(404);
-    expect((await app.inject({ method: "DELETE", url: "/api/garage/500/image" })).statusCode).toBe(404);
     const del = await app.inject({ method: "DELETE", url: "/api/garage/77/image" });
     expect(del.json()).toEqual({ removed: true });
     expect(garage.get(77)!.imageVersion).toBeUndefined();
     expect((await app.inject({ method: "GET", url: "/api/garage/77/image" })).statusCode).toBe(404);
+  });
+  it("removing is idempotent and clears a stale version", async () => {
+    expect((await app.inject({ method: "DELETE", url: "/api/garage/500/image" })).json()).toEqual({ removed: false });
+    garage.upsert(501, { source: "manual" });
+    garage.setImageVersion(501, 123); // claims a picture that is not there
+    expect((await app.inject({ method: "DELETE", url: "/api/garage/501/image" })).statusCode).toBe(200);
+    expect(garage.get(501)!.imageVersion).toBeUndefined();
+  });
+  it("answers 304 when the ETag still matches", async () => {
+    await put("77", jpeg());
+    const res = await app.inject({ method: "GET", url: "/api/garage/77/image" });
+    expect(res.statusCode).toBe(200);
+    const again = await app.inject({ method: "GET", url: "/api/garage/77/image", headers: { "if-none-match": res.headers.etag as string } });
+    expect(again.statusCode).toBe(304);
+    expect(again.body).toBe("");
+  });
+  it("leaves no picture behind when the garage cannot be updated", async () => {
+    const spy = vi.spyOn(garage, "setImageVersion").mockImplementation(() => { throw new Error("disk full"); });
+    const res = await put("88", jpeg());
+    spy.mockRestore();
+    expect(res.statusCode).toBe(500);
+    expect(images.has(88)).toBe(false);
   });
 });
 

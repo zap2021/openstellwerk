@@ -101,21 +101,37 @@ export class BackupService {
       ? (check(() => parseLocoImages(b.locoImages, new Set((garage ?? this.garage.list()).map((l) => l.address)))) as Map<number, Buffer>)
       : undefined;
 
-    // 2. apply
+    // 2. apply. Garage and pictures (files) are the parts that can fail on disk: if one of them does, put both back as they were.
+    const garageBefore = this.garage.list();
+    const imagesBefore = new Map(this.images.addresses().map((a) => [a, this.images.get(a)!] as const));
     const restored: Record<string, number> = {};
-    if (garage) { this.garage.replaceAll(garage); restored.garage = garage.length; }
-    if (locoImages) {
-      for (const a of this.images.addresses()) if (!locoImages.has(a)) this.images.remove(a);
-      for (const [a, bytes] of locoImages) this.images.set(a, bytes);
-      restored.locoImages = locoImages.size;
+    try {
+      if (garage) { this.garage.replaceAll(garage); restored.garage = garage.length; }
+      if (locoImages) {
+        for (const a of this.images.addresses()) if (!locoImages.has(a)) this.images.remove(a);
+        for (const [a, bytes] of locoImages) this.images.set(a, bytes);
+        restored.locoImages = locoImages.size;
+      }
+      if (garage || locoImages) syncGarageImages(this.garage, this.images); // versions of the pictures, pictures of locos that are gone
+    } catch (e) {
+      this.rollbackGarageAndImages(garageBefore, imagesBefore);
+      throw e;
     }
-    if (garage || locoImages) syncGarageImages(this.garage, this.images); // versions of the pictures, pictures of locos that are gone
     if (layout) { this.box.save(layout); restored.layout = layout.tiles.length; }
     if (cameras !== undefined) restored.cameras = this.cameras.replaceAll(cameras).length;
     if (trains) { this.trains.replaceAll(trains); restored.trains = trains.length; }
     if (timetable) { this.timetable.replaceAll(timetable); restored.timetable = timetable.trips.length; }
     this.changed(); // browsers get the new state right away
     return { restored };
+  }
+
+  /** Best effort: bring garage and picture files back to what they were before a failed restore. */
+  private rollbackGarageAndImages(garage: GarageLoco[], images: Map<number, Buffer>) {
+    try {
+      for (const a of this.images.addresses()) if (!images.has(a)) this.images.remove(a);
+      for (const [a, bytes] of images) if (!this.images.get(a)?.equals(bytes)) this.images.set(a, bytes);
+      this.garage.replaceAll(garage);
+    } catch { /* the original error is the one to report */ }
   }
 }
 
@@ -141,7 +157,7 @@ export function registerBackupRoutes(app: FastifyInstance, service: BackupServic
     reply.header("content-disposition", `attachment; filename="z21-web-backup-${date}.json"`).header("cache-control", "no-store");
     return service.create({ passwords: req.query.passwords === "1", images: req.query.images !== "0" });
   });
-  app.post<{ Body: { backup?: unknown; parts?: string[] } }>("/api/backup/restore", { bodyLimit: 8 * 1024 * 1024 }, async (req) => {
+  app.post<{ Body: { backup?: unknown; parts?: string[] } }>("/api/backup/restore", { bodyLimit: 300 * 1024 * 1024 }, async (req) => {
     const parts = (req.body?.parts ?? [...BACKUP_PARTS]).filter((p): p is BackupPart => (BACKUP_PARTS as readonly string[]).includes(p));
     return service.restore(req.body?.backup, parts);
   });

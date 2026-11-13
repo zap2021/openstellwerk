@@ -62,10 +62,15 @@ export class LocoImageStore {
     const tmp = `${target}.tmp`;
     writeFileSync(tmp, jpeg);
     renameSync(tmp, target);
-    // The version is the file's modification time. Two uploads in the same millisecond must still differ for the browser's cache.
-    const version = Math.max(Date.now(), before + 1);
-    utimesSync(target, version / 1000, version / 1000);
-    return version;
+    // The version is the file's modification time, read back from the file system so that set() and version() always agree.
+    // Two uploads must differ for the browser's cache; on a file system with coarse timestamps the time is pushed on until it does.
+    let wanted = Math.max(Date.now(), before + 1);
+    for (let step = 1; ; step++) {
+      utimesSync(target, new Date(wanted), new Date(wanted));
+      const actual = this.version(address)!;
+      if (actual > before || step >= 4) return actual;
+      wanted += 1000 * step;
+    }
   }
 
   remove(address: number): boolean {
@@ -99,31 +104,39 @@ export function registerLocoImageRoutes(app: FastifyInstance, garage: Garage, im
   app.put<{ Params: { addr: string } }>("/api/garage/:addr/image", async (req) => {
     const address = parseAddress(req.params.addr);
     const jpeg = checkJpeg(req.body);
-    const version = images.set(address, jpeg);
     if (!garage.get(address)) garage.upsert(address, { source: "manual" });
-    garage.setImageVersion(address, version);
-    changed();
-    return { imageVersion: version };
+    const previous = images.get(address);
+    try {
+      const version = images.set(address, jpeg);
+      garage.setImageVersion(address, version);
+      changed();
+      return { imageVersion: version };
+    } catch (e) {
+      // Do not leave a picture the garage does not know about.
+      try { if (previous) images.set(address, previous); else images.remove(address); } catch { /* keep the original error */ }
+      throw e;
+    }
   });
 
   app.get<{ Params: { addr: string } }>("/api/garage/:addr/image", async (req, reply) => {
     const address = parseAddress(req.params.addr);
     const bytes = images.get(address);
     if (!bytes) throw fail(404, "Kein Bild vorhanden");
+    const etag = `"${images.version(address)}"`;
+    reply.header("etag", etag).header("cache-control", "no-cache").header("x-content-type-options", "nosniff");
+    if (req.headers["if-none-match"] === etag) return reply.code(304).send();
     reply
       .header("content-type", "image/jpeg")
-      .header("cache-control", "no-cache")
-      .header("etag", `"${images.version(address)}"`)
-      .header("x-content-type-options", "nosniff")
       .header("content-security-policy", "default-src 'none'; sandbox");
     return reply.send(bytes);
   });
 
+  // Idempotent: also cleans a stale version in the garage when the file is already gone.
   app.delete<{ Params: { addr: string } }>("/api/garage/:addr/image", async (req) => {
     const address = parseAddress(req.params.addr);
-    if (!images.remove(address)) throw fail(404, "Kein Bild vorhanden");
+    const removed = images.remove(address);
     garage.setImageVersion(address, undefined);
     changed();
-    return { removed: true };
+    return { removed };
   });
 }

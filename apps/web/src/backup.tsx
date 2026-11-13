@@ -15,6 +15,8 @@ const countOf = (b: Record<string, unknown>, p: Part) =>
 export function BackupPanel({ run }: { run: Run }) {
   const [passwords, setPasswords] = useState(false);
   const [images, setImages] = useState(true);
+  const query = new URLSearchParams({ ...(passwords ? { passwords: "1" } : {}), ...(images ? {} : { images: "0" }) }).toString();
+  const downloadUrl = query ? `/api/backup?${query}` : "/api/backup";
   const [file, setFile] = useState<{ name: string; backup: Record<string, unknown> }>();
   const [chosen, setChosen] = useState<Part[]>([]);
   const [done, setDone] = useState<string>();
@@ -52,7 +54,7 @@ export function BackupPanel({ run }: { run: Run }) {
         das Gleisbild mit Blöcken und Fahrstraßen sowie die Kameras. Fahrzustand, Weichenlagen, CVs, Uhr und Netzwerk-Einstellungen liegen in der Z21 selbst.
       </p>
       <div className="row">
-        <a className="button" href={`/api/backup${[passwords ? "passwords=1" : "", images ? "" : "images=0"].filter(Boolean).map((q, i) => (i ? "&" : "?") + q).join("")}`} download>Sicherung herunterladen</a>
+        <a className="button" href={downloadUrl} download>Sicherung herunterladen</a>
         <label className="check"><input type="checkbox" checked={passwords} onChange={(e) => setPasswords(e.target.checked)} /> Kamera-Passwörter einschließen</label>
         <label className="check"><input type="checkbox" checked={images} onChange={(e) => setImages(e.target.checked)} /> Lok-Bilder einschließen</label>
       </div>
