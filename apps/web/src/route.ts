@@ -4,19 +4,22 @@ import { useCallback, useEffect, useState } from "react";
  * Where the user is, kept in the URL hash so a reload stays in place:
  *   #/                       Bedienen (default)
  *   #/verwaltung[/<seite>]   Verwaltung
+ *   #/profil                 own profile (name, password, achievements)
  *   #/anzeige                read-only second screen
  */
-export type Route = { area: "operate" } | { area: "admin"; page?: string } | { area: "display" };
+export type Route = { area: "operate" } | { area: "admin"; page?: string } | { area: "profile" } | { area: "display" };
 
 export function parseRoute(hash: string): Route {
   const [first, second] = hash.replace(/^#\/?/, "").split("/");
   if (first === "anzeige") return { area: "display" };
+  if (first === "profil") return { area: "profile" };
   if (first === "verwaltung") return second ? { area: "admin", page: second } : { area: "admin" };
   return { area: "operate" };
 }
 
 export function routeHash(r: Route): string {
   if (r.area === "display") return "#/anzeige";
+  if (r.area === "profile") return "#/profil";
   if (r.area === "admin") return r.page ? `#/verwaltung/${r.page}` : "#/verwaltung";
   return "#/";
 }

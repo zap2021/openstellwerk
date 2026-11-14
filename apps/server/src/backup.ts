@@ -8,6 +8,7 @@ import type { TimetableRunner } from "./timetable.js";
 import type { TrainStore } from "./trains.js";
 import { AutomationStore, type Automation } from "./automations.js";
 import { parseAchievements, type AchievementStore } from "./achievements.js";
+import { parseUsers, type User, type UserStore } from "./users.js";
 
 /**
  * Backup of everything the user maintains in this application and that is NOT stored on the command station:
@@ -16,11 +17,12 @@ import { parseAchievements, type AchievementStore } from "./achievements.js";
  *  - cameras: configured cameras (passwords only on request)
  *  - trains and timetable: trains (without their location), trips and the lateness setting
  *  - automations: per-loco triggers, conditions and actions
- *  - achievements: score and counters of the layout
+ *  - achievements: score and counters of the layout and of each user
+ *  - users: accounts with roles and password hashes (never plain passwords); a backup needs at least one active admin
  * Loco speeds, turnout positions, CVs, clock and network settings live on the Z21 and are not part of it.
  */
 export const BACKUP_FORMAT = "z21-web-backup";
-export const BACKUP_PARTS = ["garage", "layout", "cameras", "trains", "timetable", "automations", "achievements"] as const;
+export const BACKUP_PARTS = ["garage", "layout", "cameras", "trains", "timetable", "automations", "achievements", "users"] as const;
 export type BackupPart = (typeof BACKUP_PARTS)[number];
 
 export interface Backup {
@@ -34,12 +36,13 @@ export interface Backup {
   timetable?: { trips: Trip[]; settings: { lateLimit: number } };
   automations?: Record<string, Automation[]>;
   achievements?: ReturnType<AchievementStore["export"]>;
+  users?: User[];
 }
 
 const httpError = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode });
 
 export class BackupService {
-  constructor(private garage: Garage, private box: SignalBox, private cameras: CameraStore, private trains: TrainStore, private timetable: TimetableRunner, private changed: () => void = () => {}, private extras: { automations?: AutomationStore; achievements?: AchievementStore } = {}) {}
+  constructor(private garage: Garage, private box: SignalBox, private cameras: CameraStore, private trains: TrainStore, private timetable: TimetableRunner, private changed: () => void = () => {}, private extras: { automations?: AutomationStore; achievements?: AchievementStore; users?: UserStore } = {}) {}
 
   create(opts: { passwords?: boolean } = {}): Backup {
     return {
@@ -53,6 +56,7 @@ export class BackupService {
       timetable: { trips: this.timetable.get().trips, settings: { lateLimit: this.timetable.get().lateLimit } },
       ...(this.extras.automations ? { automations: this.extras.automations.all() } : {}),
       ...(this.extras.achievements ? { achievements: this.extras.achievements.export() } : {}),
+      ...(this.extras.users && this.extras.users.count() ? { users: this.extras.users.all() } : {}),
     };
   }
 
@@ -101,6 +105,9 @@ export class BackupService {
     const automations = chosen.includes("automations") && this.extras.automations ? (check(() => AutomationStore.parseAll(b.automations)) as ReturnType<typeof AutomationStore.parseAll>) : undefined;
     const achievements = chosen.includes("achievements") && this.extras.achievements ? (check(() => parseAchievements(b.achievements)) as ReturnType<typeof parseAchievements>) : undefined;
 
+    const users = chosen.includes("users") && this.extras.users ? (check(() => parseUsers(b.users)) as User[]) : undefined;
+    if (users && users.length === 0) throw httpError(400, "Die Sicherung enthält keine Benutzer");
+
     // 2. apply
     const restored: Record<string, number> = {};
     if (garage) { this.garage.replaceAll(garage); restored.garage = garage.length; }
@@ -109,7 +116,8 @@ export class BackupService {
     if (trains) { this.trains.replaceAll(trains); restored.trains = trains.length; }
     if (timetable) { this.timetable.replaceAll(timetable); restored.timetable = timetable.trips.length; }
     if (automations) { this.extras.automations!.replaceAll(automations); restored.automations = [...automations.values()].reduce((n, l) => n + l.length, 0); }
-    if (achievements) { this.extras.achievements!.replace(achievements); restored.achievements = Object.keys(achievements.unlocked).length; }
+    if (achievements) { this.extras.achievements!.replace(achievements); restored.achievements = Object.keys(achievements.anlage.unlocked).length + Object.keys(achievements.users).length; }
+    if (users) { this.extras.users!.replaceAll(users); restored.users = users.length; }
     this.changed(); // browsers get the new state right away
     return { restored };
   }

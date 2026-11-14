@@ -156,6 +156,22 @@ Unter **Bedienen → Fahren** gibt es unter den Funktionen den Bereich **Automat
 
 Die Funktionsbezeichnungen der Lok erscheinen in den Auswahlfeldern. Gespeichert wird in `automations.json` im Datenordner (noch nicht Teil der Datensicherung). Beschleunigen und Bremsen lösen höchstens alle 3 s aus, alle anderen Auslöser höchstens alle 0,5 s je Automatismus. Eine Funktion, die ein Automatismus eben selbst geschaltet hat, löst 1,5 s lang keinen weiteren aus (Schutz vor Schleifen). Offene Verzögerungen verfallen, wenn die Verbindung getrennt wird. REST: `GET/PUT /api/locos/:addr/automations`.
 
+## Benutzer und Rollen
+
+Zugriff mit **Benutzername und Passwort**, zwei Rollen:
+
+| Rolle | Darf |
+|---|---|
+| **Benutzer** | Fahren, Weichen und Signale schalten, Fahrstraßen anfordern, Nothalt, Fahrplan und Stellwerk ansehen, Lok-Bilder ändern, eigenes Profil (Anzeigename, Passwort) und eigene Erfolge |
+| **Admin** | zusätzlich die ganze Verwaltung: Benutzer, Gleisbild, Züge, Fahrplan, Kameras, CV-Programmierung, Netzwerk, Datensicherung, Automatismen, Zurücksetzen der Erfolge |
+
+- **Erster Start:** Gibt es keine `users.json` und ist `Z21_PASSWORD` gesetzt, entsteht der Admin `admin` mit diesem Passwort (einmalige Neuanmeldung). Danach gilt das Konto; `Z21_PASSWORD` wird nicht mehr zum Anmelden benutzt. Läuft der Server nur lokal ohne Passwort und ohne Konten, ist alles offen wie bisher; das erste in der Verwaltung angelegte Konto wird Admin und schaltet die Anmeldung ein.
+- **Verwaltung → Anlage → Benutzer** (Admin): anlegen, Rolle ändern, sperren, Passwort setzen, löschen. Der letzte aktive Admin lässt sich nicht löschen, sperren oder herabstufen. Rollenwechsel und Sperren wirken sofort.
+- **Passwörter** (mindestens 8 Zeichen) liegen nur als scrypt-Hash in `users.json`. Wer sein Passwort ändert, meldet alle anderen Geräte ab. Fehlversuche werden gebremst.
+- **Rechte** prüft der Server (`apps/server/src/roles.ts`): Standard ist *Admin*, nur ausdrücklich freigegebene Routen sind für Benutzer offen. Die Oberfläche blendet die Verwaltung für Benutzer nur zusätzlich aus.
+- **Erfolge je Benutzer:** Anfahren, Halten und Nothalt zählen für den Benutzer, der der Lok zuletzt (bis 15 s vorher) einen Fahrbefehl gegeben hat, und immer auch für die Anlage. Fahrplanfahrten zählen für die Anlage. Die Abfahrtstafel nennt den Benutzer beim Freischalten. Profil mit eigenen Erfolgen und Rangliste unter dem Namen oben rechts.
+- **Datensicherung** enthält die Konten mit Passwort-Hashes; Wiederherstellen verlangt mindestens einen aktiven Admin in der Datei.
+
 ## Erfolge
 
 Eine kleine Wertung **pro Anlage** (noch ohne Benutzerprofile). Gezählt wird serverseitig: Anfahren und Halten einer Lok, Lok-Nothalt und abgeschlossene Fahrplanfahrten. Beispiele: „Anfahrer“ (zehnmal anfahren), „Fahrdienstleiter“ (zehn Fahrplanfahrten). Die Liste mit Fortschritt steht unter **Verwaltung → Anlage → Erfolge**; dort lässt sich die Wertung auch zurücksetzen. Wird ein Erfolg freigeschaltet, blendet die Abfahrtstafel (`#/anzeige`) ihn 15 Sekunden lang groß ein. Gespeichert in `achievements.json`; Erfolge und Zähler sind Teil der Datensicherung.

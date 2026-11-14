@@ -30,7 +30,7 @@ export function AchievementBanner({ view }: { view?: AchievementView }) {
   return (
     <div className="achievement-banner" role="status">
       <span className="trophy" aria-hidden="true">🏆</span>
-      <div><strong>Erfolg freigeschaltet: {shown.title}</strong><small>{shown.text} (+{shown.points} Punkte)</small></div>
+      <div><strong>{shown.by ? `${shown.by}: ` : ""}Erfolg freigeschaltet: {shown.title}</strong><small>{shown.text} (+{shown.points} Punkte)</small></div>
     </div>
   );
 }
@@ -54,8 +54,19 @@ export function AchievementsPanel({ view, run }: { view?: AchievementView; run: 
           </li>
         ))}
       </ul>
+      {v.ranking.length > 0 && (<>
+        <h3>Benutzer</h3>
+        <ul className="achievements">
+          {v.ranking.map((r) => (
+            <li key={r.userId}>
+              <strong>{r.name}</strong> <small>{r.score} Punkte</small>{" "}
+              <button onClick={() => ifSure(`Erfolge von ${r.name} zurücksetzen?`, () => run(api("POST", "/api/achievements/reset", { userId: r.userId })))}>Zurücksetzen</button>
+            </li>
+          ))}
+        </ul>
+      </>)}
       <div className="row">
-        <button className="danger" onClick={() => ifSure("Alle Erfolge und Zähler der Anlage zurücksetzen?", () => run(api("POST", "/api/achievements/reset")))}>Zurücksetzen</button>
+        <button className="danger" onClick={() => ifSure("Alle Erfolge und Zähler zurücksetzen (Anlage und alle Benutzer)?", () => run(api("POST", "/api/achievements/reset")))}>Alles zurücksetzen</button>
       </div>
     </div>
   );

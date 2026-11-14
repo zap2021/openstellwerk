@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { api, useStation, type LocoNetLine, type StationState } from "./api";
+import { api, useStation, type LocoNetLine, type SessionUser, type StationState } from "./api";
+import { ProfilePage } from "./profile";
 import { AdminView } from "./admin";
 import { SignalsTab } from "./devices";
 import { DriveTab, ModeSelect } from "./drive";
@@ -26,7 +27,7 @@ function operatePages(state?: StationState): [OperatePage, string][] {
   return OPERATE;
 }
 
-function Main({ logout }: { logout?: () => void }) {
+function Main({ logout, user, refresh }: { logout?: () => void; user?: SessionUser; refresh: () => void }) {
   const { state, wire, loconet, online, clearWire, clearLoconet } = useStation();
   const [route, go] = useRoute();
   const { cameras, reload: reloadCameras } = useCameras();
@@ -35,7 +36,9 @@ function Main({ logout }: { logout?: () => void }) {
 
   const connected = !!state?.connected;
   const kind = state?.hw?.kind;
-  const admin = route.area === "admin";
+  const isAdmin = !user || user.role === "admin"; // without accounts (shared password) everybody administers
+  const admin = route.area === "admin" && isAdmin;
+  const profile = route.area === "profile" && !!user;
 
   return (
     <div className={`shell${admin ? " wide" : ""}`}>
@@ -46,23 +49,26 @@ function Main({ logout }: { logout?: () => void }) {
           {state?.demo && <span className="demo-badge" title="Simulierte Zentrale ohne Hardware">DEMO</span>}
           <span className="status">{state?.demo ? "Simulierte Zentrale" : connected ? `${state?.hw?.hwName ?? "Z21"} @ ${state?.host}` : online ? "nicht mit Zentrale verbunden" : "Server offline"}</span>
           <div className="areas" role="tablist" aria-label="Bereich">
-            <button role="tab" aria-selected={!admin} className={!admin ? "active" : ""} onClick={() => go({ area: "operate" })}>Bedienen</button>
-            <button role="tab" aria-selected={admin} className={admin ? "active" : ""} onClick={() => go({ area: "admin" })}>Verwaltung</button>
+            <button role="tab" aria-selected={!admin && !profile} className={!admin && !profile ? "active" : ""} onClick={() => go({ area: "operate" })}>Bedienen</button>
+            {isAdmin && <button role="tab" aria-selected={admin} className={admin ? "active" : ""} onClick={() => go({ area: "admin" })}>Verwaltung</button>}
           </div>
           {connected && kind !== "decoder" && state && <PowerBar state={state} run={run} />}
+          {user && <button className={profile ? "active" : ""} onClick={() => go({ area: "profile" })} title="Profil und Erfolge">{user.displayName}{user.role === "admin" ? " (Admin)" : ""}</button>}
           {logout && <button onClick={logout} title="Abmelden">Abmelden</button>}
         </header>
         {error && <div className="error" onClick={() => setError(undefined)}>{error}</div>}
-        {admin ? (
+        {profile && user ? (
+          <ProfilePage user={user} state={state} run={run} done={refresh} />
+        ) : admin ? (
           <AdminView
-            state={state} wire={wire} loconet={loconet as LocoNetLine[]} clearWire={clearWire} clearLoconet={clearLoconet}
+            me={user} state={state} wire={wire} loconet={loconet as LocoNetLine[]} clearWire={clearWire} clearLoconet={clearLoconet}
             cameras={cameras} reloadCameras={reloadCameras} run={run} page={route.area === "admin" ? route.page : undefined} go={go}
           />
         ) : (
           <Operate state={state} online={online} run={run} go={go} />
         )}
       </div>
-      {!admin && <CameraSidebar cameras={cameras} onConfigure={() => go({ area: "admin", page: "cameras" })} />}
+      {!admin && !profile && <CameraSidebar cameras={cameras} onConfigure={() => go({ area: "admin", page: "cameras" })} />}
     </div>
   );
 }
@@ -123,9 +129,9 @@ export function App() {
   const session = useSession();
   const [route] = useRoute();
   if (!session.known) return null;
-  if (!session.authenticated) return <Login onDone={session.refresh} />;
+  if (!session.authenticated) return <Login onDone={session.refresh} usersMode={session.usersMode} />;
   if (route.area === "display") return <Display />;
-  return <Main logout={session.required ? session.logout : undefined} />;
+  return <Main logout={session.required ? session.logout : undefined} user={session.user} refresh={session.refresh} />;
 }
 
 function PowerBar({ state, run }: { state: StationState; run: Run }) {

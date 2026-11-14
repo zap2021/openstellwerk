@@ -12,6 +12,7 @@ import { TrainStore } from "./trains.js";
 import { TimetableRunner } from "./timetable.js";
 import { AutomationStore } from "./automations.js";
 import { AchievementStore } from "./achievements.js";
+import { UserStore } from "./users.js";
 
 const dir = mkdtempSync(path.join(tmpdir(), "backup-"));
 const garage = new Garage();
@@ -22,6 +23,7 @@ const trains = new TrainStore();
 const runner = new TimetableRunner(station, box, trains);
 const automations = new AutomationStore();
 const achievements = new AchievementStore(undefined);
+const users = new UserStore();
 const app = Fastify();
 
 const layout = {
@@ -31,7 +33,7 @@ const layout = {
 };
 
 beforeAll(async () => {
-  registerBackupRoutes(app, new BackupService(garage, box, cameras, trains, runner, () => station.notify(), { automations, achievements }));
+  registerBackupRoutes(app, new BackupService(garage, box, cameras, trains, runner, () => station.notify(), { automations, achievements, users }));
   await app.ready();
   garage.upsert(3, { name: "V 200", functionNames: { 0: "Licht", 2: "Horn" }, source: "manual" });
   garage.upsert(1000, { name: "Dampflok" });
@@ -221,7 +223,7 @@ it("backs up and restores automations and achievements", async () => {
   achievements.onLocoEvents([{ type: "start" }]);
   const backup = await get();
   expect(backup.automations["3"]).toHaveLength(1);
-  expect(backup.achievements.stats.starts).toBe(1);
+  expect(backup.achievements.anlage.stats.starts).toBe(1);
 
   automations.set(3, []);
   achievements.reset();
@@ -239,4 +241,22 @@ it("changes nothing when the automations in the file are bad", async () => {
   const res = await restore({ backup: { ...backup, achievements: { stats: { starts: 99 } } }, parts: ["achievements", "automations"] });
   expect(res.statusCode).toBe(400);
   expect(achievements.view().stats.starts).toBe(before);
+});
+
+it("backs up users with hashes, restores them and refuses a backup without an active admin", async () => {
+  users.create({ name: "admin", password: "adminadmin" });
+  users.create({ name: "anna", password: "annaanna1" });
+  const backup = await get();
+  expect(backup.users).toHaveLength(2);
+  expect(backup.users[0].hash).toMatch(/^scrypt\$/);
+  expect(JSON.stringify(backup)).not.toContain("adminadmin");
+
+  users.replaceAll([users.all()[0]!]);
+  const res = await restore({ backup, parts: ["users"] });
+  expect(res.json()).toEqual({ restored: { users: 2 } });
+  expect(users.authenticate("anna", "annaanna1")).toBeDefined();
+
+  const noAdmin = { ...backup, users: backup.users.map((u: object) => ({ ...u, role: "user" })) };
+  expect((await restore({ backup: noAdmin, parts: ["users"] })).statusCode).toBe(400);
+  expect(users.count()).toBe(2);
 });

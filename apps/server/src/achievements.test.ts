@@ -42,9 +42,46 @@ describe("AchievementStore", () => {
 
   it("rejects garbage and drops unknown achievements", () => {
     expect(() => parseAchievements([])).toThrow();
-    const p = parseAchievements({ stats: { starts: -4, stops: "x" }, unlocked: { nope: { at: 1 }, "first-start": { at: 5 } } });
-    expect(p.stats.starts).toBe(0);
-    expect(Object.keys(p.unlocked)).toEqual(["first-start"]);
+    const p = parseAchievements({ stats: { starts: -4, stops: "x" }, unlocked: { nope: { at: 1 }, "first-start": { at: 5 } } }); // older format = the layout
+    expect(p.anlage.stats.starts).toBe(0);
+    expect(Object.keys(p.anlage.unlocked)).toEqual(["first-start"]);
+    expect(p.users).toEqual({});
+  });
+
+  it("counts for the layout and for the user who gave the command, and announces with the name", () => {
+    const names: Record<string, string> = { u1: "Anna", u2: "Ben" };
+    const s = new AchievementStore(undefined, () => {}, (id) => names[id]);
+    s.onLocoEvents([{ type: "start" }], "u1");
+    s.onLocoEvents([{ type: "start" }]);                 // nobody to blame: only the layout
+    expect(s.view().stats.starts).toBe(2);
+    expect(s.viewOf("u1").stats.starts).toBe(1);
+    expect(s.viewOf("u2").stats.starts).toBe(0);
+    expect(s.view().latest).toMatchObject({ id: "first-start", by: "Anna" });
+    expect(s.view().ranking).toEqual([{ userId: "u1", name: "Anna", score: 5 }]);
+  });
+
+  it("attributes a loco only briefly after the command", () => {
+    const s = new AchievementStore(undefined);
+    s.touch(3, "u1", 1000);
+    expect(s.actorOf(3, 5000)).toBe("u1");
+    expect(s.actorOf(3, 20_000)).toBeUndefined();
+    expect(s.actorOf(4, 1000)).toBeUndefined();
+  });
+
+  it("resets one user or everything; ranking hides removed accounts", () => {
+    const names: Record<string, string> = { u1: "Anna", u2: "Ben" };
+    const s = new AchievementStore(undefined, () => {}, (id) => names[id]);
+    s.onLocoEvents([{ type: "start" }], "u1");
+    s.onLocoEvents([{ type: "start" }], "u2");
+    s.reset("u1");
+    expect(s.viewOf("u1").stats.starts).toBe(0);
+    expect(s.viewOf("u2").stats.starts).toBe(1);
+    expect(s.view().stats.starts).toBe(2);
+    delete names.u2;
+    expect(s.view().ranking).toEqual([]);
+    s.reset();
+    expect(s.view().stats.starts).toBe(0);
+    expect(s.export().users).toEqual({});
   });
 
   it("definitions have unique ids", () => expect(new Set(DEFINITIONS.map((d) => d.id)).size).toBe(DEFINITIONS.length));

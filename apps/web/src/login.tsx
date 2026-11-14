@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { api } from "./api";
+import { api, type SessionUser } from "./api";
 
-interface Session { required: boolean; authenticated: boolean }
+interface Session { required: boolean; authenticated: boolean; users?: boolean; user?: SessionUser }
 
 export function useSession() {
   const [session, setSession] = useState<Session>();
@@ -16,10 +16,11 @@ export function useSession() {
     return () => window.removeEventListener("z21-unauthorized", lost);
   }, [refresh]);
   const logout = () => { void api("POST", "/api/logout").catch(() => undefined).then(refresh); };
-  return { known: !!session, required: !!session?.required, authenticated: !!session?.authenticated, refresh, logout };
+  return { known: !!session, required: !!session?.required, usersMode: !!session?.users, user: session?.user, authenticated: !!session?.authenticated, refresh, logout };
 }
 
-export function Login({ onDone }: { onDone: () => void }) {
+export function Login({ onDone, usersMode }: { onDone: () => void; usersMode?: boolean }) {
+  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -27,7 +28,7 @@ export function Login({ onDone }: { onDone: () => void }) {
     e.preventDefault();
     setBusy(true);
     setError(undefined);
-    api("POST", "/api/login", { password })
+    api("POST", "/api/login", usersMode ? { name, password } : { password })
       .then(onDone)
       .catch((err: Error) => setError(err.message))
       .finally(() => setBusy(false));
@@ -35,11 +36,14 @@ export function Login({ onDone }: { onDone: () => void }) {
   return (
     <form className="login" onSubmit={submit}>
       <h1>Z21 Web</h1>
+      {usersMode && <label>Benutzername
+        <input value={name} onChange={(e) => setName(e.target.value)} autoFocus autoComplete="username" />
+      </label>}
       <label>Passwort
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus autoComplete="current-password" />
+        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus={!usersMode} autoComplete="current-password" />
       </label>
       {error && <div className="error">{error}</div>}
-      <button className="active" type="submit" disabled={busy || !password}>Anmelden</button>
+      <button className="active" type="submit" disabled={busy || !password || (usersMode && !name.trim())}>Anmelden</button>
       {location.protocol !== "https:" && !["localhost", "127.0.0.1"].includes(location.hostname) && (
         <p className="hint">Die Verbindung ist nicht verschlüsselt (kein HTTPS). Das Passwort ist im Netz mitlesbar.</p>
       )}

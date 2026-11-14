@@ -139,11 +139,14 @@ export interface Camera {
 }
 
 /** Erfolge der Anlage (Spiegel von apps/server/src/achievements.ts). */
+export interface SessionUser { id: string; name: string; displayName: string; role: "user" | "admin"; active: boolean; createdAt: number }
+
 export interface AchievementView {
   score: number;
   maxScore: number;
   stats: { starts: number; stops: number; estops: number; departures: number };
   items: { id: string; title: string; text: string; points: number; progress: number; goal: number; unlockedAt?: number }[];
   seq: number;
-  latest?: { id: string; title: string; text: string; points: number };
+  latest?: { id: string; title: string; text: string; points: number; by?: string };
+  ranking: { userId: string; name: string; score: number }[];
 }

@@ -25,9 +25,27 @@ const EMPTY = (): Saved => ({ stats: { starts: 0, stops: 0, estops: 0, departure
 const count = (v: unknown) => (Number.isInteger(v) && (v as number) >= 0 && (v as number) < 1e9 ? (v as number) : 0);
 const known = new Set(DEFINITIONS.map((d) => d.id));
 
-/** Prüft einen gespeicherten oder gesicherten Stand; unbekannte Erfolge werden verworfen. */
-export function parseAchievements(raw: unknown): Saved {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw Object.assign(new Error("Erfolge: ungültiger Stand"), { statusCode: 400 });
+const bad = () => Object.assign(new Error("Erfolge: ungültiger Stand"), { statusCode: 400 });
+
+/** Stand der Anlage und je Benutzer. */
+export interface Data { anlage: Saved; users: Record<string, Saved> }
+
+/**
+ * Prüft einen gespeicherten oder gesicherten Stand; unbekannte Erfolge werden verworfen.
+ * Das ältere Format (nur ein Stand der Anlage) wird als Stand der Anlage übernommen.
+ */
+export function parseAchievements(raw: unknown): Data {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw bad();
+  const r = raw as Record<string, unknown>;
+  if (!("anlage" in r) && !("users" in r)) return { anlage: parseScope(raw), users: {} };
+  const users: Record<string, Saved> = {};
+  const u = r.users && typeof r.users === "object" && !Array.isArray(r.users) ? (r.users as Record<string, unknown>) : {};
+  for (const [id, v] of Object.entries(u)) users[id] = parseScope(v);
+  return { anlage: parseScope(r.anlage ?? {}), users };
+}
+
+function parseScope(raw: unknown): Saved {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw bad();
   const r = raw as Record<string, unknown>;
   const s = (r.stats ?? {}) as Record<string, unknown>;
   const out = EMPTY();
@@ -40,53 +58,104 @@ export function parseAchievements(raw: unknown): Saved {
   return out;
 }
 
+export interface AchievementItem { id: string; title: string; text: string; points: number; progress: number; goal: number; unlockedAt?: number }
+export interface Announcement { id: string; title: string; text: string; points: number; /** Anzeigename des Benutzers, dem der Erfolg gehört */ by?: string }
+
 export interface AchievementView {
   score: number;
   maxScore: number;
   stats: Stats;
-  items: { id: string; title: string; text: string; points: number; progress: number; goal: number; unlockedAt?: number }[];
+  items: AchievementItem[];
   /** Zähler der Freischaltungen; wächst mit jedem neuen Erfolg (Browser blenden bei Zuwachs ein). */
   seq: number;
-  /** Zuletzt freigeschalteter Erfolg */
-  latest?: { id: string; title: string; text: string; points: number };
+  /** Zuletzt freigeschalteter Erfolg (Anlage oder Benutzer) */
+  latest?: Announcement;
+  /** Rangliste der Benutzer nach Punkten */
+  ranking: { userId: string; name: string; score: number }[];
 }
 
-export class AchievementStore {
-  private state: Saved = EMPTY();
-  private file: JsonFile<Saved>;
-  private seenDone = new Set<string>();
+/** Wie lange eine Fahrbefehl-Zuordnung zu einem Benutzer gilt: die Z21 meldet die Folge (anfahren, halten) erst später zurück. */
+const ACTOR_MS = 15_000;
 
-  constructor(file: string | undefined, private onUnlock: () => void = () => {}) {
+const scopeView = (saved: Saved): Omit<AchievementView, "seq" | "latest" | "ranking"> => {
+  const items = DEFINITIONS.map((d) => ({
+    id: d.id, title: d.title, text: d.text, points: d.points, goal: d.goal,
+    progress: Math.min(d.goal, saved.stats[d.stat]), unlockedAt: saved.unlocked[d.id]?.at,
+  }));
+  return {
+    score: items.filter((i) => i.unlockedAt !== undefined).reduce((s, i) => s + i.points, 0),
+    maxScore: items.reduce((s, i) => s + i.points, 0),
+    stats: { ...saved.stats }, items,
+  };
+};
+
+export class AchievementStore {
+  private data: Data = { anlage: EMPTY(), users: {} };
+  private file: JsonFile<Data>;
+  private seenDone = new Set<string>();
+  private actors = new Map<number, { userId: string; at: number }>();
+  private announceSeq = 0;
+  private latest?: Announcement;
+
+  /** `nameOf` liefert den Anzeigenamen eines Benutzers (undefined = Konto gibt es nicht mehr). */
+  constructor(file: string | undefined, private onUnlock: () => void = () => {}, private nameOf: (userId: string) => string | undefined = () => undefined) {
     this.file = new JsonFile(file);
     const raw = this.file.read();
-    if (raw) { try { this.state = parseAchievements(raw); } catch (e) { console.error("achievements.json ignoriert:", (e as Error).message); } }
+    if (raw) { try { this.data = parseAchievements(raw); } catch (e) { console.error("achievements.json ignoriert:", (e as Error).message); } }
+    this.announceSeq = this.countUnlocks();
   }
 
-  /** Eine Zahl erhöhen; liefert die dabei freigeschalteten Erfolge. */
-  add(stat: StatKey, n = 1, now = Date.now()): Definition[] {
-    this.state.stats[stat] += n;
+  private countUnlocks() { return Object.keys(this.data.anlage.unlocked).length + Object.values(this.data.users).reduce((n, u) => n + Object.keys(u.unlocked).length, 0); }
+
+  private bump(saved: Saved, stat: StatKey, n: number, now: number): Definition[] {
+    saved.stats[stat] += n;
     const fresh: Definition[] = [];
     for (const d of DEFINITIONS) {
-      if (d.stat === stat && !this.state.unlocked[d.id] && this.state.stats[stat] >= d.goal) {
-        this.state.unlocked[d.id] = { at: now, seq: ++this.state.seq };
+      if (d.stat === stat && !saved.unlocked[d.id] && saved.stats[stat] >= d.goal) {
+        saved.unlocked[d.id] = { at: now, seq: ++saved.seq };
         fresh.push(d);
       }
     }
-    this.file.write(() => this.state);
-    if (fresh.length) this.onUnlock();
     return fresh;
   }
 
-  /** Ereignisse einer Lok (aus der Ereigniserkennung der Automatismen). */
-  onLocoEvents(events: LocoEvent[]) {
+  /** Eine Zahl erhöhen: immer für die Anlage, zusätzlich für den Benutzer, dem die Aktion gehört. Liefert die freigeschalteten Erfolge. */
+  add(stat: StatKey, n = 1, userId?: string, now = Date.now()): Definition[] {
+    const anlage = this.bump(this.data.anlage, stat, n, now);
+    let mine: Definition[] = [];
+    if (userId) mine = this.bump((this.data.users[userId] ??= EMPTY()), stat, n, now);
+    this.file.write(() => this.data);
+    const shown = mine.length ? mine : anlage;
+    const d = shown[shown.length - 1];
+    if (d) {
+      this.announceSeq += anlage.length + mine.length;
+      this.latest = { id: d.id, title: d.title, text: d.text, points: d.points, by: mine.length && userId ? this.nameOf(userId) : undefined };
+      this.onUnlock();
+    }
+    return [...anlage, ...mine];
+  }
+
+  /** Merkt, wer zuletzt einen Fahrbefehl für diese Lok gegeben hat. */
+  touch(address: number, userId: string, now = Date.now()) {
+    this.actors.set(address, { userId, at: now });
+    if (this.actors.size > 500) this.actors.delete(this.actors.keys().next().value!);
+  }
+
+  actorOf(address: number, now = Date.now()): string | undefined {
+    const a = this.actors.get(address);
+    return a && now - a.at <= ACTOR_MS ? a.userId : undefined;
+  }
+
+  /** Ereignisse einer Lok (aus der Ereigniserkennung der Automatismen); `userId` = wer den Befehl gegeben hat, sonst nur Anlage. */
+  onLocoEvents(events: LocoEvent[], userId?: string) {
     for (const e of events) {
-      if (e.type === "start") this.add("starts");
-      else if (e.type === "stop") this.add("stops");
-      else if (e.type === "estop") this.add("estops");
+      if (e.type === "start") this.add("starts", 1, userId);
+      else if (e.type === "stop") this.add("stops", 1, userId);
+      else if (e.type === "estop") this.add("estops", 1, userId);
     }
   }
 
-  /** Abgeschlossene Fahrplanfahrten; jede Fahrt (Tag + id) zählt einmal. */
+  /** Abgeschlossene Fahrplanfahrten; jede Fahrt (Tag + id) zählt einmal (für die Anlage). */
   onInstances(instances: { id: string; day: number; status: string }[]) {
     for (const i of instances) {
       const key = `${i.day}:${i.id}`;
@@ -95,38 +164,44 @@ export class AchievementStore {
     if (this.seenDone.size > 2000) this.seenDone.clear();
   }
 
+  /** Anlage mit Rangliste (geht an alle Browser). */
   view(): AchievementView {
-    const items = DEFINITIONS.map((d) => ({
-      id: d.id, title: d.title, text: d.text, points: d.points, goal: d.goal,
-      progress: Math.min(d.goal, this.state.stats[d.stat]), unlockedAt: this.state.unlocked[d.id]?.at,
-    }));
-    const latestId = Object.entries(this.state.unlocked).sort((a, b) => b[1].seq - a[1].seq)[0]?.[0];
-    const latest = DEFINITIONS.find((d) => d.id === latestId);
-    return {
-      score: items.filter((i) => i.unlockedAt !== undefined).reduce((s, i) => s + i.points, 0),
-      maxScore: items.reduce((s, i) => s + i.points, 0),
-      stats: { ...this.state.stats }, items, seq: this.state.seq,
-      latest: latest && { id: latest.id, title: latest.title, text: latest.text, points: latest.points },
-    };
+    const ranking = Object.entries(this.data.users)
+      .flatMap(([userId, s]) => { const name = this.nameOf(userId); return name === undefined ? [] : [{ userId, name, score: scopeView(s).score }]; })
+      .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+    return { ...scopeView(this.data.anlage), seq: this.announceSeq, latest: this.latest, ranking };
   }
 
-  /** Alles zurücksetzen (Verwaltung). Bereits abgeschlossene Fahrten zählen danach nicht erneut. */
-  reset() {
-    this.state = EMPTY();
-    this.file.write(() => this.state);
+  /** Persönliche Erfolge eines Benutzers. */
+  viewOf(userId: string): AchievementView {
+    return { ...scopeView(this.data.users[userId] ?? EMPTY()), seq: this.announceSeq, latest: this.latest, ranking: this.view().ranking };
+  }
+
+  /** Zurücksetzen (Verwaltung): ein Benutzer, oder ohne Angabe alles (Anlage und alle Benutzer). */
+  reset(userId?: string) {
+    if (userId) delete this.data.users[userId];
+    else { this.data = { anlage: EMPTY(), users: {} }; this.announceSeq = 0; this.latest = undefined; }
+    this.file.write(() => this.data);
     this.onUnlock();
   }
 
-  export(): Saved { return JSON.parse(JSON.stringify(this.state)) as Saved; }
+  export(): Data { return JSON.parse(JSON.stringify(this.data)) as Data; }
 
-  replace(saved: Saved) {
-    this.state = saved;
-    this.file.write(() => this.state);
+  replace(data: Data) {
+    this.data = data;
+    this.announceSeq = this.countUnlocks();
+    this.latest = undefined;
+    this.file.write(() => this.data);
     this.onUnlock();
   }
 }
 
 export function registerAchievementRoutes(app: FastifyInstance, store: AchievementStore) {
   app.get("/api/achievements", async () => store.view());
-  app.post("/api/achievements/reset", async () => { store.reset(); return store.view(); });
+  app.get("/api/achievements/me", async (req) => (req.user ? store.viewOf(req.user.id) : store.view()));
+  app.post<{ Body: { userId?: string } }>("/api/achievements/reset", async (req) => {
+    const id = req.body?.userId;
+    store.reset(typeof id === "string" && id ? id : undefined);
+    return store.view();
+  });
 }

@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { api, type Camera, type LocoNetLine, type StationState } from "./api";
+import { api, type Camera, type LocoNetLine, type SessionUser, type StationState } from "./api";
 import { BackupPanel } from "./backup";
+import { UsersPage } from "./users";
 import { AchievementsPanel } from "./achievements";
 import { CamerasTab } from "./camera";
 import { ifSure } from "./confirm";
@@ -17,13 +18,13 @@ const post = (url: string, body?: unknown) => api("POST", url, body);
 const put = (url: string, body?: unknown) => api("PUT", url, body);
 
 export type AdminPage =
-  | "station" | "network" | "layout" | "trains" | "timetable" | "cameras" | "achievements" | "backup" | "cv" | "rmbus" | "clock" | "boosters" | "device"
+  | "station" | "network" | "layout" | "trains" | "timetable" | "cameras" | "users" | "achievements" | "backup" | "cv" | "rmbus" | "clock" | "boosters" | "device"
   | "railcom" | "loconet" | "detectors" | "monitor";
 
 /** The administration area, grouped; the order here is the order in the navigation. */
 export const ADMIN_GROUPS: { title: string; pages: [AdminPage, string][] }[] = [
   { title: "Verbindung", pages: [["station", "Zentrale und Demo"], ["network", "Netzwerk"]] },
-  { title: "Anlage", pages: [["layout", "Gleisbild bearbeiten"], ["trains", "Züge"], ["timetable", "Fahrplan"], ["cameras", "Kameras einrichten"], ["achievements", "Erfolge"], ["backup", "Datensicherung"]] },
+  { title: "Anlage", pages: [["layout", "Gleisbild bearbeiten"], ["trains", "Züge"], ["timetable", "Fahrplan"], ["cameras", "Kameras einrichten"], ["users", "Benutzer"], ["achievements", "Erfolge"], ["backup", "Datensicherung"]] },
   { title: "Programmieren", pages: [["cv", "CV-Programmierung"]] },
   { title: "Hardware", pages: [["rmbus", "R-BUS"], ["clock", "Modellbahn-Uhr"], ["boosters", "Booster"], ["device", "Gerät"]] },
   { title: "Diagnose", pages: [["railcom", "RailCom"], ["loconet", "LocoNet"], ["detectors", "Melder"], ["monitor", "Rohdaten"]] },
@@ -35,7 +36,7 @@ const HAS_OWN_HEADING: AdminPage[] = ["station", "layout", "trains", "timetable"
 /** A Z21 offers everything; zLink boosters/decoders (behind a 10838 Z21 pro LINK) only a small part of the protocol. */
 export function adminPages(state?: StationState): AdminPage[] {
   const kind = state?.hw?.kind;
-  const always: AdminPage[] = ["station", "cameras", "backup", "monitor"];
+  const always: AdminPage[] = ["station", "cameras", "users", "achievements", "backup", "monitor"];
   if (!state?.connected) return [...always, ...(state ? (["layout", "trains", "timetable"] as AdminPage[]) : [])];
   if (kind === "booster") return [...always, "device"];
   if (kind === "decoder") return [...always, "device", "cv"];
@@ -206,7 +207,8 @@ function Monitor({ wire, clear }: { wire: { dir: string; hex: string; message?: 
   );
 }
 
-export function AdminView({ state, wire, loconet, clearWire, clearLoconet, cameras, reloadCameras, run, page, go }: {
+export function AdminView({ me, state, wire, loconet, clearWire, clearLoconet, cameras, reloadCameras, run, page, go }: {
+  me?: SessionUser;
   state?: StationState;
   wire: { dir: string; hex: string; message?: { type: string }; ts: number }[];
   loconet: LocoNetLine[];
@@ -241,6 +243,7 @@ export function AdminView({ state, wire, loconet, clearWire, clearLoconet, camer
         {!HAS_OWN_HEADING.includes(current) && <h2 className="pagetitle">{label}</h2>}
         {current === "station" && <StationTab state={state} run={run} />}
         {current === "cameras" && <CamerasTab cameras={cameras} reload={reloadCameras} run={run} />}
+        {current === "users" && <UsersPage me={me} run={run} />}
         {current === "achievements" && <AchievementsPanel view={state?.achievements} run={run} />}
         {current === "backup" && <BackupPanel run={run} />}
         {current === "monitor" && <Monitor wire={wire} clear={clearWire} />}
