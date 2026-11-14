@@ -6,7 +6,7 @@ import { toMs } from "./automations";
 type Run = (p: Promise<unknown>) => Promise<void>;
 
 /** Spiegel der Server-Typen (apps/server/src/layout-rules.ts). */
-export interface RuleTrigger { type: "block"; blockId: string; occupied: boolean; holdMs?: number }
+export type RuleTrigger = { type: "block"; blockId: string; occupied: boolean; holdMs?: number } | { type: "manual" };
 export type RuleCondition =
   | { type: "block"; blockId: string; occupied: boolean }
   | { type: "tile"; tileId: string; state: number }
@@ -27,12 +27,13 @@ export const tileName = (t: Tile) => t.label || `${t.kind === "signal" ? "Signal
 
 interface Choices { blocks: { id: string; name: string }[]; tiles: Tile[]; routes: { id: string; name: string }[] }
 
-/** Die erste Regel, die sich mit diesem Gleisbild anlegen lässt; undefined, solange es keinen Block gibt. */
+/** Die erste Regel, die sich mit diesem Gleisbild anlegen lässt; undefined, solange es nichts zu schalten gibt. */
 export function blankRule(c: Choices): LayoutRule | undefined {
   const block = c.blocks[0];
-  if (!block) return undefined;
-  const action: RuleAction = c.tiles[0] ? { type: "tile", tileId: c.tiles[0].id, state: 0 } : c.routes[0] ? { type: "route", routeId: c.routes[0].id, do: "request" } : { type: "stopLoco" };
-  return { id: newId(), name: "", enabled: true, trigger: { type: "block", blockId: block.id, occupied: true }, conditions: [], actions: [action] };
+  const action: RuleAction | undefined = c.tiles[0] ? { type: "tile", tileId: c.tiles[0].id, state: 0 } : c.routes[0] ? { type: "route", routeId: c.routes[0].id, do: "request" } : block ? { type: "stopLoco" } : undefined;
+  if (!action) return undefined;
+  // Without a block only a button can trigger the rule.
+  return { id: newId(), name: "", enabled: true, trigger: block ? { type: "block", blockId: block.id, occupied: true } : { type: "manual" }, conditions: [], actions: [action] };
 }
 
 function Pick({ value, options, onChange }: { value: string; options: { id: string; name: string }[]; onChange: (id: string) => void }) {
@@ -82,9 +83,18 @@ function Editor({ r, view, c, onChange, onRemove }: { r: LayoutRule; view?: Rule
       </div>
       <div className="row tight">
         <strong>Wenn</strong>
-        <Pick value={r.trigger.blockId} options={c.blocks} onChange={(blockId) => onChange({ ...r, trigger: { ...r.trigger, blockId } })} />
-        {OCC(r.trigger.occupied, (occupied) => onChange({ ...r, trigger: { ...r.trigger, occupied } }), "belegt wird", "frei wird")}
-        <label>und <input type="number" min={0} step="0.1" value={toSec(r.trigger.holdMs)} placeholder="0" onChange={(e) => onChange({ ...r, trigger: { ...r.trigger, holdMs: toMs(e.target.value) } })} /> s so bleibt</label>
+        <select value={r.trigger.type} onChange={(e) => onChange(e.target.value === "manual"
+          ? { ...r, trigger: { type: "manual" }, actions: r.actions.filter((a) => a.type !== "stopLoco").length ? r.actions.filter((a) => a.type !== "stopLoco") : [newAct(c.tiles[0] ? "tile" : "request")] }
+          : { ...r, trigger: { type: "block", blockId: c.blocks[0]?.id ?? "", occupied: true } })}>
+          <option value="block">ein Block</option>
+          <option value="manual">ein Taster gedrückt wird (Ablauf)</option>
+        </select>
+        {r.trigger.type === "block" && (() => { const tr = r.trigger; return (<>
+          <Pick value={tr.blockId} options={c.blocks} onChange={(blockId) => onChange({ ...r, trigger: { ...tr, blockId } })} />
+          {OCC(tr.occupied, (occupied) => onChange({ ...r, trigger: { ...tr, occupied } }), "belegt wird", "frei wird")}
+          <label>und <input type="number" min={0} step="0.1" value={toSec(tr.holdMs)} placeholder="0" onChange={(e) => onChange({ ...r, trigger: { ...tr, holdMs: toMs(e.target.value) } })} /> s so bleibt</label>
+        </>); })()}
+        {r.trigger.type === "manual" && <span className="hint">Der Taster erscheint oben in der Bedienung mit dem Namen der Regel.</span>}
       </div>
       {r.conditions.map((x, i) => (
         <div className="row tight" key={i}>
@@ -114,7 +124,7 @@ function Editor({ r, view, c, onChange, onRemove }: { r: LayoutRule; view?: Rule
             {c.tiles.length > 0 && <option value="tile">Weiche/Signal stellen</option>}
             {c.routes.length > 0 && <option value="request">Fahrstraße anfordern</option>}
             {c.routes.length > 0 && <option value="release">Fahrstraße auflösen</option>}
-            <option value="stopLoco">Lok im Block anhalten</option>
+            {r.trigger.type === "block" && <option value="stopLoco">Lok im Block anhalten</option>}
           </select>
           {x.type === "tile" && <TileState tiles={c.tiles} tileId={x.tileId} state={x.state} onChange={(tileId, state) => setAct(i, { ...x, tileId, state })} />}
           {x.type === "route" && <Pick value={x.routeId} options={c.routes} onChange={(routeId) => setAct(i, { ...x, routeId })} />}
@@ -157,14 +167,14 @@ export function LayoutRulesPage({ layout, run }: { layout?: Layout; run: Run }) 
     <div className="panel">
       <div className="head">
         <h2>Regeln</h2>
-        <button type="button" disabled={c.blocks.length === 0} onClick={add}>+ Regel</button>
+        <button type="button" disabled={c.blocks.length === 0 && c.tiles.length === 0 && c.routes.length === 0} onClick={add}>+ Regel</button>
         <button type="button" className={dirty ? "active" : ""} disabled={!dirty} onClick={save}>Speichern</button>
       </div>
       <p className="hint">
-        Ein Rückmelder löst etwas aus: Wird ein Block belegt oder frei, stellt der Server Weichen, Signale oder Fahrstraßen oder hält die Lok im Block an.
+        Ein Rückmelder oder ein Taster löst etwas aus: Wird ein Block belegt oder frei, stellt der Server Weichen, Signale oder Fahrstraßen oder hält die Lok im Block an.
         Alles läuft über die Sicherung; ein verriegeltes Feld wird nicht umgestellt. „Lok anhalten“ braucht einen Melder mit Lokerkennung oder einen Zug mit Standort im Block.
       </p>
-      {c.blocks.length === 0 && <p className="hint warn">Im Gleisbild gibt es noch keinen Block. Lege zuerst unter „Gleisbild bearbeiten“ Blöcke mit Meldern an.</p>}
+      {c.blocks.length === 0 && <p className="hint warn">Im Gleisbild gibt es noch keinen Block: Regeln lassen sich nur per Taster auslösen. Für Rückmelder-Regeln lege unter „Gleisbild bearbeiten“ Blöcke mit Meldern an.</p>}
       {list.length === 0 && c.blocks.length > 0 && <p className="hint">Noch keine Regel. Beispiel: Wenn „Gleis 1“ belegt wird, Einfahrsignal auf Halt.</p>}
       {list.map((r, i) => (
         <Editor key={r.id} r={r} view={dirty ? undefined : views.find((v) => v.id === r.id)} c={c} onChange={(n) => change(list.map((x, j) => (j === i ? n : x)))} onRemove={() => change(list.filter((_, j) => j !== i))} />

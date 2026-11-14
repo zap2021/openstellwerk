@@ -6,7 +6,7 @@ import type { Role } from "./users.js";
  * Fahren, Schalten, Fahrstraßen, Nothalt, Ansehen und das eigene Profil dürfen alle Angemeldeten.
  */
 const USER_ROUTES: [method: string, pattern: RegExp][] = [
-  ["GET", /^\/api\/(state|version|me|loco\/\d+|loco\/\d+\/mode|turnout\/\d+|turnout\/\d+\/mode|accessory\/\d+|layout|interlocking|timetable|trains|cameras|camera\/[^/]+\/feed|achievements|achievements\/me|garage\/\d+\/image|locos\/\d+\/automations|journeys)$/],
+  ["GET", /^\/api\/(state|version|me|loco\/\d+|loco\/\d+\/mode|turnout\/\d+|turnout\/\d+\/mode|accessory\/\d+|layout|interlocking|timetable|trains|cameras|camera\/[^/]+\/feed|achievements|achievements\/me|garage\/\d+\/image|locos\/\d+\/automations|journeys|history)$/],
   ["GET", /^\/ws$/],
   ["POST", /^\/api\/(estop|accessory-estop|power|turnout\/\d+|accessory\/\d+)$/],
   ["POST", /^\/api\/loco\/\d+\/(drive|stop|estop|function\/\d+|function-group|binary-state)$/],
@@ -14,6 +14,7 @@ const USER_ROUTES: [method: string, pattern: RegExp][] = [
   ["POST", /^\/api\/layout\/(route\/[^/]+\/run|tile\/[^/]+\/set)$/],
   ["POST", /^\/api\/timetable\/instances\/[^/]+\/cancel$/],
   ["POST", /^\/api\/journeys(\/[^/]+\/cancel)?$/],
+  ["POST", /^\/api\/layout-rules\/[^/]+\/run$/],
   ["PUT", /^\/api\/garage\/\d+\/image$/],
   ["DELETE", /^\/api\/garage\/\d+\/image$/],
   ["PUT", /^\/api\/me$/],

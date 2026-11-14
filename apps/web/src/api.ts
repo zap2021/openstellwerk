@@ -64,6 +64,10 @@ export interface StationState {
   demo?: boolean;
   interlocking?: { routeId: string; status: "setting" | "set" | "running" | "fault"; since: number; message?: string }[];
   scan?: { running: boolean; from: number; to: number; current: number; found: number[]; error?: string };
+  /** installierte und neueste Version (apps/server/src/update.ts) */
+  update?: { current: string; latest?: string; available: boolean };
+  /** Abläufe mit Taster: Regeln der Anlage mit Auslöser „von Hand“ */
+  macros?: { id: string; name: string }[];
   /** Zielfahrten (Spiegel von apps/server/src/journeys.ts) */
   journeys?: Journey[];
   /** Loks, die der Server gerade fährt, und wie die letzten Fahrten endeten (apps/server/src/auto-drive.ts) */

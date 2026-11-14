@@ -9,6 +9,7 @@ import { DisplayView, LayoutTab } from "./layout";
 import { CameraSidebar, useCameras } from "./camera";
 import { TimetableOperate } from "./timetable";
 import { useRoute, type Route } from "./route";
+import { FullscreenButton, MacroBar } from "./system";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
 const post = (url: string, body?: unknown) => api("POST", url, body);
@@ -48,6 +49,7 @@ function Main({ logout, user, refresh }: { logout?: () => void; user?: SessionUs
         <header>
           <h1>Z21 Web</h1>
           {version && <small className="version" title="Installierte Version">v{version}</small>}
+          {isAdmin && state?.update?.available && <button className="update-badge" onClick={() => go({ area: "admin", page: "update" })} title="Zur Update-Seite">Update v{state.update.latest}</button>}
           <span className={`dot ${connected ? "ok" : online ? "warn" : "bad"}`} />
           {state?.demo && <span className="demo-badge" title="Simulierte Zentrale ohne Hardware">DEMO</span>}
           <span className="status">{state?.demo ? "Simulierte Zentrale" : connected ? `${state?.hw?.hwName ?? "Z21"} @ ${state?.host}` : online ? "nicht mit Zentrale verbunden" : "Server offline"}</span>
@@ -57,6 +59,7 @@ function Main({ logout, user, refresh }: { logout?: () => void; user?: SessionUs
           </div>
           {connected && kind !== "decoder" && state && <PowerBar state={state} run={run} />}
           {user && <button className={profile ? "active" : ""} onClick={() => go({ area: "profile" })} title="Profil und Erfolge">{user.displayName}{user.role === "admin" ? " (Admin)" : ""}</button>}
+          <FullscreenButton />
           {logout && <button onClick={logout} title="Abmelden">Abmelden</button>}
         </header>
         {error && <div className="error" onClick={() => setError(undefined)}>{error}</div>}
@@ -86,6 +89,7 @@ function Operate({ state, online, run, go }: { state?: StationState; online: boo
       <nav className="operatenav">
         {pages.map(([id, label]) => <button key={id} className={current === id ? "active" : ""} onClick={() => setTab(id)}>{label}</button>)}
       </nav>
+      <MacroBar state={state} run={run} />
       <main>
         {current === "drive" && <DriveTab state={state} run={run} />}
         {current === "layout" && <LayoutTab state={state} run={run} />}

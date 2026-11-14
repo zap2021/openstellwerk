@@ -238,3 +238,15 @@ header .version { color: var(--muted); font-size: 12px; }
 .speed-table { border-collapse: collapse; font-size: 13px; margin-top: 6px; }
 .speed-table th, .speed-table td { padding: 3px 10px; border: 1px solid var(--line); text-align: right; }
 .speed-table td:first-child, .speed-table th:first-child { text-align: left; color: var(--muted); }
+
+/* ---- Abläufe, Update, Verlauf ---- */
+.macrobar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 0; }
+.update-badge { border-color: var(--accent); color: var(--accent); font-size: 12px; }
+.release-notes { white-space: pre-wrap; font: inherit; font-size: 13px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; max-height: 260px; overflow: auto; }
+.update-log { font-size: 13px; color: var(--muted); padding-left: 20px; }
+.update-log li:last-child { color: var(--fg); }
+.update-log.failed li:last-child { color: var(--warn); }
+.history { width: 100%; border-collapse: collapse; font-size: 13px; }
+.history td { padding: 4px 8px; border-top: 1px solid var(--line); vertical-align: top; }
+.history td:first-child, .history td:nth-child(2) { white-space: nowrap; color: var(--muted); }
+.history tr.problem td:last-child { color: var(--warn); }

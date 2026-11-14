@@ -198,6 +198,41 @@ describe("LayoutRuleEngine", () => {
   });
 });
 
+describe("manual rules (buttons)", () => {
+  const macro = (o: Partial<LayoutRule> = {}) => rule({ id: "m", name: "Ausfahrt", trigger: { type: "manual" }, actions: [{ type: "tile", tileId: "w1", state: 1 }, { type: "route", routeId: "r1", do: "request" }], ...o });
+
+  it("runs on request, with conditions and the minimum distance, and is listed for the operator", () => {
+    const logged: string[] = [];
+    const { calls, engine, store, tick } = setup([macro(), macro({ id: "off", enabled: false }), rule()]);
+    expect(() => engine.runManual("m")).toThrow(/Keine Verbindung/);
+    engine.onState(live(false, false));
+    expect(engine.macros()).toEqual([{ id: "m", name: "Ausfahrt" }]);
+    engine.runManual("m");
+    expect(calls).toEqual(["tile w1 1", "request r1"]);
+    expect(() => engine.runManual("m")).toThrow(/gerade erst/);
+    tick(2000);
+    engine.runManual("m");
+    expect(calls).toHaveLength(4);
+    expect(() => engine.runManual("off")).toThrow(/ausgeschaltet/);
+    expect(() => engine.runManual("x")).toThrow(/nicht gefunden/); // a block rule is no button
+    expect(() => engine.runManual("nope")).toThrow(/nicht gefunden/);
+    store.replaceAll([macro({ conditions: [{ type: "block", blockId: "b1", occupied: true }] })]);
+    tick(2000);
+    expect(engine.runManual("m").results).toEqual([{ text: "Bedingungen nicht erfüllt", ok: false }]);
+    expect(logged).toEqual([]);
+  });
+
+  it("is never triggered by a detector, and cannot stop a loco (there is no block)", () => {
+    const { calls, engine } = setup([macro()]);
+    engine.onState(live(false, false));
+    engine.onState(live(true, true));
+    expect(calls).toEqual([]);
+    expect(() => validateRules([macro({ actions: [{ type: "stopLoco" }] })])).toThrow(/braucht einen Block/);
+    expect(validateRules([macro()])[0]!.trigger).toEqual({ type: "manual" });
+    expect(missingRefs(macro({ actions: [{ type: "route", routeId: "gone", do: "request" }] }), layout)).toEqual(["Fahrstraße fehlt im Gleisbild"]);
+  });
+});
+
 describe("locosInBlock", () => {
   it("collects locos from detectors and from train locations", () => {
     const state = { loconetDetectors: [{ feedbackAddress: 9, occupied: true, locoAddress: 44 }], canDetectors: [] };

@@ -119,6 +119,8 @@ export interface MeasureDeps {
   drive(address: number, speed: number, forward: boolean): void;
   now?(): number;
   changed?(): void;
+  /** Ende einer Messreihe, für den Verlauf */
+  log?(address: number, text: string, ok: boolean): void;
 }
 
 type Live = LayoutLiveState & { connected: boolean };
@@ -246,6 +248,7 @@ export class CalibrationRunner {
     const r = this.run!;
     this.last = { address: r.address, steps: r.steps, index: r.index, running: false, results: r.results };
     this.run = undefined;
+    this.deps.log?.(r.address, `Messreihe abgeschlossen (${r.results.length} Fahrstufen)`, true);
     this.deps.changed?.();
   }
 
@@ -256,6 +259,7 @@ export class CalibrationRunner {
     if (halt) this.drive(0, r.forward);
     this.last = { address: r.address, steps: r.steps, index: r.index, running: false, results: r.results, error };
     this.run = undefined;
+    this.deps.log?.(r.address, `Messreihe abgebrochen: ${error}`, false);
     this.deps.changed?.();
   }
 }

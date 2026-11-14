@@ -8,7 +8,10 @@ import { JsonFile } from "./json-file.js";
  * Sicherung (SignalBox), eine Regel kann sie nicht umgehen.
  */
 
-export interface RuleTrigger { type: "block"; blockId: string; occupied: boolean; /** Zustand muss so lange anhalten (ms) */ holdMs?: number }
+export type RuleTrigger =
+  | { type: "block"; blockId: string; occupied: boolean; /** Zustand muss so lange anhalten (ms) */ holdMs?: number }
+  /** Taster: die Regel läuft, wenn jemand sie in der Bedienung anstößt (Ablauf/Makro) */
+  | { type: "manual" };
 
 export type RuleCondition =
   | { type: "block"; blockId: string; occupied: boolean }
@@ -62,10 +65,13 @@ export function validateRules(raw: unknown): LayoutRule[] {
     const name = (typeof a.name === "string" ? a.name.trim().slice(0, 60) : "") || `Regel ${i + 1}`;
 
     const t = obj(a.trigger, `${name}: Auslöser`);
-    if (t.type !== "block") fail(`${name}: unbekannter Auslöser`);
-    const trigger: RuleTrigger = { type: "block", blockId: ref(t.blockId, `${name}: Block des Auslösers`), occupied: t.occupied === true };
-    const holdMs = ms(t.holdMs, `${name}: Haltezeit`);
-    if (holdMs) trigger.holdMs = holdMs;
+    let trigger: RuleTrigger;
+    if (t.type === "manual") trigger = { type: "manual" };
+    else if (t.type === "block") {
+      trigger = { type: "block", blockId: ref(t.blockId, `${name}: Block des Auslösers`), occupied: t.occupied === true };
+      const holdMs = ms(t.holdMs, `${name}: Haltezeit`);
+      if (holdMs) trigger.holdMs = holdMs;
+    } else return fail(`${name}: unbekannter Auslöser`);
 
     const conds = a.conditions === undefined ? [] : Array.isArray(a.conditions) ? a.conditions : fail(`${name}: Bedingungen ungültig`);
     if (conds.length > MAX_CONDITIONS) fail(`${name}: zu viele Bedingungen`);
@@ -93,6 +99,7 @@ export function validateRules(raw: unknown): LayoutRule[] {
       if (delayMs) action.delayMs = delayMs;
       return action;
     });
+    if (trigger.type === "manual" && actions.some((x) => x.type === "stopLoco")) fail(`${name}: „Lok im Block anhalten“ braucht einen Block als Auslöser`);
     return { id, name, enabled: a.enabled !== false, trigger, conditions, actions };
   });
 }
@@ -110,7 +117,7 @@ export function missingRefs(rule: LayoutRule, layout: Layout): string[] {
     if (!t) out.add("Weiche/Signal fehlt im Gleisbild");
     else if (state >= stateCount(t)) out.add("Lage gibt es bei diesem Feld nicht");
   };
-  block(rule.trigger.blockId);
+  if (rule.trigger.type === "block") block(rule.trigger.blockId);
   for (const c of rule.conditions) { if (c.type === "block") block(c.blockId); else if (c.type === "tile") tile(c.tileId, c.state); else route(c.routeId); }
   for (const a of rule.actions) { if (a.type === "tile") tile(a.tileId, a.state); else if (a.type === "route") route(a.routeId); }
   return [...out];
@@ -213,6 +220,8 @@ export class LayoutRuleEngine {
     private cooldownMs = 2000,
     /** nach jedem neuen Ergebnis (Oberfläche auffrischen) */
     private changed: () => void = () => {},
+    /** jedes Ergebnis einer Aktion, für den Verlauf */
+    private log: (rule: LayoutRule, text: string, ok: boolean) => void = () => {},
   ) {}
 
   /** Bei jeder Zustandsänderung der Zentrale aufrufen. */
@@ -231,13 +240,34 @@ export class LayoutRuleEngine {
     }
     for (const [blockId, occupied] of changes) {
       for (const rule of this.store.list()) {
-        if (!rule.enabled || rule.trigger.blockId !== blockId || rule.trigger.occupied !== occupied) continue;
+        const tr = rule.trigger;
+        if (!rule.enabled || tr.type !== "block" || tr.blockId !== blockId || tr.occupied !== occupied) continue;
         if (missingRefs(rule, layout).length) continue;
         const g = this.gen.get(blockId);
-        if (rule.trigger.holdMs) this.later(rule.trigger.holdMs, () => { if (this.known.get(blockId) === occupied && this.gen.get(blockId) === g) this.fire(rule.id); });
+        if (tr.holdMs) this.later(tr.holdMs, () => { if (this.known.get(blockId) === occupied && this.gen.get(blockId) === g) this.fire(rule.id); });
         else this.fire(rule.id);
       }
     }
+  }
+
+  /** Taster: eine Regel mit Auslöser „manual“ von Hand anstoßen. Wirft mit einer klaren Meldung, wenn das nicht geht. */
+  runManual(ruleId: string): RuleStatus {
+    const rule = this.store.list().find((r) => r.id === ruleId);
+    if (!rule || rule.trigger.type !== "manual") throw Object.assign(new Error("Ablauf nicht gefunden"), { statusCode: 404 });
+    const refuse = (m: string): never => { throw Object.assign(new Error(m), { statusCode: 409 }); };
+    if (!rule.enabled) refuse("Der Ablauf ist ausgeschaltet");
+    if (!this.live) refuse("Keine Verbindung zur Zentrale");
+    const broken = missingRefs(rule, this.layout());
+    if (broken.length) refuse(`Der Ablauf läuft nicht: ${broken.join("; ")}`);
+    if (this.now() - (this.lastFired.get(rule.id) ?? -Infinity) < this.cooldownMs) refuse("Der Ablauf wurde gerade erst ausgelöst");
+    this.fire(rule.id);
+    return this.status.get(rule.id)!;
+  }
+
+  /** Abläufe für die Bedienung: eingeschaltete Regeln mit Taster, die ausführbar sind. */
+  macros(): { id: string; name: string }[] {
+    const layout = this.layout();
+    return this.store.list().filter((r) => r.enabled && r.trigger.type === "manual" && !missingRefs(r, layout).length).map((r) => ({ id: r.id, name: r.name }));
   }
 
   private fire(ruleId: string) {
@@ -256,7 +286,7 @@ export class LayoutRuleEngine {
     this.lastFired.set(rule.id, t);
     const status: RuleStatus = { ts: t, results: [] };
     this.status.set(rule.id, status);
-    const report = (text: string, ok: boolean) => { status.results.push({ text, ok }); this.changed(); };
+    const report = (text: string, ok: boolean) => { status.results.push({ text, ok }); this.log(rule, text, ok); this.changed(); };
     for (const a of rule.actions) {
       const run = () => { void this.run(rule, a, report); };
       if (a.delayMs) this.later(a.delayMs, run); else run();
@@ -282,7 +312,7 @@ export class LayoutRuleEngine {
           report(`${name} aufgelöst`, true);
         }
       } else {
-        const locos = this.act.locosIn(rule.trigger.blockId);
+        const locos = rule.trigger.type === "block" ? this.act.locosIn(rule.trigger.blockId) : [];
         if (!locos.length) { report("Keine Lok im Block erkannt", false); return; }
         for (const addr of locos) this.act.stopLoco(addr);
         report(`Lok ${locos.join(", ")} angehalten`, true);
@@ -319,4 +349,6 @@ export class LayoutRuleEngine {
 export function registerLayoutRuleRoutes(app: FastifyInstance, store: LayoutRuleStore, engine: LayoutRuleEngine) {
   app.get("/api/layout-rules", async () => engine.view());
   app.put<{ Body: unknown }>("/api/layout-rules", async (req) => { store.set(req.body); return engine.view(); });
+  // Taster in der Bedienung: auch für Benutzer ohne Admin-Rolle (roles.ts)
+  app.post<{ Params: { id: string } }>("/api/layout-rules/:id/run", async (req) => engine.runManual(req.params.id));
 }

@@ -69,6 +69,8 @@ export interface JourneyDeps {
   stopDriving(trainId: string, text: string): void;
   now?(): number;
   changed?(): void;
+  /** Start und Ende einer Zielfahrt, für den Verlauf */
+  log?(journey: Journey, text: string, ok: boolean): void;
 }
 
 export class JourneyRunner {
@@ -107,6 +109,7 @@ export class JourneyRunner {
     const journey: Journey = { id: randomBytes(4).toString("hex"), trainId: train.id, targetBlockId: target.id, routeIds, leg: 0, status: "waiting", since: this.now() };
     if (o.drive) journey.drive = o.drive as "forward" | "reverse";
     this.journeys.push(journey);
+    this.deps.log?.(journey, `gestartet (${routeIds.length} ${routeIds.length === 1 ? "Abschnitt" : "Abschnitte"}${journey.drive ? ", Server fährt" : ""})`, true);
     this.tick();
     return journey;
   }
@@ -186,6 +189,7 @@ export class JourneyRunner {
     j.reason = reason;
     j.since = this.now();
     this.lastTry.delete(j.id);
+    this.deps.log?.(j, status === "done" ? "angekommen" : reason ?? status, status === "done");
     this.deps.changed?.();
   }
 }

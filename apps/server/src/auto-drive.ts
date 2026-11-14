@@ -41,6 +41,8 @@ export interface DriveDeps {
   changed?(): void;
   /** Lok steht im Ziel (nicht bei Abbruch) */
   arrived?(order: DriveOrder): void;
+  /** jedes Ende eines Auftrags, für den Verlauf */
+  log?(order: DriveOrder, text: string, ok: boolean): void;
 }
 
 interface Job { order: DriveOrder; phase: DrivePhase; createdAt: number; startedAt?: number; commandedAt: number; timer?: NodeJS.Timeout }
@@ -176,6 +178,7 @@ export class AutoDriver {
     this.jobs.delete(job.order.trainId);
     if (halt) this.command(job, 0);
     this.results.set(job.order.trainId, { trainId: job.order.trainId, routeId: job.order.routeId, ok, text, ts: this.now() });
+    this.deps.log?.(job.order, text, ok);
     this.deps.changed?.();
   }
 
