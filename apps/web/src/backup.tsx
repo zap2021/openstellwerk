@@ -2,9 +2,9 @@ import { useRef, useState } from "react";
 import { api } from "./api";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
-type Part = "garage" | "layout" | "cameras" | "trains" | "timetable" | "locoImages" | "automations" | "achievements" | "users";
+type Part = "garage" | "layout" | "cameras" | "trains" | "timetable" | "locoImages" | "automations" | "layoutRules" | "achievements" | "users";
 
-const LABEL: Record<Part, string> = { garage: "Loks (Namen, Funktionsbezeichnungen, von Hand ergänzte Loks)", layout: "Gleisbild mit Blöcken und Fahrstraßen", cameras: "Kameras", trains: "Züge (ohne Standort)", timetable: "Fahrplan", locoImages: "Lok-Bilder", automations: "Automatismen der Loks", achievements: "Erfolge und Zähler", users: "Benutzer (mit Passwort-Hashes)" };
+const LABEL: Record<Part, string> = { garage: "Loks (Namen, Funktionsbezeichnungen, von Hand ergänzte Loks)", layout: "Gleisbild mit Blöcken und Fahrstraßen", cameras: "Kameras", trains: "Züge (ohne Standort)", timetable: "Fahrplan", locoImages: "Lok-Bilder", automations: "Automatismen der Loks", layoutRules: "Regeln der Anlage", achievements: "Erfolge und Zähler", users: "Benutzer (mit Passwort-Hashes)" };
 const countOf = (b: Record<string, unknown>, p: Part) =>
   p === "layout" ? (b.layout as { tiles?: unknown[] } | undefined)?.tiles?.length
   : p === "timetable" ? (b.timetable as { trips?: unknown[] } | undefined)?.trips?.length
