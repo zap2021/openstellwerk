@@ -77,6 +77,26 @@ Bei Netzwerkkameras einen kleinen Stream (Substream) wählen, jedes Bild läuft 
 
 Build und manueller Produktionsstart wurden auf einem Raspberry Pi mit Raspbian 11 (ARMv7) getestet; die vollständige Installation als Dienst noch nicht.
 
+### Version und Update
+
+Die installierte Version steht oben in der Kopfzeile neben „Z21 Web“ (z. B. `v0.2.0`) und über `GET /api/version`. Sie kommt aus dem `version`-Feld der `package.json`; Releases sind Git-Tags der Form `vX.Y.Z` auf `git.wuelfi.ng`.
+
+Ein automatischer Update-Mechanismus ist noch nicht gebaut (Issue #1). Bis dahin wird von Hand aktualisiert; die Daten in `/var/lib/z21-web` und `/etc/z21-web.env` bleiben dabei unberührt:
+
+```bash
+# auf dem Rechner mit dem Checkout (neue Version ausgecheckt, z. B. git checkout v0.2.0)
+rsync -az --delete --exclude=.git --exclude=node_modules --exclude='*/node_modules' --exclude='*/dist' ./ <pi>:/tmp/z21-new/
+
+# auf dem Pi
+sudo tar -czf ~/z21-web-backup-$(date +%Y%m%d).tgz --exclude=node_modules -C / opt/z21-web var/lib/z21-web   # Sicherung
+sudo rsync -a --delete --exclude=node_modules --exclude='*/node_modules' --exclude='*/dist' /tmp/z21-new/ /opt/z21-web/
+sudo chown -R z21: /opt/z21-web && sudo systemctl stop z21-web
+sudo runuser -u z21 -- env PATH="/opt/z21-web-node/bin:/usr/bin:/bin" bash -c 'cd /opt/z21-web && npm ci && npm run build'
+sudo systemctl start z21-web && sudo journalctl -u z21-web -n 20 --no-pager
+```
+
+(`/opt/z21-web-node/bin` gilt, wenn das Skript Node.js selbst installiert hat; sonst den Pfad des systemweiten Node verwenden.)
+
 ## Tests
 
 ```bash
@@ -158,7 +178,7 @@ Unter **Bedienen → Fahren** gibt es unter den Funktionen den Bereich **Automat
 - **Bedingungen** (alle müssen zutreffen): Richtung, fährt/steht, Funktion ein/aus.
 - **Aktionen:** Funktion F0–F28 ein-, ausschalten oder umschalten, optional mit Verzögerung und (beim Einschalten) mit Dauer.
 
-Die Funktionsbezeichnungen der Lok erscheinen in den Auswahlfeldern. Gespeichert wird in `automations.json` im Datenordner (noch nicht Teil der Datensicherung). Beschleunigen und Bremsen lösen höchstens alle 3 s aus, alle anderen Auslöser höchstens alle 0,5 s je Automatismus. Eine Funktion, die ein Automatismus eben selbst geschaltet hat, löst 1,5 s lang keinen weiteren aus (Schutz vor Schleifen). Offene Verzögerungen verfallen, wenn die Verbindung getrennt wird. REST: `GET/PUT /api/locos/:addr/automations`.
+Die Funktionsbezeichnungen der Lok erscheinen in den Auswahlfeldern. Gespeichert wird in `automations.json` im Datenordner. Beschleunigen und Bremsen lösen höchstens alle 3 s aus, alle anderen Auslöser höchstens alle 0,5 s je Automatismus. Eine Funktion, die ein Automatismus eben selbst geschaltet hat, löst 1,5 s lang keinen weiteren aus (Schutz vor Schleifen). Offene Verzögerungen verfallen, wenn die Verbindung getrennt wird. REST: `GET/PUT /api/locos/:addr/automations`.
 
 ## Benutzer und Rollen
 
@@ -178,7 +198,7 @@ Zugriff mit **Benutzername und Passwort**, zwei Rollen:
 
 ## Erfolge
 
-Eine kleine Wertung **pro Anlage** (noch ohne Benutzerprofile). Gezählt wird serverseitig: Anfahren und Halten einer Lok, Lok-Nothalt und abgeschlossene Fahrplanfahrten. Beispiele: „Anfahrer“ (zehnmal anfahren), „Fahrdienstleiter“ (zehn Fahrplanfahrten). Die Liste mit Fortschritt steht unter **Verwaltung → Anlage → Erfolge**; dort lässt sich die Wertung auch zurücksetzen. Wird ein Erfolg freigeschaltet, blendet die Abfahrtstafel (`#/anzeige`) ihn 15 Sekunden lang groß ein. Gespeichert in `achievements.json`; Erfolge und Zähler sind Teil der Datensicherung.
+Eine kleine Wertung **pro Anlage** (zusätzlich je Benutzer, siehe oben). Gezählt wird serverseitig: Anfahren und Halten einer Lok, Lok-Nothalt und abgeschlossene Fahrplanfahrten. Beispiele: „Anfahrer“ (zehnmal anfahren), „Fahrdienstleiter“ (zehn Fahrplanfahrten). Die Liste mit Fortschritt steht unter **Verwaltung → Anlage → Erfolge**; dort lässt sich die Wertung auch zurücksetzen. Wird ein Erfolg freigeschaltet, blendet die Abfahrtstafel (`#/anzeige`) ihn 15 Sekunden lang groß ein. Gespeichert in `achievements.json`; Erfolge und Zähler sind Teil der Datensicherung.
 
 ## Datensicherung
 
@@ -189,6 +209,7 @@ Unter **Verwaltung → Datensicherung** lädst du alles herunter, was du in der 
 - **Züge und Fahrplan:** Züge (ohne Standort), Fahrten und Verspätungsgrenze
 - **Lok-Bilder:** die kleinen Bilder der Loks (standardmäßig dabei, über „Lok-Bilder einschließen“ abwählbar); die Datei wird dadurch etwas größer
 - **Automatismen** der Loks und **Erfolge** mit Zählern
+- **Benutzer** mit Rollen und Passwort-Hashes (Wiederherstellen verlangt mindestens einen aktiven Admin)
 - **Kameras:** Kamera-Passwörter nur, wenn du sie ausdrücklich einschließt (sie stehen dann im Klartext in der Datei)
 
 Beim Wiederherstellen wählst du die Teile einzeln aus. Alles wird vorher geprüft; ist ein Teil fehlerhaft, ändert sich nichts. Das Gleisbild lässt sich nicht ersetzen, solange Fahrstraßen angefordert sind. Fahrzustand, Weichenlagen, CVs, Uhr und Netzwerk-Einstellungen liegen in der Z21 selbst und gehören nicht dazu. Das Gleisbild allein kannst du weiter im Editor exportieren und importieren.

@@ -6,7 +6,7 @@ import type { Role } from "./users.js";
  * Fahren, Schalten, Fahrstraßen, Nothalt, Ansehen und das eigene Profil dürfen alle Angemeldeten.
  */
 const USER_ROUTES: [method: string, pattern: RegExp][] = [
-  ["GET", /^\/api\/(state|me|loco\/\d+|loco\/\d+\/mode|turnout\/\d+|turnout\/\d+\/mode|accessory\/\d+|layout|interlocking|timetable|trains|cameras|camera\/[^/]+\/feed|achievements|achievements\/me|garage\/\d+\/image|locos\/\d+\/automations)$/],
+  ["GET", /^\/api\/(state|version|me|loco\/\d+|loco\/\d+\/mode|turnout\/\d+|turnout\/\d+\/mode|accessory\/\d+|layout|interlocking|timetable|trains|cameras|camera\/[^/]+\/feed|achievements|achievements\/me|garage\/\d+\/image|locos\/\d+\/automations)$/],
   ["GET", /^\/ws$/],
   ["POST", /^\/api\/(estop|accessory-estop|power|turnout\/\d+|accessory\/\d+)$/],
   ["POST", /^\/api\/loco\/\d+\/(drive|stop|estop|function\/\d+|function-group|binary-state)$/],

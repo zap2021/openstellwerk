@@ -9,6 +9,7 @@ import { Station } from "./station.js";
 import { Garage } from "./garage.js";
 import { LocoImageStore, registerLocoImageRoutes, syncGarageImages } from "./loco-images.js";
 import { registerMaintenanceRoutes } from "./maintenance.js";
+import { readVersion } from "./version.js";
 import { CameraStore, registerCameraRoutes } from "./cameras.js";
 import { discover } from "./z21-client.js";
 import { exposureProblem, registerAuth } from "./auth.js";
@@ -68,6 +69,8 @@ const int = (v: unknown, min: number, max: number, name: string) => {
 };
 
 app.get("/api/state", async () => station.snapshot());
+const appVersion = readVersion();
+app.get("/api/version", async () => ({ version: appVersion }));
 app.get("/api/discover", async () => discover());
 
 app.post<{ Body: { host: string; port?: number } }>("/api/connect", async (req) => {

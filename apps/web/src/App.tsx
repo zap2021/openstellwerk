@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, useStation, type LocoNetLine, type SessionUser, type StationState } from "./api";
 import { ProfilePage } from "./profile";
 import { AdminView } from "./admin";
@@ -32,6 +32,8 @@ function Main({ logout, user, refresh }: { logout?: () => void; user?: SessionUs
   const [route, go] = useRoute();
   const { cameras, reload: reloadCameras } = useCameras();
   const [error, setError] = useState<string>();
+  const [version, setVersion] = useState<string>();
+  useEffect(() => { if (online) api<{ version: string }>("GET", "/api/version").then((v) => setVersion(v.version), () => {}); }, [online]);
   const run: Run = async (p) => { try { setError(undefined); await p; } catch (e) { setError((e as Error).message); } };
 
   const connected = !!state?.connected;
@@ -45,6 +47,7 @@ function Main({ logout, user, refresh }: { logout?: () => void; user?: SessionUs
       <div className="app">
         <header>
           <h1>Z21 Web</h1>
+          {version && <small className="version" title="Installierte Version">v{version}</small>}
           <span className={`dot ${connected ? "ok" : online ? "warn" : "bad"}`} />
           {state?.demo && <span className="demo-badge" title="Simulierte Zentrale ohne Hardware">DEMO</span>}
           <span className="status">{state?.demo ? "Simulierte Zentrale" : connected ? `${state?.hw?.hwName ?? "Z21"} @ ${state?.host}` : online ? "nicht mit Zentrale verbunden" : "Server offline"}</span>

@@ -174,6 +174,7 @@ fieldset.between { border: 1px solid var(--line); border-radius: 8px; margin: 6p
 .areas button.active { background: var(--accent); color: #07101c; }
 header .power { margin-left: auto; }
 header .status { color: var(--muted); }
+header .version { color: var(--muted); font-size: 12px; }
 .operatenav { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0; }
 .operatenav button { padding: 6px 18px; font-size: 16px; }
 .notready { max-width: 560px; margin: 40px auto; text-align: center; } .notready .row { justify-content: center; }
