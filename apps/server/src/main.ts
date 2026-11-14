@@ -10,6 +10,7 @@ import { Garage } from "./garage.js";
 import { LocoImageStore, registerLocoImageRoutes, syncGarageImages } from "./loco-images.js";
 import { registerMaintenanceRoutes } from "./maintenance.js";
 import { readVersion } from "./version.js";
+import { LayoutRuleEngine, LayoutRuleStore, locosInBlock, registerLayoutRuleRoutes } from "./layout-rules.js";
 import { CameraStore, registerCameraRoutes } from "./cameras.js";
 import { discover } from "./z21-client.js";
 import { exposureProblem, registerAuth } from "./auth.js";
@@ -183,6 +184,19 @@ runner.start();
 const demo = new Demo(station, box, 1, runner); // used by /api/connect above, which only runs after start-up
 registerDemoRoutes(app, demo);
 
+/* ---------- layout rules: a detector triggers turnouts, signals, routes or a loco stop ---------- */
+const ruleStore = new LayoutRuleStore(path.join(dataDir, "layout-rules.json"), () => layoutRules.cancelPending());
+const layoutRules: LayoutRuleEngine = new LayoutRuleEngine(ruleStore, () => box.get(), {
+  setTile: (id, state) => box.setTile(id, state), // refuses tiles locked by a route
+  requestRoute: (id) => box.tryRequestRoute(id),
+  releaseRoute: (id) => { box.releaseRoute(id); },
+  activeRoutes: () => box.routeStates().map((r) => r.routeId),
+  locosIn: (blockId) => locosInBlock(box.get(), station.snapshot(), trains.list(), blockId),
+  stopLoco: (addr) => station.stopLoco(addr, station.snapshot().locos.find((l) => l.address === addr)?.forward ?? true),
+});
+station.on("state", (s) => layoutRules.onState(s));
+registerLayoutRuleRoutes(app, ruleStore, layoutRules);
+
 /* ---------- cameras ---------- */
 const cameraStore = new CameraStore(path.join(dataDir, "cameras.json"));
 registerCameraRoutes(app, cameraStore);
@@ -193,7 +207,7 @@ syncGarageImages(station.garage, locoImages);
 registerLocoImageRoutes(app, station.garage, locoImages, () => station.notify());
 
 /* ---------- backup: everything the user maintains that the Z21 does not store ---------- */
-registerBackupRoutes(app, new BackupService(station.garage, box, cameraStore, trains, runner, locoImages, () => station.notify(), { automations: automationStore, achievements, users }));
+registerBackupRoutes(app, new BackupService(station.garage, box, cameraStore, trains, runner, locoImages, () => station.notify(), { automations: automationStore, achievements, users, layoutRules: ruleStore }));
 
 /* ---------- network settings (read-only) ---------- */
 registerMaintenanceRoutes(app, station);

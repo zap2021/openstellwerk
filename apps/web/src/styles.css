@@ -222,6 +222,7 @@ header .version { color: var(--muted); font-size: 12px; }
 .automation { border-top: 1px solid var(--line); padding: 8px 0; }
 .automation input[type=number] { width: 64px; }
 .automation input:not([type]) { flex: 1; min-width: 140px; }
+.rule-failed { color: var(--warn); }
 
 /* ---- Erfolge ---- */
 .achievement-banner { position: fixed; left: 50%; top: 24px; transform: translateX(-50%); z-index: 50; display: flex; gap: 16px; align-items: center; padding: 18px 28px; border-radius: 14px; background: var(--surface-2); border: 2px solid var(--accent, #d4a017); box-shadow: 0 8px 30px rgba(0,0,0,.35); animation: banner-in .4s ease-out; max-width: 90vw; }

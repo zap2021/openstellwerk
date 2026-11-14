@@ -180,6 +180,18 @@ Unter **Bedienen → Fahren** gibt es unter den Funktionen den Bereich **Automat
 
 Die Funktionsbezeichnungen der Lok erscheinen in den Auswahlfeldern. Gespeichert wird in `automations.json` im Datenordner. Beschleunigen und Bremsen lösen höchstens alle 3 s aus, alle anderen Auslöser höchstens alle 0,5 s je Automatismus. Eine Funktion, die ein Automatismus eben selbst geschaltet hat, löst 1,5 s lang keinen weiteren aus (Schutz vor Schleifen). Offene Verzögerungen verfallen, wenn die Verbindung getrennt wird. REST: `GET/PUT /api/locos/:addr/automations`.
 
+## Regeln der Anlage (Rückmelder lösen etwas aus)
+
+Unter **Verwaltung → Anlage → Regeln** (Admin) legst du Regeln nach dem Muster **Auslöser → Bedingungen → Aktionen** an, unabhängig von einer Lok:
+
+- **Auslöser:** Ein Block wird belegt oder frei, auf Wunsch erst, wenn das eine einstellbare Zeit so bleibt (gegen flackernde Melder).
+- **Bedingungen** (alle müssen zutreffen): anderer Block belegt/frei, Weiche oder Signal in bestimmter Lage, Fahrstraße angefordert oder nicht.
+- **Aktionen** (optional verzögert): Weiche oder Signal stellen, Fahrstraße anfordern oder auflösen, die Lok im auslösenden Block anhalten.
+
+Alle Stellbefehle laufen über die Sicherung: Ein von einer Fahrstraße verriegeltes Feld wird nicht umgestellt, eine abgelehnte Fahrstraße bleibt abgelehnt. „Lok anhalten“ wirkt nur, wenn der Block eine Lok kennt (Melder mit Lokerkennung über LocoNet/CAN oder ein Zug mit Standort im Block); sonst passiert nichts. Unter jeder Regel steht, wann sie zuletzt ausgelöst hat und was dabei herauskam, z. B. „Fahrstraße abgelehnt: …“.
+
+Das erste Lesen der Melder nach dem Verbinden löst nichts aus, ein ausgefallener Melder gilt weder als belegt noch als frei, und jede Regel löst höchstens alle 2 s aus. Verweist eine Regel auf einen Block, ein Feld oder eine Fahrstraße, die es im Gleisbild nicht mehr gibt, läuft sie nicht und wird markiert. Gespeichert in `layout-rules.json` im Datenordner, Teil der Datensicherung. REST: `GET/PUT /api/layout-rules`.
+
 ## Benutzer und Rollen
 
 Zugriff mit **Benutzername und Passwort**, zwei Rollen:
@@ -187,7 +199,7 @@ Zugriff mit **Benutzername und Passwort**, zwei Rollen:
 | Rolle | Darf |
 |---|---|
 | **Benutzer** | Fahren, Weichen und Signale schalten, Fahrstraßen anfordern, Nothalt, Fahrplan und Stellwerk ansehen, Lok-Bilder ändern, eigenes Profil (Anzeigename, Passwort) und eigene Erfolge |
-| **Admin** | zusätzlich die ganze Verwaltung: Benutzer, Gleisbild, Züge, Fahrplan, Kameras, CV-Programmierung, Netzwerk, Datensicherung, Automatismen, Zurücksetzen der Erfolge |
+| **Admin** | zusätzlich die ganze Verwaltung: Benutzer, Gleisbild, Regeln, Züge, Fahrplan, Kameras, CV-Programmierung, Netzwerk, Datensicherung, Automatismen, Zurücksetzen der Erfolge |
 
 - **Erster Start:** Gibt es keine `users.json` und ist `Z21_PASSWORD` gesetzt, entsteht der Admin `admin` mit diesem Passwort (einmalige Neuanmeldung). Danach gilt das Konto; `Z21_PASSWORD` wird nicht mehr zum Anmelden benutzt. Läuft der Server nur lokal ohne Passwort und ohne Konten, ist alles offen wie bisher; das erste in der Verwaltung angelegte Konto wird Admin und schaltet die Anmeldung ein.
 - **Verwaltung → Anlage → Benutzer** (Admin): anlegen, Rolle ändern, sperren, Passwort setzen, löschen. Der letzte aktive Admin lässt sich nicht löschen, sperren oder herabstufen. Rollenwechsel und Sperren wirken sofort.
@@ -208,7 +220,7 @@ Unter **Verwaltung → Datensicherung** lädst du alles herunter, was du in der 
 - **Gleisbild:** Felder, Blöcke und Fahrstraßen
 - **Züge und Fahrplan:** Züge (ohne Standort), Fahrten und Verspätungsgrenze
 - **Lok-Bilder:** die kleinen Bilder der Loks (standardmäßig dabei, über „Lok-Bilder einschließen“ abwählbar); die Datei wird dadurch etwas größer
-- **Automatismen** der Loks und **Erfolge** mit Zählern
+- **Automatismen** der Loks, **Regeln der Anlage** und **Erfolge** mit Zählern
 - **Benutzer** mit Rollen und Passwort-Hashes (Wiederherstellen verlangt mindestens einen aktiven Admin)
 - **Kameras:** Kamera-Passwörter nur, wenn du sie ausdrücklich einschließt (sie stehen dann im Klartext in der Datei)
 

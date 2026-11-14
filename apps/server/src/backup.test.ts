@@ -12,6 +12,7 @@ import { Station } from "./station.js";
 import { TrainStore } from "./trains.js";
 import { TimetableRunner } from "./timetable.js";
 import { AutomationStore } from "./automations.js";
+import { LayoutRuleStore } from "./layout-rules.js";
 import { AchievementStore } from "./achievements.js";
 import { UserStore } from "./users.js";
 
@@ -26,6 +27,7 @@ const runner = new TimetableRunner(station, box, trains);
 const automations = new AutomationStore();
 const achievements = new AchievementStore(undefined);
 const users = new UserStore();
+const layoutRules = new LayoutRuleStore();
 const app = Fastify();
 
 const layout = {
@@ -35,7 +37,7 @@ const layout = {
 };
 
 beforeAll(async () => {
-  registerBackupRoutes(app, new BackupService(garage, box, cameras, trains, runner, images, () => station.notify(), { automations, achievements, users }));
+  registerBackupRoutes(app, new BackupService(garage, box, cameras, trains, runner, images, () => station.notify(), { automations, achievements, users, layoutRules }));
   await app.ready();
   garage.upsert(3, { name: "V 200", functionNames: { 0: "Licht", 2: "Horn" }, source: "manual" });
   garage.upsert(1000, { name: "Dampflok" });
@@ -279,6 +281,20 @@ it("restoring the garage removes the pictures of locos that are gone, and keeps 
   expect(images.has(1000)).toBe(false);
   expect(images.has(3)).toBe(true);
   expect(garage.get(3)!.imageVersion).toBe(images.version(3));
+});
+
+it("backs up and restores the rules of the layout, and changes nothing when they are bad", async () => {
+  const rule = { id: "r", name: "Halt", enabled: true, trigger: { type: "block", blockId: "b1", occupied: true }, conditions: [], actions: [{ type: "stopLoco" }] };
+  layoutRules.set([rule]);
+  const backup = await get();
+  expect(backup.layoutRules).toEqual([rule]);
+  layoutRules.set([]);
+  expect((await restore({ backup, parts: ["layoutRules"] })).json()).toEqual({ restored: { layoutRules: 1 } });
+  expect(layoutRules.list()).toEqual([rule]);
+  const res = await restore({ backup: { ...backup, layoutRules: [{ id: "x" }] }, parts: ["layoutRules"] });
+  expect(res.statusCode).toBe(400);
+  expect(layoutRules.list()).toEqual([rule]);
+  layoutRules.set([]);
 });
 
 it("backs up and restores automations and achievements", async () => {
