@@ -103,8 +103,19 @@ export interface LocoNetLine {
 
 export interface WireLine { dir: "tx" | "rx"; hex: string; message?: { type: string }; ts: number }
 
+/** What to show when a request never reached the server (browsers only say "Load failed" or "Failed to fetch"). */
+export const UNREACHABLE = "Der Server ist nicht erreichbar. Prüfe, ob dieses Gerät im selben Netz ist, und lade die Seite neu.";
+
+/** fetch that reports a network failure in plain words; an aborted request stays an abort. */
+export async function request(url: string, init?: RequestInit): Promise<Response> {
+  try { return await fetch(url, init); } catch (e) {
+    if ((e as Error).name === "AbortError") throw e;
+    throw new Error(UNREACHABLE);
+  }
+}
+
 export async function api<T = unknown>(method: string, url: string, body?: unknown): Promise<T> {
-  const res = await fetch(url, {
+  const res = await request(url, {
     method,
     headers: body ? { "content-type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,

@@ -1,3 +1,4 @@
+import { request } from "./api";
 /** Pictures of locos: shrunk in the browser to a small JPEG, then uploaded. The server only stores them. */
 
 export const MAX_SIDE = 256;
@@ -41,7 +42,7 @@ export async function resizeToJpeg(file: Blob, max = MAX_SIDE): Promise<Blob> {
 
 /** Upload the picture (raw JPEG body). Errors carry the server's message, like the api() helper. */
 export async function uploadLocoImage(address: number, jpeg: Blob): Promise<number> {
-  const res = await fetch(`/api/garage/${address}/image`, { method: "PUT", headers: { "content-type": "image/jpeg" }, body: jpeg });
+  const res = await request(`/api/garage/${address}/image`, { method: "PUT", headers: { "content-type": "image/jpeg" }, body: jpeg });
   const json = await res.json().catch(() => ({}));
   if (res.status === 401) window.dispatchEvent(new Event("z21-unauthorized"));
   if (!res.ok) throw new Error(json.message ?? res.statusText);
