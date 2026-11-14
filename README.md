@@ -79,12 +79,38 @@ Build und manueller Produktionsstart wurden auf einem Raspberry Pi mit Raspbian 
 
 ### Version und Update
 
-Die installierte Version steht oben in der Kopfzeile neben „Z21 Web“ (z. B. `v0.2.0`) und über `GET /api/version`. Sie kommt aus dem `version`-Feld der `package.json`; Releases sind Git-Tags der Form `vX.Y.Z` auf `git.wuelfi.ng`.
+Die installierte Version steht oben in der Kopfzeile neben „Z21 Web“ (z. B. `v0.4.0`) und über `GET /api/version`. Sie kommt aus dem `version`-Feld der `package.json`; Releases sind Git-Tags der Form `vX.Y.Z` auf `git.wuelfi.ng`.
 
-Ein automatischer Update-Mechanismus ist noch nicht gebaut (Issue #1). Bis dahin wird von Hand aktualisiert; die Daten in `/var/lib/z21-web` und `/etc/z21-web.env` bleiben dabei unberührt:
+**Update aus der Oberfläche** (Verwaltung → Verbindung → Update, nur Admin). Der Server fragt die Git-Plattform alle 12 Stunden nach dem neuesten Release; Admins sehen dann oben „Update vX.Y.Z“. Die Seite zeigt die Release-Notizen und spielt die Version auf Knopfdruck ein:
+
+1. Archiv des Release-Tags laden und in einen Arbeitsordner entpacken (`<Datenordner>/update/staging`)
+2. dort `npm ci` und `npm run build`
+3. Probelauf: Die neue Version startet auf einem freien Port mit leerem Datenordner und muss antworten
+4. die laufende Installation nach `<Datenordner>/update/previous` sichern
+5. die neue Version einspielen und den Prozess beenden; systemd startet ihn neu (`Restart=on-failure`)
+
+Scheitert ein Schritt vor 5, bleibt die laufende Installation unberührt und die Seite zeigt den Grund. Die Anwendungsdaten werden nie angefasst. Solange Fahrstraßen angefordert sind oder eine Zielfahrt, eine Fahrplanfahrt oder eine Messreihe läuft, startet kein Update. Alles läuft als Dienstbenutzer, ohne root; auf einem Raspberry Pi 3 dauert es einige Minuten.
+
+Einstellungen in `/etc/z21-web.env` (danach `sudo systemctl restart z21-web`):
+
+| Variable | Bedeutung |
+|---|---|
+| `Z21_UPDATE_TOKEN` | Zugriffstoken der Git-Plattform. Nötig, wenn das Repository nicht öffentlich ist (auf `git.wuelfi.ng` unter Einstellungen → Anwendungen ein Token nur mit Leserecht auf Repositories erzeugen). |
+| `Z21_UPDATE_URL`, `Z21_UPDATE_REPO` | Git-Plattform (Forgejo/Gitea) und Repository, Standard `https://git.wuelfi.ng` und `sebastian/z21-web` |
+| `Z21_UPDATE_CHECK=0` | keine regelmäßige Prüfung (die Seite kann weiter von Hand prüfen) |
+
+**Zurück zur vorherigen Version**, falls die neue nach dem Neustart Ärger macht (über SSH):
 
 ```bash
-# auf dem Rechner mit dem Checkout (neue Version ausgecheckt, z. B. git checkout v0.2.0)
+sudo systemctl stop z21-web
+sudo rsync -a --delete /var/lib/z21-web/update/previous/ /opt/z21-web/
+sudo chown -R z21: /opt/z21-web && sudo systemctl start z21-web
+```
+
+**Update von Hand** (ohne Zugriff des Pi auf die Git-Plattform); die Daten in `/var/lib/z21-web` und `/etc/z21-web.env` bleiben unberührt:
+
+```bash
+# auf dem Rechner mit dem Checkout (neue Version ausgecheckt, z. B. git checkout v0.4.0)
 rsync -az --delete --exclude=.git --exclude=node_modules --exclude='*/node_modules' --exclude='*/dist' ./ <pi>:/tmp/z21-new/
 
 # auf dem Pi
@@ -96,6 +122,10 @@ sudo systemctl start z21-web && sudo journalctl -u z21-web -n 20 --no-pager
 ```
 
 (`/opt/z21-web-node/bin` gilt, wenn das Skript Node.js selbst installiert hat; sonst den Pfad des systemweiten Node verwenden.)
+
+### Als App auf dem Handy oder Tablet
+
+Die Seite bringt ein App-Icon und ein Web-Manifest mit. Auf **iOS/iPadOS** in Safari „Teilen → Zum Home-Bildschirm“: Die Oberfläche startet dann ohne Browserleisten, auch ohne HTTPS. Unter **Android** legt Chrome ohne HTTPS nur ein Lesezeichen mit Icon an; als eigenständige App lässt sie sich erst mit HTTPS und einem gültigen Zertifikat installieren (siehe „HTTPS“ oben, am einfachsten mit Caddy). In jedem Browser schaltet der Knopf ⤢ oben rechts auf **Vollbild**.
 
 ## Tests
 
@@ -199,13 +229,17 @@ Die Funktionsbezeichnungen der Lok erscheinen in den Auswahlfeldern. Gespeichert
 
 Unter **Verwaltung → Anlage → Regeln** (Admin) legst du Regeln nach dem Muster **Auslöser → Bedingungen → Aktionen** an, unabhängig von einer Lok:
 
-- **Auslöser:** Ein Block wird belegt oder frei, auf Wunsch erst, wenn das eine einstellbare Zeit so bleibt (gegen flackernde Melder).
+- **Auslöser:** Ein Block wird belegt oder frei, auf Wunsch erst, wenn das eine einstellbare Zeit so bleibt (gegen flackernde Melder). Oder ein **Taster**: Die Regel wird zum Ablauf (Makro) und erscheint mit ihrem Namen als Knopf oben in der Bedienung, auch für Benutzer ohne Admin-Rolle.
 - **Bedingungen** (alle müssen zutreffen): anderer Block belegt/frei, Weiche oder Signal in bestimmter Lage, Fahrstraße angefordert oder nicht.
 - **Aktionen** (optional verzögert): Weiche oder Signal stellen, Fahrstraße anfordern oder auflösen, die Lok im auslösenden Block anhalten.
 
 Alle Stellbefehle laufen über die Sicherung: Ein von einer Fahrstraße verriegeltes Feld wird nicht umgestellt, eine abgelehnte Fahrstraße bleibt abgelehnt. „Lok anhalten“ wirkt nur, wenn der Block eine Lok kennt (Melder mit Lokerkennung über LocoNet/CAN oder ein Zug mit Standort im Block); sonst passiert nichts. Unter jeder Regel steht, wann sie zuletzt ausgelöst hat und was dabei herauskam, z. B. „Fahrstraße abgelehnt: …“.
 
 Das erste Lesen der Melder nach dem Verbinden löst nichts aus, ein ausgefallener Melder gilt weder als belegt noch als frei, und jede Regel löst höchstens alle 2 s aus. Verweist eine Regel auf einen Block, ein Feld oder eine Fahrstraße, die es im Gleisbild nicht mehr gibt, läuft sie nicht und wird markiert. Gespeichert in `layout-rules.json` im Datenordner, Teil der Datensicherung. REST: `GET/PUT /api/layout-rules`.
+
+## Verlauf
+
+Unter **Verwaltung → Diagnose → Verlauf** steht, was die Anlage und der Server getan haben: Verbindung, Ende jeder Fahrstraße, Zielfahrten, Fahrautomat, Regeln und Abläufe, beendete oder gestörte Fahrplanfahrten, Messreihen und Updates, jeweils mit Zeit und Ergebnis; „nur Probleme“ filtert auf das, was nicht gelungen ist. Der Server behält die letzten 500 Einträge (`history.json` im Datenordner, nicht Teil der Datensicherung). REST: `GET /api/history`, `DELETE /api/history` (Admin).
 
 ## Benutzer und Rollen
 

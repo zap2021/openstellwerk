@@ -14,6 +14,8 @@ import { AutoDriver, orderFor } from "./auto-drive.js";
 import { JourneyRunner, registerJourneyRoutes } from "./journeys.js";
 import { CalibrationRunner, CalibrationStore, registerCalibrationRoutes } from "./calibration.js";
 import type { Train } from "@z21/timetable";
+import { EventLog, registerHistoryRoutes } from "./history.js";
+import { UpdateService, registerUpdateRoutes } from "./update.js";
 import { LayoutRuleEngine, LayoutRuleStore, locosInBlock, registerLayoutRuleRoutes } from "./layout-rules.js";
 import { CameraStore, registerCameraRoutes } from "./cameras.js";
 import { discover } from "./z21-client.js";
@@ -164,9 +166,22 @@ app.put<{ Params: { addr: string }; Body: { mode: string } }>("/api/turnout/:add
 });
 
 /* ---------- more driving ---------- */
+/* ---------- history: what the layout and the server did ---------- */
+const history = new EventLog(path.join(dataDir, "history.json"));
+registerHistoryRoutes(app, history);
+let wasConnected = false;
+station.on("state", (st) => {
+  if (st.connected === wasConnected) return;
+  wasConnected = st.connected;
+  history.add("verbindung", st.connected ? `Verbunden mit ${st.demo || st.host === "127.0.0.1" ? "der simulierten Zentrale (Demo)" : st.host ?? "der Zentrale"}` : "Verbindung getrennt", st.connected);
+});
+
 /* ---------- signal box: track diagram, routes ---------- */
 const box = new SignalBox(station, path.join(dataDir, "layout.json"));
 registerLayoutRoutes(app, box);
+const routeName = (id: string) => box.get().routes.find((r) => r.id === id)?.name ?? id;
+const ENDED = { completed: "Zug angekommen, aufgelöst", released: "aufgelöst", forced: "Notauflösung", fault: "nach Störung aufgelöst" } as const;
+box.onEnded((e) => history.add("fahrstrasse", `„${routeName(e.routeId)}“: ${ENDED[e.reason]}`, e.reason === "completed" || e.reason === "released"));
 
 /* ---------- automations per loco ---------- */
 const automationStore = new AutomationStore(path.join(dataDir, "automations.json"));
@@ -185,9 +200,16 @@ const trains = new TrainStore(path.join(dataDir, "trains.json"));
 /* ---------- driving by itself: speed tables, the auto driver, journeys to a chosen block ---------- */
 const later = () => { setImmediate(() => station.notify()); }; // never notify from inside a state handler
 const calibrationStore = new CalibrationStore(path.join(dataDir, "calibration.json"), later);
-const calibrationRunner = new CalibrationRunner(calibrationStore, { layout: () => box.get(), drive: (a, sp, f) => station.drive(a, sp, f), changed: later });
+const calibrationRunner = new CalibrationRunner(calibrationStore, {
+  layout: () => box.get(), drive: (a, sp, f) => station.drive(a, sp, f), changed: later,
+  log: (addr, text, ok) => history.add("einmessen", `Lok ${addr}: ${text}`, ok),
+});
+const trainName = (id: string) => trains.get(id)?.name ?? id;
 const routeStatus = (id: string) => box.routeStates().find((r) => r.routeId === id)?.status;
-const driver = new AutoDriver({ layout: () => box.get(), routeStatus, drive: (a, sp, f) => station.drive(a, sp, f), changed: later });
+const driver = new AutoDriver({
+  layout: () => box.get(), routeStatus, drive: (a, sp, f) => station.drive(a, sp, f), changed: later,
+  log: (o, text, ok) => history.add("fahrautomat", `${trainName(o.trainId)} (Lok ${o.address}) auf „${routeName(o.routeId)}“: ${text}`, ok),
+});
 const driveOrder = (train: Train, routeId: string, forward: boolean) => orderFor(train, routeId, forward, calibrationStore.get(train.address));
 const runner = new TimetableRunner(station, box, trains, path.join(dataDir, "timetable.json"), {
   onDeparture: (trip, train) => driver.assign(driveOrder(train, trip.routeId, trip.drive === "forward")),
@@ -204,6 +226,20 @@ const journeys = new JourneyRunner({
   drive: (j, routeId, train) => driver.assign(driveOrder(train, routeId, j.drive === "forward")),
   stopDriving: (id, text) => driver.cancel(id, text),
   changed: later,
+  log: (j, text, ok) => history.add("zielfahrt", `${trainName(j.trainId)} nach „${(box.get().blocks ?? []).find((b) => b.id === j.targetBlockId)?.name ?? j.targetBlockId}“: ${text}`, ok),
+});
+/* Fahrplan: jede Abfahrt, die endet, kommt einmal in den Verlauf. */
+const seenInstances = new Map<string, string>();
+station.on("state", (st) => {
+  const list = st.timetable?.instances ?? [];
+  for (const i of list) {
+    const before = seenInstances.get(i.id);
+    seenInstances.set(i.id, i.status);
+    if (before === undefined || before === i.status || (i.status !== "done" && i.status !== "failed" && i.status !== "cancelled")) continue;
+    const trip = runner.get().trips.find((t) => t.id === i.tripId);
+    history.add("fahrplan", `${trip ? trainName(trip.trainId) : i.tripId}${trip ? ` auf „${routeName(trip.routeId)}“` : ""}: ${i.status === "done" ? "Fahrt beendet" : i.status === "cancelled" ? "entfallen" : `Störung${i.reason ? ` – ${i.reason}` : ""}`}`, i.status === "done");
+  }
+  for (const id of seenInstances.keys()) if (!list.some((i) => i.id === id)) seenInstances.delete(id);
 });
 box.onEnded((e) => journeys.onEnded(e));
 station.on("state", (st) => { driver.onState(st); calibrationRunner.onState(st); });
@@ -227,7 +263,8 @@ const layoutRules: LayoutRuleEngine = new LayoutRuleEngine(ruleStore, () => box.
   activeRoutes: () => box.routeStates().map((r) => r.routeId),
   locosIn: (blockId) => locosInBlock(box.get(), station.snapshot(), trains.list(), blockId),
   stopLoco: (addr) => station.stopLoco(addr, station.snapshot().locos.find((l) => l.address === addr)?.forward ?? true),
-});
+}, Date.now, 2000, () => {}, (rule, text, ok) => history.add("regel", `${rule.name}: ${text}`, ok));
+station.addExtra(() => ({ macros: layoutRules.macros() }));
 station.on("state", (s) => layoutRules.onState(s));
 registerLayoutRuleRoutes(app, ruleStore, layoutRules);
 
@@ -242,6 +279,25 @@ registerLocoImageRoutes(app, station.garage, locoImages, () => station.notify())
 
 /* ---------- backup: everything the user maintains that the Z21 does not store ---------- */
 registerBackupRoutes(app, new BackupService(station.garage, box, cameraStore, trains, runner, locoImages, () => station.notify(), { automations: automationStore, achievements, users, layoutRules: ruleStore, calibration: calibrationStore }));
+
+/* ---------- update: new versions from the git platform (issue #1) ---------- */
+const updates = new UpdateService({
+  baseUrl: process.env.Z21_UPDATE_URL || "https://git.wuelfi.ng",
+  repo: process.env.Z21_UPDATE_REPO || "sebastian/z21-web",
+  token: process.env.Z21_UPDATE_TOKEN || undefined,
+  installDir: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.."),
+  workDir: path.join(dataDir, "update"),
+  current: appVersion,
+}, {
+  blocked: () => (box.routeStates().length ? "Es sind noch Fahrstraßen angefordert; zuerst auflösen"
+    : journeys.list().some((j) => j.status === "waiting" || j.status === "set") ? "Es läuft eine Zielfahrt"
+    : runner.hasRunningDeparture() ? "Es läuft gerade eine Fahrt im Fahrplan"
+    : calibrationRunner.view()?.running ? "Es läuft eine Messreihe" : undefined),
+  log: (text, ok) => history.add("update", text, ok),
+});
+registerUpdateRoutes(app, updates);
+station.addExtra(() => ({ update: updates.summary() }));
+if (process.env.Z21_UPDATE_CHECK !== "0") updates.startChecking();
 
 /* ---------- network settings (read-only) ---------- */
 registerMaintenanceRoutes(app, station);

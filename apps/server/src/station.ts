@@ -119,6 +119,10 @@ export interface StationState {
   /** Timetable clock, trains and upcoming departures (see TimetableRunner). */
   timetable?: TimetableSnapshot;
   achievements?: AchievementView;
+  /** Installed and newest published version (see UpdateService). */
+  update?: { current: string; latest?: string; available: boolean };
+  /** Layout rules with a manual trigger: buttons in the operating view (see LayoutRuleEngine.macros). */
+  macros?: { id: string; name: string }[];
   /** Journeys to a chosen block (see JourneyRunner). */
   journeys?: Journey[];
   /** Locos the server drives right now and how the last drives ended (see AutoDriver). */
