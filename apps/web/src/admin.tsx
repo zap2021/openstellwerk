@@ -48,6 +48,14 @@ export function adminPages(state?: StationState): AdminPage[] {
 function StationTab({ state, run }: { state?: StationState; run: Run }) {
   const [host, setHost] = useState("192.168.0.111");
   const [found, setFound] = useState<{ host: string; serial: number }[]>();
+  const [example, setExample] = useState<"bahnhof" | "rundkurs">("bahnhof");
+  const startDemo = () => {
+    const hasLayout = (state?.layout?.tiles.length ?? 0) > 0;
+    // The marker of each example: the loop has a block "nord", the station a block "zufahrt".
+    const loaded = state?.layout?.blocks?.some((b) => b.id === (example === "rundkurs" ? "nord" : "zufahrt"));
+    if (hasLayout && !loaded) ifSure("Das vorhandene Gleisbild durch das gewählte Beispiel ersetzen? Sichere es vorher über die Datensicherung, wenn du es behalten willst.", () => run(post("/api/demo", { on: true, example, replace: true })));
+    else void run(post("/api/demo", { on: true, example }));
+  };
   const s = state?.systemState;
   const code = state?.unlockCode;
   return (
@@ -59,13 +67,19 @@ function StationTab({ state, run }: { state?: StationState; run: Run }) {
           <span className="hint grow">
             {state?.demo
               ? "Läuft: eine simulierte Zentrale ersetzt die Hardware. Fahrstraßen einstellen, ein virtueller Zug fährt sie ab."
-              : "Alle Funktionen ohne Hardware ausprobieren. Startet eine simulierte Zentrale im Server und lädt, falls leer, das Beispiel-Gleisbild."}
+              : "Alle Funktionen ohne Hardware ausprobieren. Startet eine simulierte Zentrale im Server und lädt das gewählte Beispiel-Gleisbild."}
           </span>
+          {!state?.demo && (
+            <select value={example} onChange={(e) => setExample(e.target.value as typeof example)} title="Beispiel-Gleisbild">
+              <option value="bahnhof">Beispiel: Bahnhof mit Zufahrt</option>
+              <option value="rundkurs">Beispiel: Rundkurs (Züge fahren selbst)</option>
+            </select>
+          )}
           <button
             className={state?.demo ? "danger" : "active"}
             disabled={!state?.demo && !!state?.connected}
             title={!state?.demo && state?.connected ? "Zuerst die Verbindung zur Zentrale trennen" : undefined}
-            onClick={() => (state?.demo ? ifSure("Demo beenden? Die simulierte Zentrale wird abgeschaltet.", () => run(post("/api/demo", { on: false }))) : run(post("/api/demo", { on: true })))}
+            onClick={() => (state?.demo ? ifSure("Demo beenden? Die simulierte Zentrale wird abgeschaltet.", () => run(post("/api/demo", { on: false }))) : startDemo())}
           >{state?.demo ? "Demo beenden" : "Demo starten"}</button>
         </div>
       </div>

@@ -1,0 +1,492 @@
+{
+  "cols": 16,
+  "rows": 8,
+  "tiles": [
+    {
+      "id": "n0",
+      "x": 1,
+      "y": 1,
+      "kind": "curve90",
+      "rot": 6
+    },
+    {
+      "id": "n2",
+      "x": 2,
+      "y": 1,
+      "kind": "straight",
+      "rot": 0
+    },
+    {
+      "id": "n3",
+      "x": 3,
+      "y": 1,
+      "kind": "straight",
+      "rot": 0
+    },
+    {
+      "id": "n4",
+      "x": 4,
+      "y": 1,
+      "kind": "straight",
+      "rot": 0
+    },
+    {
+      "id": "n5",
+      "x": 5,
+      "y": 1,
+      "kind": "straight",
+      "rot": 0
+    },
+    {
+      "id": "n6",
+      "x": 6,
+      "y": 1,
+      "kind": "straight",
+      "rot": 0
+    },
+    {
+      "id": "n7",
+      "x": 7,
+      "y": 1,
+      "kind": "straight",
+      "rot": 0,
+      "label": "Strecke Nord",
+      "feedback": {
+        "bus": "rbus",
+        "module": 1,
+        "input": 4
+      }
+    },
+    {
+      "id": "n8",
+      "x": 8,
+      "y": 1,
+      "kind": "straight",
+      "rot": 0
+    },
+    {
+      "id": "n9",
+      "x": 9,
+      "y": 1,
+      "kind": "straight",
+      "rot": 0
+    },
+    {
+      "id": "n10",
+      "x": 10,
+      "y": 1,
+      "kind": "straight",
+      "rot": 0
+    },
+    {
+      "id": "n11",
+      "x": 11,
+      "y": 1,
+      "kind": "straight",
+      "rot": 0
+    },
+    {
+      "id": "sN",
+      "x": 12,
+      "y": 1,
+      "kind": "signal",
+      "rot": 0,
+      "address": 34,
+      "label": "N"
+    },
+    {
+      "id": "n13",
+      "x": 13,
+      "y": 1,
+      "kind": "straight",
+      "rot": 0
+    },
+    {
+      "id": "n14",
+      "x": 14,
+      "y": 1,
+      "kind": "curve90",
+      "rot": 0
+    },
+    {
+      "id": "o2",
+      "x": 14,
+      "y": 2,
+      "kind": "straight",
+      "rot": 2
+    },
+    {
+      "id": "o3",
+      "x": 14,
+      "y": 3,
+      "kind": "straight",
+      "rot": 2,
+      "label": "Ost",
+      "feedback": {
+        "bus": "rbus",
+        "module": 1,
+        "input": 5
+      }
+    },
+    {
+      "id": "o4",
+      "x": 14,
+      "y": 4,
+      "kind": "straight",
+      "rot": 2
+    },
+    {
+      "id": "sO",
+      "x": 14,
+      "y": 5,
+      "kind": "signal",
+      "rot": 2,
+      "address": 35,
+      "label": "O"
+    },
+    {
+      "id": "b14",
+      "x": 14,
+      "y": 6,
+      "kind": "curve90",
+      "rot": 2
+    },
+    {
+      "id": "b13",
+      "x": 13,
+      "y": 6,
+      "kind": "straight",
+      "rot": 0
+    },
+    {
+      "id": "b12",
+      "x": 12,
+      "y": 6,
+      "kind": "straight",
+      "rot": 0
+    },
+    {
+      "id": "w1",
+      "x": 11,
+      "y": 6,
+      "kind": "turnoutRight",
+      "rot": 4,
+      "address": 1,
+      "label": "W1"
+    },
+    {
+      "id": "b10",
+      "x": 10,
+      "y": 6,
+      "kind": "straight",
+      "rot": 0
+    },
+    {
+      "id": "b9",
+      "x": 9,
+      "y": 6,
+      "kind": "straight",
+      "rot": 0
+    },
+    {
+      "id": "b8",
+      "x": 8,
+      "y": 6,
+      "kind": "straight",
+      "rot": 0
+    },
+    {
+      "id": "b6",
+      "x": 6,
+      "y": 6,
+      "kind": "straight",
+      "rot": 0
+    },
+    {
+      "id": "b7",
+      "x": 7,
+      "y": 6,
+      "kind": "straight",
+      "rot": 0,
+      "label": "Gleis 1",
+      "feedback": {
+        "bus": "rbus",
+        "module": 1,
+        "input": 1
+      }
+    },
+    {
+      "id": "sA1",
+      "x": 5,
+      "y": 6,
+      "kind": "signal",
+      "rot": 4,
+      "address": 31,
+      "label": "A1"
+    },
+    {
+      "id": "b4",
+      "x": 4,
+      "y": 6,
+      "kind": "straight",
+      "rot": 0
+    },
+    {
+      "id": "w2",
+      "x": 3,
+      "y": 6,
+      "kind": "turnoutLeft",
+      "rot": 0,
+      "address": 2,
+      "label": "W2"
+    },
+    {
+      "id": "b2",
+      "x": 2,
+      "y": 6,
+      "kind": "straight",
+      "rot": 0
+    },
+    {
+      "id": "b1",
+      "x": 1,
+      "y": 6,
+      "kind": "curve90",
+      "rot": 4
+    },
+    {
+      "id": "c10",
+      "x": 10,
+      "y": 5,
+      "kind": "curve",
+      "rot": 0
+    },
+    {
+      "id": "c9",
+      "x": 9,
+      "y": 5,
+      "kind": "straight",
+      "rot": 0
+    },
+    {
+      "id": "c8",
+      "x": 8,
+      "y": 5,
+      "kind": "straight",
+      "rot": 0
+    },
+    {
+      "id": "c6",
+      "x": 6,
+      "y": 5,
+      "kind": "straight",
+      "rot": 0
+    },
+    {
+      "id": "c7",
+      "x": 7,
+      "y": 5,
+      "kind": "straight",
+      "rot": 0,
+      "label": "Gleis 2",
+      "feedback": {
+        "bus": "rbus",
+        "module": 1,
+        "input": 2
+      }
+    },
+    {
+      "id": "sA2",
+      "x": 5,
+      "y": 5,
+      "kind": "signal",
+      "rot": 4,
+      "address": 32,
+      "label": "A2"
+    },
+    {
+      "id": "c4",
+      "x": 4,
+      "y": 5,
+      "kind": "curve",
+      "rot": 7
+    },
+    {
+      "id": "l5",
+      "x": 1,
+      "y": 5,
+      "kind": "straight",
+      "rot": 2
+    },
+    {
+      "id": "l4",
+      "x": 1,
+      "y": 4,
+      "kind": "straight",
+      "rot": 2,
+      "label": "West",
+      "feedback": {
+        "bus": "rbus",
+        "module": 1,
+        "input": 3
+      }
+    },
+    {
+      "id": "l3",
+      "x": 1,
+      "y": 3,
+      "kind": "straight",
+      "rot": 2
+    },
+    {
+      "id": "sW",
+      "x": 1,
+      "y": 2,
+      "kind": "signal",
+      "rot": 6,
+      "address": 33,
+      "label": "W"
+    },
+    {
+      "id": "txt",
+      "x": 7,
+      "y": 3,
+      "kind": "text",
+      "rot": 0,
+      "label": "Rundkurs"
+    }
+  ],
+  "routes": [
+    {
+      "id": "aus1",
+      "name": "Ausfahrt Gleis 1",
+      "steps": [
+        {
+          "tileId": "w2",
+          "state": 0
+        },
+        {
+          "tileId": "sA1",
+          "state": 1
+        }
+      ],
+      "from": "g1",
+      "to": "west",
+      "signal": "sA1"
+    },
+    {
+      "id": "aus2",
+      "name": "Ausfahrt Gleis 2",
+      "steps": [
+        {
+          "tileId": "w2",
+          "state": 1
+        },
+        {
+          "tileId": "sA2",
+          "state": 1
+        }
+      ],
+      "from": "g2",
+      "to": "west",
+      "signal": "sA2"
+    },
+    {
+      "id": "wn",
+      "name": "West nach Nord",
+      "steps": [
+        {
+          "tileId": "sW",
+          "state": 1
+        }
+      ],
+      "from": "west",
+      "to": "nord",
+      "signal": "sW"
+    },
+    {
+      "id": "no",
+      "name": "Nord nach Ost",
+      "steps": [
+        {
+          "tileId": "sN",
+          "state": 1
+        }
+      ],
+      "from": "nord",
+      "to": "ost",
+      "signal": "sN"
+    },
+    {
+      "id": "ein1",
+      "name": "Einfahrt Gleis 1",
+      "steps": [
+        {
+          "tileId": "w1",
+          "state": 0
+        },
+        {
+          "tileId": "sO",
+          "state": 1
+        }
+      ],
+      "from": "ost",
+      "to": "g1",
+      "signal": "sO"
+    },
+    {
+      "id": "ein2",
+      "name": "Einfahrt Gleis 2",
+      "steps": [
+        {
+          "tileId": "w1",
+          "state": 1
+        },
+        {
+          "tileId": "sO",
+          "state": 1
+        }
+      ],
+      "from": "ost",
+      "to": "g2",
+      "signal": "sO"
+    }
+  ],
+  "blocks": [
+    {
+      "id": "g1",
+      "name": "Gleis 1",
+      "tileIds": [
+        "b7"
+      ]
+    },
+    {
+      "id": "g2",
+      "name": "Gleis 2",
+      "tileIds": [
+        "c7"
+      ]
+    },
+    {
+      "id": "west",
+      "name": "Strecke West",
+      "tileIds": [
+        "l4"
+      ]
+    },
+    {
+      "id": "nord",
+      "name": "Strecke Nord",
+      "tileIds": [
+        "n7"
+      ]
+    },
+    {
+      "id": "ost",
+      "name": "Strecke Ost",
+      "tileIds": [
+        "o3"
+      ]
+    }
+  ]
+}

@@ -148,7 +148,11 @@ Die Sicherung braucht Belegtmelder. Ohne sie lassen sich Fahrstraßen nicht eins
 - **Abfahrtstafel:** `#/anzeige` zeigt die nächsten Abfahrten mit Fahrplanuhr statt Z21-Uhr.
 - **Nach einem Neustart:** Fahrplanuhr gestoppt, alle Standorte unsicher, und die Signale gesicherter Fahrstraßen gehen bei jedem Verbinden auf Halt, solange keine Fahrstraße eingestellt ist.
 - **Datensicherung:** enthält Züge (ohne Standort) und den Fahrplan (Fahrten, Verspätungsgrenze).
-- **Demo-Modus:** lädt Beispielzüge und -fahrplan (`docs/beispiel-fahrplan.json`), wenn noch keine Züge und Fahrten existieren und das Gleisbild die Blöcke und Fahrstraßen des Beispiels hat; die Uhr startet bei 05:58 mit Faktor 20. Ein älteres gespeichertes Beispiel-Gleisbild ohne die Fahrstraßen r3/r4 bitte im Editor neu importieren (`docs/beispiel-gleisbild.json`).
+- **Demo-Modus:** lädt Beispielzüge und einen Beispielfahrplan, wenn noch keine Züge und Fahrten existieren und das Gleisbild die Blöcke und Fahrstraßen des Beispiels hat; die Uhr startet bei 05:58 mit Faktor 20. Beim Start wählst du das Beispiel:
+  - **Bahnhof mit Zufahrt** (`docs/beispiel-gleisbild.json`, Fahrplan `docs/beispiel-fahrplan.json`): zwei Züge pendeln zwischen Zufahrt und zwei Bahnhofsgleisen; die Loks fährst du selbst.
+  - **Rundkurs** (`docs/beispiel-rundkurs.json`, Fahrplan `docs/beispiel-rundkurs-fahrplan.json`): ein Oval mit zweigleisigem Bahnhof, fünf Blöcken (Gleis 1, Gleis 2, Strecke West, Nord, Ost) und sechs Fahrstraßen im Uhrzeigersinn. Ein Güterzug und eine Regionalbahn umrunden den Kurs im 20-Minuten-Takt, der Server fährt die Loks (Automatik Stufe 2) und hält sie in jedem Block.
+
+  Gibt es schon ein anderes Gleisbild, fragt die Oberfläche, ob das Beispiel es ersetzen soll. Züge und Fahrplan des Beispiels kommen nur in einen leeren Fahrplan.
 - **Automatik (Stufe 2), Lok fährt selbst:** Bei einer Fahrt stellst du unter „Lok fahren“ ein, ob der Server die Lok vorwärts oder rückwärts fährt. Er fährt erst an, wenn die Sicherung die Fahrstraße gestellt hat, bremst beim Einfahren in den Zielblock auf Kriechfahrt und hält dort an. Ein Pendelzug sind zwei Fahrten im Takt mit entgegengesetzter Richtung.
 
 ### Selbst fahren: Fahrautomat, Zielfahrt, Einmessen
