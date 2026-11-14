@@ -4,6 +4,7 @@ import type { Layout, Route } from "@z21/protocol/layout";
 import { api, type StationState } from "./api";
 import { ifSure } from "./confirm";
 import { imageUrl } from "./loco-image";
+import { JourneyPanel } from "./journeys";
 import { AchievementBanner } from "./achievements";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
@@ -26,12 +27,12 @@ export function tripRows(trips: Trip[], trains: Train[], routes: Route[]): Row[]
   });
 }
 
-interface Draft { id?: string; trainId: string; routeId: string; departure: string; dwell: number; destination: string; repeat: boolean; every: number; until: string }
-const EMPTY: Draft = { trainId: "", routeId: "", departure: "08:00", dwell: 2, destination: "", repeat: false, every: 30, until: "20:00" };
+interface Draft { id?: string; trainId: string; routeId: string; departure: string; dwell: number; destination: string; drive: "" | "forward" | "reverse"; repeat: boolean; every: number; until: string }
+const EMPTY: Draft = { trainId: "", routeId: "", departure: "08:00", dwell: 2, destination: "", drive: "", repeat: false, every: 30, until: "20:00" };
 
 function toDraft(t: Trip): Draft {
   return {
-    id: t.id, trainId: t.trainId, routeId: t.routeId, departure: formatHHMM(t.departure), dwell: t.dwell, destination: t.destination ?? "",
+    id: t.id, trainId: t.trainId, routeId: t.routeId, departure: formatHHMM(t.departure), dwell: t.dwell, destination: t.destination ?? "", drive: t.drive ?? "",
     repeat: !!t.repeat, every: t.repeat?.every ?? 30, until: t.repeat ? formatHHMM(t.repeat.until) : "20:00",
   };
 }
@@ -70,6 +71,7 @@ export function TimetableAdmin({ state, run }: { state: StationState; run: Run }
     const body = {
       trainId: draft.trainId, routeId: draft.routeId, departure, dwell: draft.dwell,
       destination: draft.destination.trim() || undefined,
+      drive: draft.drive || undefined,
       repeat: draft.repeat && until !== undefined ? { every: draft.every, until } : undefined,
     };
     void change(() => (draft.id ? api("PUT", `/api/trips/${draft.id}`, body) : api("POST", "/api/trips", body))).then((ok) => { if (ok) setDraft(EMPTY); });
@@ -124,6 +126,13 @@ export function TimetableAdmin({ state, run }: { state: StationState; run: Run }
           <label>Abfahrt (HH:MM) <input value={draft.departure} placeholder="08:00" onChange={(e) => set("departure", e.target.value)} /></label>
           <label>Halt danach (min) <input type="number" min={0} max={120} value={draft.dwell} onChange={(e) => set("dwell", Number(e.target.value))} /></label>
           <label className="wide">Anzeigetext (Ziel) <input value={draft.destination} placeholder="z. B. Bergstadt" onChange={(e) => set("destination", e.target.value)} /></label>
+          <label className="wide">Lok fahren
+            <select value={draft.drive} onChange={(e) => set("drive", e.target.value as Draft["drive"])}>
+              <option value="">von Hand (der Server stellt nur die Fahrstraße)</option>
+              <option value="forward">Server fährt die Lok vorwärts und hält im Zielblock</option>
+              <option value="reverse">Server fährt die Lok rückwärts und hält im Zielblock</option>
+            </select>
+          </label>
           <label className="check wide"><input type="checkbox" checked={draft.repeat} onChange={(e) => set("repeat", e.target.checked)} /> Im Takt wiederholen</label>
           {draft.repeat && (
             <>
@@ -290,6 +299,7 @@ export function TimetableOperate({ state, run }: { state: StationState; run: Run
           ))}
         </ul>
       </div>
+      <JourneyPanel state={state} run={run} />
       <div className="panel">
         <h2>Standorte der Züge</h2>
         {tt.trains.length === 0 && <p className="hint">Noch keine Züge angelegt.</p>}

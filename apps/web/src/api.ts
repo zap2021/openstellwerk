@@ -64,7 +64,21 @@ export interface StationState {
   demo?: boolean;
   interlocking?: { routeId: string; status: "setting" | "set" | "running" | "fault"; since: number; message?: string }[];
   scan?: { running: boolean; from: number; to: number; current: number; found: number[]; error?: string };
+  /** Zielfahrten (Spiegel von apps/server/src/journeys.ts) */
+  journeys?: Journey[];
+  /** Loks, die der Server gerade fährt, und wie die letzten Fahrten endeten (apps/server/src/auto-drive.ts) */
+  autoDrive?: { jobs: { trainId: string; address: number; routeId: string; phase: "waiting" | "driving" | "braking" }[]; results: { trainId: string; routeId: string; ok: boolean; text: string; ts: number }[] };
+  /** Kennlinien je Lokadresse und die laufende Messreihe (apps/server/src/calibration.ts) */
+  calibration?: { tables: Record<string, Calibration>; run?: MeasureView };
 }
+
+export interface Journey {
+  id: string; trainId: string; targetBlockId: string; routeIds: string[]; leg: number;
+  status: "waiting" | "set" | "done" | "failed" | "cancelled"; drive?: "forward" | "reverse"; reason?: string; since: number;
+}
+export interface SpeedPoint { step: number; cmPerSec: number }
+export interface Calibration { scale: number; points: SpeedPoint[] }
+export interface MeasureView { address: number; steps: number[]; index: number; phase?: "approach" | "measure" | "settle" | "return" | "runout"; running: boolean; results: SpeedPoint[]; error?: string }
 
 export interface GarageLoco {
   address: number;

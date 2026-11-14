@@ -1,0 +1,135 @@
+{
+  "trains": [
+    {
+      "id": "gz",
+      "name": "Güterzug",
+      "number": "GZ 51",
+      "address": 5,
+      "location": {
+        "blockId": "g1",
+        "source": "manual",
+        "since": 0
+      }
+    },
+    {
+      "id": "rb",
+      "name": "Regionalbahn",
+      "number": "RB 7",
+      "address": 6,
+      "location": {
+        "blockId": "g2",
+        "source": "manual",
+        "since": 0
+      }
+    }
+  ],
+  "trips": [
+    {
+      "id": "gz1",
+      "trainId": "gz",
+      "routeId": "aus1",
+      "departure": 360,
+      "dwell": 0,
+      "destination": "Strecke West",
+      "drive": "forward",
+      "repeat": {
+        "every": 20,
+        "until": 1320
+      }
+    },
+    {
+      "id": "gz2",
+      "trainId": "gz",
+      "routeId": "wn",
+      "departure": 364,
+      "dwell": 0,
+      "destination": "Strecke Nord",
+      "drive": "forward",
+      "repeat": {
+        "every": 20,
+        "until": 1320
+      }
+    },
+    {
+      "id": "gz3",
+      "trainId": "gz",
+      "routeId": "no",
+      "departure": 368,
+      "dwell": 0,
+      "destination": "Strecke Ost",
+      "drive": "forward",
+      "repeat": {
+        "every": 20,
+        "until": 1320
+      }
+    },
+    {
+      "id": "gz4",
+      "trainId": "gz",
+      "routeId": "ein1",
+      "departure": 372,
+      "dwell": 0,
+      "destination": "Bahnhof Gleis 1",
+      "drive": "forward",
+      "repeat": {
+        "every": 20,
+        "until": 1320
+      }
+    },
+    {
+      "id": "rb1",
+      "trainId": "rb",
+      "routeId": "aus2",
+      "departure": 370,
+      "dwell": 0,
+      "destination": "Strecke West",
+      "drive": "forward",
+      "repeat": {
+        "every": 20,
+        "until": 1320
+      }
+    },
+    {
+      "id": "rb2",
+      "trainId": "rb",
+      "routeId": "wn",
+      "departure": 374,
+      "dwell": 0,
+      "destination": "Strecke Nord",
+      "drive": "forward",
+      "repeat": {
+        "every": 20,
+        "until": 1320
+      }
+    },
+    {
+      "id": "rb3",
+      "trainId": "rb",
+      "routeId": "no",
+      "departure": 378,
+      "dwell": 0,
+      "destination": "Strecke Ost",
+      "drive": "forward",
+      "repeat": {
+        "every": 20,
+        "until": 1320
+      }
+    },
+    {
+      "id": "rb4",
+      "trainId": "rb",
+      "routeId": "ein2",
+      "departure": 382,
+      "dwell": 0,
+      "destination": "Bahnhof Gleis 2",
+      "drive": "forward",
+      "repeat": {
+        "every": 20,
+        "until": 1320
+      }
+    }
+  ],
+  "settings": {
+    "lateLimit": 5
+  }
+}

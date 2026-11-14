@@ -10,6 +10,10 @@ import { Garage } from "./garage.js";
 import { LocoImageStore, registerLocoImageRoutes, syncGarageImages } from "./loco-images.js";
 import { registerMaintenanceRoutes } from "./maintenance.js";
 import { readVersion } from "./version.js";
+import { AutoDriver, orderFor } from "./auto-drive.js";
+import { JourneyRunner, registerJourneyRoutes } from "./journeys.js";
+import { CalibrationRunner, CalibrationStore, registerCalibrationRoutes } from "./calibration.js";
+import type { Train } from "@z21/timetable";
 import { LayoutRuleEngine, LayoutRuleStore, locosInBlock, registerLayoutRuleRoutes } from "./layout-rules.js";
 import { CameraStore, registerCameraRoutes } from "./cameras.js";
 import { discover } from "./z21-client.js";
@@ -177,7 +181,37 @@ registerAutomationRoutes(app, automationStore);
 
 /* ---------- trains and timetable ---------- */
 const trains = new TrainStore(path.join(dataDir, "trains.json"));
-const runner = new TimetableRunner(station, box, trains, path.join(dataDir, "timetable.json"));
+
+/* ---------- driving by itself: speed tables, the auto driver, journeys to a chosen block ---------- */
+const later = () => { setImmediate(() => station.notify()); }; // never notify from inside a state handler
+const calibrationStore = new CalibrationStore(path.join(dataDir, "calibration.json"), later);
+const calibrationRunner = new CalibrationRunner(calibrationStore, { layout: () => box.get(), drive: (a, sp, f) => station.drive(a, sp, f), changed: later });
+const routeStatus = (id: string) => box.routeStates().find((r) => r.routeId === id)?.status;
+const driver = new AutoDriver({ layout: () => box.get(), routeStatus, drive: (a, sp, f) => station.drive(a, sp, f), changed: later });
+const driveOrder = (train: Train, routeId: string, forward: boolean) => orderFor(train, routeId, forward, calibrationStore.get(train.address));
+const runner = new TimetableRunner(station, box, trains, path.join(dataDir, "timetable.json"), {
+  onDeparture: (trip, train) => driver.assign(driveOrder(train, trip.routeId, trip.drive === "forward")),
+});
+const journeys = new JourneyRunner({
+  layout: () => box.get(),
+  trains: () => trains.list(),
+  connected: () => station.client.connected,
+  requestRoute: (id) => box.tryRequestRoute(id),
+  releaseRoute: (id) => { box.releaseRoute(id); },
+  routeStatus,
+  setCarried: (id, blockId) => trains.setCarried(id, blockId),
+  busy: (id) => runner.trainHasActiveDeparture(id),
+  drive: (j, routeId, train) => driver.assign(driveOrder(train, routeId, j.drive === "forward")),
+  stopDriving: (id, text) => driver.cancel(id, text),
+  changed: later,
+});
+box.onEnded((e) => journeys.onEnded(e));
+station.on("state", (st) => { driver.onState(st); calibrationRunner.onState(st); });
+station.on("locoChange", (prev, next) => driver.onLoco(prev, next));
+setInterval(() => { const st = station.snapshot(); journeys.tick(); driver.onState(st); calibrationRunner.onState(st); }, 1000).unref(); // time limits need a clock
+station.addExtra(() => ({ journeys: journeys.list(), autoDrive: driver.view(), calibration: { tables: calibrationStore.all(), run: calibrationRunner.view() } }));
+registerJourneyRoutes(app, journeys);
+registerCalibrationRoutes(app, calibrationStore, calibrationRunner);
 registerTrainRoutes(app, trains, { blockIds: () => new Set((box.get().blocks ?? []).map((b) => b.id)), onRemove: (id) => runner.removeTripsOf(id), hasActiveDeparture: (id) => runner.trainHasActiveDeparture(id) });
 registerTimetableRoutes(app, runner);
 runner.start();
@@ -207,7 +241,7 @@ syncGarageImages(station.garage, locoImages);
 registerLocoImageRoutes(app, station.garage, locoImages, () => station.notify());
 
 /* ---------- backup: everything the user maintains that the Z21 does not store ---------- */
-registerBackupRoutes(app, new BackupService(station.garage, box, cameraStore, trains, runner, locoImages, () => station.notify(), { automations: automationStore, achievements, users, layoutRules: ruleStore }));
+registerBackupRoutes(app, new BackupService(station.garage, box, cameraStore, trains, runner, locoImages, () => station.notify(), { automations: automationStore, achievements, users, layoutRules: ruleStore, calibration: calibrationStore }));
 
 /* ---------- network settings (read-only) ---------- */
 registerMaintenanceRoutes(app, station);

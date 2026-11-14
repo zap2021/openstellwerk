@@ -3,15 +3,15 @@ import { readFileSync } from "node:fs";
 import type { FastifyInstance } from "fastify";
 import {
   DEFAULT_CLOCK, Dispatcher, parseHHMM, setClock, startClock, stopClock, validateSettings, validateTrains, validateTrips,
-  type Action, type ClockState, type Instance, type RouteInfo, type RouteResult, type TimetableSnapshot, type Trip,
+  type Action, type ClockState, type Instance, type RouteInfo, type RouteResult, type TimetableSnapshot, type Train, type Trip,
 } from "@z21/timetable";
 import { JsonFile } from "./json-file.js";
 import type { SignalBox } from "./layout.js";
 import type { Station } from "./station.js";
 import type { TrainStore } from "./trains.js";
 
-/** The example timetable, relative to this file (repo/docs/beispiel-fahrplan.json). */
-const EXAMPLE = new URL("../../../docs/beispiel-fahrplan.json", import.meta.url);
+/** The example timetables, relative to this file (repo/docs); each belongs to one example diagram. */
+const EXAMPLES = [new URL("../../../docs/beispiel-fahrplan.json", import.meta.url), new URL("../../../docs/beispiel-rundkurs-fahrplan.json", import.meta.url)];
 
 const err = (message: string, statusCode: number) => Object.assign(new Error(message), { statusCode });
 
@@ -47,8 +47,13 @@ export class TimetableRunner {
   /** A running clock is written to the file this often (real ms), so a restart resumes near where it was. */
   private clockSaveMs: number;
   private lastSave = Date.now();
+  /** Instances whose departure has been announced (onDeparture), so each is announced once. */
+  private announced = new Set<string>();
+  private onDeparture?: (trip: Trip, train: Train) => void;
 
-  constructor(private station: Station, private box: SignalBox, private trains: TrainStore, file?: string, opts: { tickMs?: number; clockSaveMs?: number } = {}) {
+  /** @param opts.onDeparture called once when the route of a trip with `drive` is set: the caller lets the loco drive */
+  constructor(private station: Station, private box: SignalBox, private trains: TrainStore, file?: string, opts: { tickMs?: number; clockSaveMs?: number; onDeparture?: (trip: Trip, train: Train) => void } = {}) {
+    this.onDeparture = opts.onDeparture;
     this.tickMs = opts.tickMs ?? 1000;
     this.clockSaveMs = opts.clockSaveMs ?? 30_000;
     this.store = new JsonFile(file);
@@ -177,29 +182,32 @@ export class TimetableRunner {
   }
 
   /**
-   * Load docs/beispiel-fahrplan.json, but only into an empty timetable and only when the current diagram has all
-   * blocks and routes it refers to. Nothing is loaded partially.
+   * Load the example timetable that fits the current diagram (docs/beispiel-fahrplan.json or
+   * docs/beispiel-rundkurs-fahrplan.json), but only into an empty timetable and only when the diagram has all blocks
+   * and routes the example refers to. Nothing is loaded partially.
    * @returns true when something was loaded
    */
   loadExample(): boolean {
     if (this.trains.list().length > 0 || this.trips.length > 0) return false;
-    try {
-      const raw = JSON.parse(readFileSync(EXAMPLE, "utf8")) as Record<string, unknown>;
-      const layout = this.box.get();
-      const blockIds = new Set((layout.blocks ?? []).map((b) => b.id));
-      const routeIds = new Set(layout.routes.map((r) => r.id));
-      const trains = validateTrains(raw.trains, { blockIds });
-      const trips = validateTrips(raw.trips, { trainIds: new Set(trains.map((t) => t.id)), routeIds });
-      const settings = validateSettings(raw.settings);
-      this.trains.replaceAll(trains);
-      for (const t of trains) if (t.location) this.trains.setLocation(t.id, t.location.blockId);
-      this.replaceAll({ trips, lateLimit: settings.lateLimit });
-      return true;
-    } catch (e) {
-      // A diagram that does not fit the example is no error; only an unreadable file is worth a message.
-      if ((e as NodeJS.ErrnoException).code === "ENOENT" || e instanceof SyntaxError) console.error("Beispiel-Fahrplan nicht geladen:", (e as Error).message);
-      return false;
+    const layout = this.box.get();
+    const blockIds = new Set((layout.blocks ?? []).map((b) => b.id));
+    const routeIds = new Set(layout.routes.map((r) => r.id));
+    for (const file of EXAMPLES) {
+      try {
+        const raw = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+        const trains = validateTrains(raw.trains, { blockIds });
+        const trips = validateTrips(raw.trips, { trainIds: new Set(trains.map((t) => t.id)), routeIds });
+        const settings = validateSettings(raw.settings);
+        this.trains.replaceAll(trains);
+        for (const t of trains) if (t.location) this.trains.setLocation(t.id, t.location.blockId);
+        this.replaceAll({ trips, lateLimit: settings.lateLimit });
+        return true;
+      } catch (e) {
+        // A diagram that does not fit this example is no error; only an unreadable file is worth a message.
+        if ((e as NodeJS.ErrnoException).code === "ENOENT" || e instanceof SyntaxError) console.error("Beispiel-Fahrplan nicht geladen:", (e as Error).message);
+      }
     }
+    return false;
   }
 
   /** Persist and react at once (no waiting for the next tick). */
@@ -244,8 +252,23 @@ export class TimetableRunner {
       this.execute(out.actions);
     }
     this.instances = out.instances;
+    this.announce();
     this.detect();
     this.publish();
+  }
+
+  /** Trips with `drive`: hand the loco to the caller once, when the route is set. */
+  private announce() {
+    for (const i of this.instances) {
+      if (i.status !== "set" || this.announced.has(i.id)) continue;
+      this.announced.add(i.id);
+      const trip = this.trips.find((t) => t.id === i.tripId);
+      const train = trip && this.trains.get(trip.trainId);
+      if (trip?.drive && train) {
+        try { this.onDeparture?.(trip, train); } catch (e) { console.error("Fahrplan, Abfahrt:", (e as Error).message); }
+      }
+    }
+    for (const id of this.announced) if (!this.instances.some((i) => i.id === id)) this.announced.delete(id);
   }
 
   /** Runs the actions; returns the answers to the route requests. */

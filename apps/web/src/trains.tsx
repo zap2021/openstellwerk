@@ -1,12 +1,13 @@
 import { useState } from "react";
-import type { Train } from "@z21/timetable";
+import { DEFAULT_DRIVE, type Train } from "@z21/timetable";
+import { kmh } from "./calibration";
 import { api, type StationState } from "./api";
 import { ifSure } from "./confirm";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
 
-interface Draft { id?: string; name: string; number: string; address: number; blockId: string }
-const EMPTY: Draft = { name: "", number: "", address: 0, blockId: "" };
+interface Draft { id?: string; name: string; number: string; address: number; blockId: string; speed: number; stopSec: string; stopCm: string }
+const EMPTY: Draft = { name: "", number: "", address: 0, blockId: "", speed: DEFAULT_DRIVE.speed, stopSec: String(DEFAULT_DRIVE.stopDelayMs / 1000), stopCm: "" };
 
 /** Administration of trains: a train is a name, a number, a locomotive address and (optionally) a location. */
 export function TrainsPage({ state, run }: { state: StationState; run: Run }) {
@@ -17,9 +18,17 @@ export function TrainsPage({ state, run }: { state: StationState; run: Run }) {
   const blocks = state.layout?.blocks ?? [];
   const blockName = (id: string) => blocks.find((b) => b.id === id)?.name ?? "(Block fehlt)";
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setDraft({ ...draft, [k]: v });
-  const pick = (t: Train) => { setError(undefined); setDraft({ id: t.id, name: t.name, number: t.number ?? "", address: t.address, blockId: t.location?.blockId ?? "" }); };
+  const pick = (t: Train) => { setError(undefined); setDraft({ id: t.id, name: t.name, number: t.number ?? "", address: t.address, blockId: t.location?.blockId ?? "",
+    speed: t.drive?.speed ?? DEFAULT_DRIVE.speed, stopSec: String((t.drive?.stopDelayMs ?? DEFAULT_DRIVE.stopDelayMs) / 1000), stopCm: t.drive?.stopCm ? String(t.drive.stopCm) : "",
+  }); };
+  const cal = state.calibration?.tables[String(draft.address)];
+  const stopSec = Number(draft.stopSec.replace(",", "."));
+  const stopCm = draft.stopCm.trim() === "" ? undefined : Number(draft.stopCm.replace(",", "."));
   const inGarage = state.garage.some((g) => g.address === draft.address);
-  const problem = !draft.name.trim() ? "Name eingeben" : !(draft.address >= 1 && draft.address <= 9999) ? "Lokadresse 1–9999 eingeben" : undefined;
+  const problem = !draft.name.trim() ? "Name eingeben" : !(draft.address >= 1 && draft.address <= 9999) ? "Lokadresse 1–9999 eingeben"
+    : !(Number.isInteger(draft.speed) && draft.speed >= 1 && draft.speed <= 126) ? "Fahrstufe 1–126 eingeben"
+    : !(stopSec >= 0 && stopSec <= 30) ? "Kriechzeit 0–30 s eingeben"
+    : stopCm !== undefined && !(Number.isInteger(stopCm) && stopCm >= 0 && stopCm <= 2000) ? "Halteweg 0–2000 cm (ganze Zahl) eingeben" : undefined;
 
   /** Runs the request and shows a server error next to the form; resolves to whether it succeeded. */
   const change = async (request: () => Promise<unknown>): Promise<boolean> => {
@@ -30,7 +39,10 @@ export function TrainsPage({ state, run }: { state: StationState; run: Run }) {
   };
   const save = async () => {
     if (problem) return;
-    const body = { name: draft.name.trim(), number: draft.number.trim() || undefined, address: draft.address };
+    const body = {
+      name: draft.name.trim(), number: draft.number.trim() || undefined, address: draft.address,
+      drive: { speed: draft.speed, stopDelayMs: Math.round(stopSec * 1000), ...(stopCm ? { stopCm } : {}) },
+    };
     const current = timetable.trains.find((t) => t.id === draft.id);
     await change(async () => {
       let id = draft.id;
@@ -82,7 +94,14 @@ export function TrainsPage({ state, run }: { state: StationState; run: Run }) {
               {draft.blockId && !blocks.some((b) => b.id === draft.blockId) && <option value={draft.blockId}>(Block fehlt)</option>}
             </select>
           </label>
+          <label>Fahrstufe, wenn der Server fährt <input type="number" min={1} max={126} value={draft.speed || ""} onChange={(e) => set("speed", Number(e.target.value))} /></label>
+          <label>Kriechzeit im Zielblock (s) <input value={draft.stopSec} onChange={(e) => set("stopSec", e.target.value)} /></label>
+          <label className="wide">Halteweg im Zielblock (cm, nur mit Kennlinie) <input value={draft.stopCm} placeholder="leer = Kriechzeit verwenden" onChange={(e) => set("stopCm", e.target.value)} /></label>
         </div>
+        <p className="hint">
+          Diese Werte gelten für Zielfahrten und Fahrten im Fahrplan mit „Server fährt die Lok“.
+          {cal ? ` Fahrstufe ${draft.speed} entspricht etwa ${kmh(cal, draft.speed)} km/h.` : " Für diese Lok gibt es noch keine Kennlinie (Verwaltung → Einmessen); der Halteweg wirkt erst damit."}
+        </p>
         {problem && <p className="hint">{problem}</p>}
         {error && <p className="hint warn">{error}</p>}
         <div className="row tight">

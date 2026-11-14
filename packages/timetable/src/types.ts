@@ -13,7 +13,20 @@ export interface Train {
   number?: string;
   address: number;
   location?: TrainLocation;
+  /** How the server drives this train by itself (journeys, trips with `drive`). Without it: defaults. */
+  drive?: TrainDrive;
 }
+
+export interface TrainDrive {
+  /** cruising speed, speed step 1..126 */
+  speed: number;
+  /** after entering the target block: crawl this long, then stop (ms). Used when no stop distance can be computed. */
+  stopDelayMs?: number;
+  /** after entering the target block: stop after this distance (cm); needs a speed calibration of the loco */
+  stopCm?: number;
+}
+
+export const DEFAULT_DRIVE = { speed: 40, stopDelayMs: 1500 } as const;
 
 export interface Trip {
   id: string;
@@ -22,6 +35,8 @@ export interface Trip {
   departure: number;
   dwell: number;
   destination?: string;
+  /** The server drives the loco in this direction once the route is set; without it the operator drives. */
+  drive?: "forward" | "reverse";
   repeat?: { every: number; until: number };
 }
 

@@ -8,10 +8,13 @@
  *  - Routes lock their blocks and turnouts; a second route may only share a turnout in the same position
  *    and never a block.
  *  - Turnouts are driven first, the signal is cleared last and only once every position is reported back.
- *  - Once a train has entered, the signal goes back to Halt. The route is released only after the train has
- *    reached the target block and all blocks report free again. A momentary "all free" while the train moves from
- *    one block to the next therefore releases nothing. (Whole-route release; per-block release needs the track
- *    graph, see the roadmap.)
+ *  - The start block may be occupied when the route is requested: that is the train the route is for. Every other
+ *    block must be free.
+ *  - Once a train has entered (a block other than an occupied start block reports it), the signal goes back to Halt.
+ *    The route is released when the train has arrived: the target block was reached and every other block reports
+ *    free again; the train may stay in the target block. A momentary "all free" while the train moves from one block
+ *    to the next therefore releases nothing. Routes without a target block are released once every block was seen
+ *    occupied and all are free again. (Whole-route release; per-block release needs the track graph.)
  *  - A locked turnout that moves, or a block that is taken while the route is still being set, is a fault:
  *    the signal goes to Halt and the locks stay until the operator releases the route.
  */
@@ -57,6 +60,8 @@ interface Active extends RouteState {
   signalCleared: boolean;
   /** blocks that have been reported occupied since the route was cleared */
   seen: Set<string>;
+  /** blocks that must stay free until the train enters: all of them, minus a start block the train already stands in */
+  watched: string[];
 }
 
 export interface InterlockingOptions {
@@ -107,9 +112,11 @@ export class Interlocking {
     const blocks = this.blocksOf(route);
     if (!blocks.length) return refuse("Fahrstraße hat keine Blöcke; ohne Block gibt es keine Sicherung");
 
+    let startOccupied = false;
     for (const bid of blocks) {
       const block = this.layout.blocks!.find((b) => b.id === bid)!;
       const o = blockOccupied(this.layout, block, live);
+      if (o === true && bid === route.from && route.to && route.to !== route.from) { startOccupied = true; continue; } // the train itself
       if (o === true) return refuse(`Block „${block.name}“ ist besetzt`);
       if (o === undefined) return refuse(`Block „${block.name}“: Melder meldet (noch) nichts, daher nicht sicher frei`);
     }
@@ -126,7 +133,7 @@ export class Interlocking {
     // Work out the commands first: if that fails, nothing may stay locked.
     let commands: LayoutCommand[];
     try { commands = switches.flatMap((s) => this.drive(s, live)); } catch (e) { return refuse(`Fahrstraße nicht stellbar: ${(e as Error).message}`); }
-    this.active.set(routeId, { routeId, route, switches, signals, blocks, status: "setting", since: now, signalCleared: false, seen: new Set() });
+    this.active.set(routeId, { routeId, route, switches, signals, blocks, status: "setting", since: now, signalCleared: false, seen: new Set(), watched: startOccupied ? blocks.filter((b) => b !== route.from) : blocks });
     // Only drive what is not already in place; the rest is already locked by the entry above.
     return { ok: true, commands };
   }
@@ -141,8 +148,10 @@ export class Interlocking {
       if (a.status === "fault") continue;
       const occupied = a.blocks.map((bid) => blockOccupied(this.layout, this.layout.blocks!.find((b) => b.id === bid)!, live));
 
+      const entered = a.blocks.some((bid, i) => occupied[i] === true && a.watched.includes(bid));
+
       if (a.status === "setting") {
-        if (occupied.some((o) => o === true)) { out.push(...this.fail(a, "Block wurde vor der Zugfahrt besetzt", now)); continue; }
+        if (entered) { out.push(...this.fail(a, "Block wurde vor der Zugfahrt besetzt", now)); continue; }
         if (occupied.some((o) => o === undefined)) { out.push(...this.fail(a, "Melder ausgefallen", now)); continue; }
         if (a.switches.every((s) => this.inPlace(s, live))) {
           // Positions confirmed: clear the signal last.
@@ -160,10 +169,10 @@ export class Interlocking {
       if (moved) { out.push(...this.fail(a, `${this.label(moved.tileId)} wurde verstellt`, now)); continue; }
 
       a.blocks.forEach((bid, i) => { if (occupied[i] === true) a.seen.add(bid); });
-      if (a.status === "set" && occupied.some((o) => o === true)) {
+      if (a.status === "set" && entered) {
         out.push(...this.haltSignals(a));
         this.to(a, "running", now);
-      } else if (a.status === "running" && occupied.every((o) => o === false) && this.reachedTarget(a)) {
+      } else if (a.status === "running" && this.arrived(a, occupied)) {
         this.active.delete(a.routeId);
         this.ended.push({ routeId: a.routeId, reason: "completed" });
       } else if (a.status === "set" && occupied.some((o) => o === undefined)) {
@@ -207,6 +216,15 @@ export class Interlocking {
     const tileIds = new Set([...route.steps, ...(route.flank ?? [])].map((s) => s.tileId));
     for (const b of this.layout.blocks ?? []) if (b.tileIds.some((t) => tileIds.has(t))) ids.add(b.id);
     return [...ids];
+  }
+
+  /**
+   * Arrived and clear: the target block was reached and every other block is free again (the train may stay in the
+   * target block, but its detector must report). Without a target block: every block was seen and all are free.
+   */
+  private arrived(a: Active, occupied: (boolean | undefined)[]): boolean {
+    if (!this.reachedTarget(a)) return false;
+    return a.blocks.every((bid, i) => (bid === a.route.to ? occupied[i] !== undefined : occupied[i] === false));
   }
 
   /** The train has arrived: the target block was occupied (without a target block: every block of the route was). */

@@ -128,9 +128,9 @@ Die Monitore (RailCom, LocoNet, Melder, R-BUS, Booster, Uhr) sind standardmäßi
 
 Im Gleisbild-Editor fasst du Gleisfelder zu **Blöcken** zusammen; ein Block gilt als belegt, sobald einer seiner Melder belegt meldet. Eine Fahrstraße mit Start- oder Ziel-Block ist **gesichert**. Streckenblöcke ohne Weiche trägst du bei der Fahrstraße unter „Blöcke dazwischen“ ein, sonst werden sie weder geprüft noch verriegelt. Schritte einer Fahrstraße müssen schaltbare Felder sein (Weiche, Signal):
 
-- Sie wird nur eingestellt, wenn alle ihre Blöcke sicher frei sind. Ein Melder, der noch nichts gemeldet hat, zählt nicht als frei.
+- Sie wird nur eingestellt, wenn alle ihre Blöcke sicher frei sind. Einzige Ausnahme ist der Startblock: Er darf belegt sein, denn dort steht der Zug, für den die Fahrstraße ist. Ein Melder, der noch nichts gemeldet hat, zählt nicht als frei.
 - Weichen werden zuerst gestellt, das Startsignal erst, wenn alle Lagen zurückgemeldet sind. Sie bleiben verriegelt: Handschaltung (auch über den Weichen-Tab, die Signal-Seite und „Testen“ im Editor) und ungesicherte Fahrstraßen auf diese Adressen werden abgelehnt. Halt-Befehle der Sicherung überholen andere Schaltaufträge in der Warteschlange.
-- Fährt der Zug ein, geht das Signal auf Halt. Die Fahrstraße löst sich auf, sobald der Zug den Zielblock erreicht hat und alle Blöcke wieder frei sind. Eine kurze Lücke zwischen zwei Meldern löst nichts aus. Erreicht der Zug das Ziel nie, bleibt sie bis zur Notauflösung verriegelt.
+- Fährt der Zug ein (ein anderer Block als der schon belegte Startblock meldet besetzt), geht das Signal auf Halt. Die Fahrstraße löst sich auf, sobald der Zug angekommen ist: Der Zielblock wurde erreicht und alle anderen Blöcke sind wieder frei; im Zielblock darf der Zug stehen bleiben. Eine kurze Lücke zwischen zwei Meldern löst nichts aus. Erreicht der Zug das Ziel nie, bleibt sie bis zur Notauflösung verriegelt.
 - Wird eine verriegelte Weiche verstellt, fällt ein Block aus oder melden die Weichen nicht rechtzeitig (15 s), geht die Fahrstraße in **Störung**: Signal auf Halt, Verriegelung bleibt, bis du sie quittierst. Eine Fahrstraße mit Zug darin löst nur die Notauflösung.
 - Bei getrennter Verbindung friert die Sicherung ein und löst nichts auf.
 - Gleisbild-Änderungen sind nur ohne angeforderte Fahrstraßen möglich.
@@ -144,16 +144,31 @@ Die Sicherung braucht Belegtmelder. Ohne sie lassen sich Fahrstraßen nicht eins
 - **Züge** (Verwaltung → Züge): Name, Nummer (z. B. „RE 1“) und Lokadresse. Den **Standort** (Block) setzt du von Hand; nach einem Neustart oder wenn die Automatik den Zug nicht sicher verfolgen kann, gilt er als **unsicher** und wird so angezeigt, bis du ihn bestätigst oder neu setzt.
 - **Fahrten** (Verwaltung → Fahrplan): ein Zug fährt auf einer gesicherten Fahrstraße zu einer Abfahrtszeit, mit Haltezeit und Zieltext. Mit **Takt** wiederholt sich die Fahrt alle N Minuten bis zu einer Endzeit.
 - **Fahrplanuhr** (Bedienen → Fahrplan): eigene Modellzeit, unabhängig von der Z21-Uhr. Start/Stopp, Faktor (1 bis 120) und „Uhr stellen“. Sie läuft nur bei bestehender Verbindung.
-- **Automatik (Stufe 1):** Zur Abfahrtszeit fordert der Server die gesicherte Fahrstraße an und stellt Weichen und Signal. Die Lok fährt sie nicht automatisch (das tust du am Fahrregler, im Demo-Modus der virtuelle Zug). Lehnt die Sicherung die Fahrstraße ab (z. B. Block belegt), wartet die Abfahrt und versucht es erneut; ist die **Verspätungsgrenze** (Minuten, Standard 5) überschritten, geht sie in Störung. Erreicht der Zug den Zielblock, steht er dort als „mitgeführt“.
+- **Automatik (Stufe 1):** Zur Abfahrtszeit fordert der Server die gesicherte Fahrstraße an und stellt Weichen und Signal. Die Lok fährst du am Fahrregler, oder der Server fährt sie (Stufe 2, siehe unten). Lehnt die Sicherung die Fahrstraße ab (z. B. Block belegt), wartet die Abfahrt und versucht es erneut; ist die **Verspätungsgrenze** (Minuten, Standard 5) überschritten, geht sie in Störung. Erreicht der Zug den Zielblock, steht er dort als „mitgeführt“.
 - **Abfahrtstafel:** `#/anzeige` zeigt die nächsten Abfahrten mit Fahrplanuhr statt Z21-Uhr.
 - **Nach einem Neustart:** Fahrplanuhr gestoppt, alle Standorte unsicher, und die Signale gesicherter Fahrstraßen gehen bei jedem Verbinden auf Halt, solange keine Fahrstraße eingestellt ist.
 - **Datensicherung:** enthält Züge (ohne Standort) und den Fahrplan (Fahrten, Verspätungsgrenze).
-- **Demo-Modus:** lädt Beispielzüge und -fahrplan (`docs/beispiel-fahrplan.json`), wenn noch keine Züge und Fahrten existieren und das Gleisbild die Blöcke und Fahrstraßen des Beispiels hat; die Uhr startet bei 05:58 mit Faktor 20. Ein älteres gespeichertes Beispiel-Gleisbild ohne die Fahrstraßen r3/r4 bitte im Editor neu importieren (`docs/beispiel-gleisbild.json`).
-- **Folgt in Stufe 2:** Lok automatisch fahren.
+- **Demo-Modus:** lädt Beispielzüge und einen Beispielfahrplan, wenn noch keine Züge und Fahrten existieren und das Gleisbild die Blöcke und Fahrstraßen des Beispiels hat; die Uhr startet bei 05:58 mit Faktor 20. Beim Start wählst du das Beispiel:
+  - **Bahnhof mit Zufahrt** (`docs/beispiel-gleisbild.json`, Fahrplan `docs/beispiel-fahrplan.json`): zwei Züge pendeln zwischen Zufahrt und zwei Bahnhofsgleisen; die Loks fährst du selbst.
+  - **Rundkurs** (`docs/beispiel-rundkurs.json`, Fahrplan `docs/beispiel-rundkurs-fahrplan.json`): ein Oval mit zweigleisigem Bahnhof, fünf Blöcken (Gleis 1, Gleis 2, Strecke West, Nord, Ost) und sechs Fahrstraßen im Uhrzeigersinn. Ein Güterzug und eine Regionalbahn umrunden den Kurs im 20-Minuten-Takt, der Server fährt die Loks (Automatik Stufe 2) und hält sie in jedem Block.
 
-#### Bekannte Einschränkung der Automatik (Stufe 1)
+  Gibt es schon ein anderes Gleisbild, fragt die Oberfläche, ob das Beispiel es ersetzen soll. Züge und Fahrplan des Beispiels kommen nur in einen leeren Fahrplan.
+- **Automatik (Stufe 2), Lok fährt selbst:** Bei einer Fahrt stellst du unter „Lok fahren“ ein, ob der Server die Lok vorwärts oder rückwärts fährt. Er fährt erst an, wenn die Sicherung die Fahrstraße gestellt hat, bremst beim Einfahren in den Zielblock auf Kriechfahrt und hält dort an. Ein Pendelzug sind zwei Fahrten im Takt mit entgegengesetzter Richtung.
 
-Die gesicherten Fahrstraßen aus Phase 1 verlangen, dass alle ihre Blöcke frei sind – auch der Startblock. Steht der Zug im Startblock und meldet dort ein echter Melder besetzt, lehnt die Sicherung die Fahrstraße ab; ein Zug, der im Zielblock hält, hält die Fahrstraße bis zur Notauflösung offen. Mit dem Simulator und im Demo-Modus tritt das nicht auf, mit echten Rückmeldern schon. Das Verhalten der Sicherung (Startblock darf vom Zug selbst belegt sein, Auflösung beim Erreichen des Zielblocks) wird als Erstes in der nächsten Ausbaustufe geändert. Bis dahin lässt sich der Fahrplan nur ohne echte Melder (Simulator, Demo) vollständig nutzen.
+### Selbst fahren: Fahrautomat, Zielfahrt, Einmessen
+
+**Fahrautomat.** Er fährt eine Lok über eine gesicherte Fahrstraße und stellt selbst nichts: Weichen, Signale und Verriegelung bleiben Sache der Sicherung.
+
+- Fahrdaten je Zug (Verwaltung → Züge): Fahrstufe (Standard 40), Kriechzeit im Zielblock (Standard 1,5 s) und optional ein Halteweg in cm. Im Zielblock fährt die Lok mit einem Drittel der Fahrstufe (mindestens Stufe 8) weiter und hält dann.
+- Störung oder Auflösung der Fahrstraße unterwegs: Die Lok hält sofort. Erreicht sie das Ziel nicht in 5 Minuten, hält sie ebenfalls.
+- Hältst du die Lok am Fahrregler an, wechselst die Richtung oder löst den Lok-Nothalt aus, lässt der Automat die Lok los und fährt nicht wieder an. Änderst du nur die Geschwindigkeit, hält er trotzdem im Ziel.
+- Gehalten wird mit Fahrstufe 0, also mit der Bremsverzögerung des Decoders (CV 4). Wie weit die Lok im Zielblock kommt, hängt davon ab; taste dich mit der Kriechzeit heran.
+
+**Zielfahrt** (Bedienen → Fahrplan). Zug und Zielblock wählen: Der Server sucht die kürzeste Kette gesicherter Fahrstraßen vom Standort des Zugs zum Ziel und stellt sie Abschnitt für Abschnitt. Wahlweise fährst du selbst, oder der Server fährt die Lok vorwärts bzw. rückwärts. Ist ein Abschnitt nicht frei, wartet die Fahrt und fordert ihn alle 2 s neu an, höchstens 5 Minuten. Zwischen zwei Abschnitten hält die Lok kurz, bis die nächste Fahrstraße steht. Der Standort des Zugs muss bekannt und bestätigt sein. REST: `GET/POST /api/journeys`, `POST /api/journeys/:id/cancel`.
+
+**Einmessen** (Verwaltung → Programmieren → Einmessen). Misst die Geschwindigkeit einer Lok je Fahrstufe über zwei Blöcke mit Meldern: Zeit vom Belegen des Startblocks bis zum Belegen des Zielblocks über eine Strecke, die du in cm angibst. Die Lok steht vor dem Startblock, beide Blöcke sind frei; nach jeder Messung fährt sie selbst zurück vor die Messstrecke. Jede Phase hat eine Zeitgrenze von 90 s, bei jedem Fehler und bei „Abbrechen“ hält die Lok. Aus den Messpunkten entsteht eine Kennlinie (Fahrstufe → cm/s, mit dem Maßstab in km/h umgerechnet). Sie zeigt am Fahrpult die Geschwindigkeit in km/h und rechnet den Halteweg eines Zugs in die passende Kriechzeit um. Gespeichert in `calibration.json`, Teil der Datensicherung.
+
+**Mit echter Hardware noch nicht erprobt.** Fahrautomat, Zielfahrt und Einmessen sind mit Tests und im Demo-Modus geprüft, nicht an einer echten Anlage. Beginne mit niedriger Fahrstufe und bleib beim ersten Versuch am Nothalt. Die Messfahrt beim Einmessen prüft keine Fahrstraße: Sorge selbst für freie Strecke und richtig gestellte Weichen.
 
 ### Noch nicht enthalten
 
@@ -198,7 +213,7 @@ Zugriff mit **Benutzername und Passwort**, zwei Rollen:
 
 | Rolle | Darf |
 |---|---|
-| **Benutzer** | Fahren, Weichen und Signale schalten, Fahrstraßen anfordern, Nothalt, Fahrplan und Stellwerk ansehen, Lok-Bilder ändern, eigenes Profil (Anzeigename, Passwort) und eigene Erfolge |
+| **Benutzer** | Fahren, Weichen und Signale schalten, Fahrstraßen anfordern, Zielfahrten starten, Nothalt, Fahrplan und Stellwerk ansehen, Lok-Bilder ändern, eigenes Profil (Anzeigename, Passwort) und eigene Erfolge |
 | **Admin** | zusätzlich die ganze Verwaltung: Benutzer, Gleisbild, Regeln, Züge, Fahrplan, Kameras, CV-Programmierung, Netzwerk, Datensicherung, Automatismen, Zurücksetzen der Erfolge |
 
 - **Erster Start:** Gibt es keine `users.json` und ist `Z21_PASSWORD` gesetzt, entsteht der Admin `admin` mit diesem Passwort (einmalige Neuanmeldung). Danach gilt das Konto; `Z21_PASSWORD` wird nicht mehr zum Anmelden benutzt. Läuft der Server nur lokal ohne Passwort und ohne Konten, ist alles offen wie bisher; das erste in der Verwaltung angelegte Konto wird Admin und schaltet die Anmeldung ein.
@@ -220,7 +235,7 @@ Unter **Verwaltung → Datensicherung** lädst du alles herunter, was du in der 
 - **Gleisbild:** Felder, Blöcke und Fahrstraßen
 - **Züge und Fahrplan:** Züge (ohne Standort), Fahrten und Verspätungsgrenze
 - **Lok-Bilder:** die kleinen Bilder der Loks (standardmäßig dabei, über „Lok-Bilder einschließen“ abwählbar); die Datei wird dadurch etwas größer
-- **Automatismen** der Loks, **Regeln der Anlage** und **Erfolge** mit Zählern
+- **Automatismen** der Loks, **Regeln der Anlage**, **Kennlinien** (Einmessen) und **Erfolge** mit Zählern
 - **Benutzer** mit Rollen und Passwort-Hashes (Wiederherstellen verlangt mindestens einen aktiven Admin)
 - **Kameras:** Kamera-Passwörter nur, wenn du sie ausdrücklich einschließt (sie stehen dann im Klartext in der Datei)
 

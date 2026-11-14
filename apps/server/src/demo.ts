@@ -10,8 +10,12 @@ import type { TimetableRunner } from "./timetable.js";
 const httpError = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode });
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Where the example track diagram lives, relative to this file (repo/docs/beispiel-gleisbild.json). */
-const EXAMPLE = new URL("../../../docs/beispiel-gleisbild.json", import.meta.url);
+/** The example track diagrams, relative to this file (repo/docs). */
+export const DEMO_EXAMPLES = {
+  bahnhof: new URL("../../../docs/beispiel-gleisbild.json", import.meta.url),
+  rundkurs: new URL("../../../docs/beispiel-rundkurs.json", import.meta.url),
+} as const;
+export type DemoExample = keyof typeof DEMO_EXAMPLES;
 
 /**
  * Demo mode: runs a Z21 simulator inside the server and connects the station to it, so every tab works without
@@ -29,12 +33,15 @@ export class Demo {
 
   get active() { return !!this.sim; }
 
-  /** @param exampleLayout load the example diagram if there is none yet (saved like any other diagram) */
-  async start(exampleLayout = true) {
+  /**
+   * @param example which example diagram to load if there is none yet (saved like any other diagram); false = none
+   * @param replace load the example even when there is a diagram already: the caller has asked the user
+   */
+  async start(example: DemoExample | false = "bahnhof", replace = false) {
     if (this.sim) return;
     if (this.station.client.connected) throw httpError(409, "Es besteht eine Verbindung zu einer Zentrale. Zuerst trennen.");
-    if (exampleLayout && this.box.get().tiles.length === 0) {
-      try { this.box.save(JSON.parse(readFileSync(EXAMPLE, "utf8"))); } catch (e) { console.error("Demo: Beispiel-Gleisbild nicht geladen:", (e as Error).message); }
+    if (example && (replace || this.box.get().tiles.length === 0)) {
+      try { this.box.save(JSON.parse(readFileSync(DEMO_EXAMPLES[example], "utf8"))); } catch (e) { console.error("Demo: Beispiel-Gleisbild nicht geladen:", (e as Error).message); }
     }
     const sim = new Z21Simulator();
     await sim.listen(0, "127.0.0.1");
@@ -132,8 +139,10 @@ function routeBlocks(layout: Layout, routeId: string): string[] {
 
 export function registerDemoRoutes(app: FastifyInstance, demo: Demo) {
   app.get("/api/demo", async () => ({ active: demo.active }));
-  app.post<{ Body: { on?: boolean } }>("/api/demo", async (req) => {
-    if (req.body?.on === false) await demo.stop(); else await demo.start();
+  app.post<{ Body: { on?: boolean; example?: string; replace?: boolean } }>("/api/demo", async (req) => {
+    const example = req.body?.example ?? "bahnhof";
+    if (!(example in DEMO_EXAMPLES)) throw httpError(400, "Unbekanntes Beispiel");
+    if (req.body?.on === false) await demo.stop(); else await demo.start(example as DemoExample, req.body?.replace === true);
     return { active: demo.active };
   });
 }

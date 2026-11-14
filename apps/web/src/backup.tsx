@@ -2,14 +2,15 @@ import { useRef, useState } from "react";
 import { api } from "./api";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
-type Part = "garage" | "layout" | "cameras" | "trains" | "timetable" | "locoImages" | "automations" | "layoutRules" | "achievements" | "users";
+type Part = "garage" | "layout" | "cameras" | "trains" | "timetable" | "locoImages" | "automations" | "layoutRules" | "calibration" | "achievements" | "users";
 
-const LABEL: Record<Part, string> = { garage: "Loks (Namen, Funktionsbezeichnungen, von Hand ergänzte Loks)", layout: "Gleisbild mit Blöcken und Fahrstraßen", cameras: "Kameras", trains: "Züge (ohne Standort)", timetable: "Fahrplan", locoImages: "Lok-Bilder", automations: "Automatismen der Loks", layoutRules: "Regeln der Anlage", achievements: "Erfolge und Zähler", users: "Benutzer (mit Passwort-Hashes)" };
+const LABEL: Record<Part, string> = { garage: "Loks (Namen, Funktionsbezeichnungen, von Hand ergänzte Loks)", layout: "Gleisbild mit Blöcken und Fahrstraßen", cameras: "Kameras", trains: "Züge (ohne Standort)", timetable: "Fahrplan", locoImages: "Lok-Bilder", automations: "Automatismen der Loks", layoutRules: "Regeln der Anlage", calibration: "Kennlinien der Loks (Einmessen)", achievements: "Erfolge und Zähler", users: "Benutzer (mit Passwort-Hashes)" };
 const countOf = (b: Record<string, unknown>, p: Part) =>
   p === "layout" ? (b.layout as { tiles?: unknown[] } | undefined)?.tiles?.length
   : p === "timetable" ? (b.timetable as { trips?: unknown[] } | undefined)?.trips?.length
   : p === "locoImages" ? (b.locoImages && typeof b.locoImages === "object" ? Object.keys(b.locoImages).length : undefined)
   : p === "automations" ? (b.automations ? Object.values(b.automations as Record<string, unknown[]>).reduce((n, l) => n + l.length, 0) : undefined)
+  : p === "calibration" ? (b.calibration && typeof b.calibration === "object" ? Object.keys(b.calibration).length : undefined)
   : p === "users" ? (b.users as unknown[] | undefined)?.length
   : p === "achievements" ? (b.achievements ? Object.keys(((b.achievements as { anlage?: { unlocked?: object }; unlocked?: object }).anlage ?? (b.achievements as { unlocked?: object })).unlocked ?? {}).length : undefined)
   : (b[p] as unknown[] | undefined)?.length;
