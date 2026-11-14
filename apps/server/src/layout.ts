@@ -25,6 +25,7 @@ export class SignalBox {
   private ticker?: NodeJS.Timeout;
   /** End events of an interlocking that was replaced by save(); handed out by the next drainEnded(). */
   private endedBuffer: EndedRoute[] = [];
+  private endedListeners: ((e: EndedRoute) => void)[] = [];
 
   constructor(private station: Station, file?: string, private gapMs = 250) {
     this.file = new JsonFile(file);
@@ -50,7 +51,7 @@ export class SignalBox {
   save(input: unknown): Layout {
     if (this.il.states().length) throw httpError(409, "Es sind noch Fahrstraßen angefordert; zuerst auflösen");
     try { this.layout = validateLayout(input); } catch (e) { throw httpError(400, (e as Error).message); }
-    this.endedBuffer.push(...this.il.drainEnded()); // a route that just completed must not get lost with the old interlocking
+    this.collectEnded(); // a route that just completed must not get lost with the old interlocking
     this.il = new Interlocking(this.layout);
     this.file.write(() => this.layout);
     this.pin();
@@ -174,9 +175,21 @@ export class SignalBox {
     return { ok: true };
   }
 
+  /** Hear about every route that ends, right when it does (the timetable still drains the list below). */
+  onEnded(listener: (e: EndedRoute) => void) { this.endedListeners.push(listener); }
+
+  /** Move the interlocking's end events into the buffer and tell the listeners. Call after anything that can end a route. */
+  private collectEnded() {
+    const ended = this.il.drainEnded();
+    if (!ended.length) return;
+    this.endedBuffer.push(...ended);
+    for (const e of ended) for (const l of this.endedListeners) { try { l(e); } catch (err) { console.error("Fahrstraßen-Ende:", (err as Error).message); } }
+  }
+
   /** Routes that ended since the last call, with the reason. */
   drainEnded(): EndedRoute[] {
-    const out = [...this.endedBuffer, ...this.il.drainEnded()];
+    this.collectEnded();
+    const out = this.endedBuffer;
     this.endedBuffer = [];
     return out;
   }
@@ -204,6 +217,7 @@ export class SignalBox {
     const out = this.il.release(id, force);
     if (!out.ok) throw httpError(409, out.reason ?? "Auflösen nicht möglich");
     this.dispatch(out.commands, true); // Halt for the signal
+    this.collectEnded();
     if (!this.il.states().length) this.stopTicker();
     this.station.notify();
     return { ok: true };
@@ -217,6 +231,7 @@ export class SignalBox {
     if (!this.station.client.connected) return;
     const commands = this.il.step(this.station.snapshot(), Date.now());
     this.dispatch(commands, true); // signals to Halt (or Fahrt after the positions are confirmed) do not wait in line
+    this.collectEnded();
     if (!this.il.states().length) this.stopTicker();
   }
 

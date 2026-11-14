@@ -1,4 +1,4 @@
-import type { Train, TrainLocation, Trip } from "./types.js";
+import type { Train, TrainDrive, TrainLocation, Trip } from "./types.js";
 
 const ID = /^[A-Za-z0-9_-]{1,24}$/;
 const MAX_DEPARTURES = 200;
@@ -62,6 +62,14 @@ export function validateTrains(input: unknown, ctx?: { blockIds: Set<string> }):
     addresses.add(train.address);
     const location = cleanLocation(t.location, ctx);
     if (location) train.location = location;
+    if (t.drive !== undefined && t.drive !== null) {
+      if (typeof t.drive !== "object") fail(`${where}: Fahrdaten ungültig`);
+      const d = t.drive as Record<string, unknown>;
+      const drive: TrainDrive = { speed: int(d.speed, 1, 126, `${where}: Fahrstufe`) };
+      if (d.stopDelayMs !== undefined && d.stopDelayMs !== null) drive.stopDelayMs = int(d.stopDelayMs, 0, 30_000, `${where}: Haltezeit im Zielblock (ms)`);
+      if (d.stopCm !== undefined && d.stopCm !== null) drive.stopCm = int(d.stopCm, 0, 2000, `${where}: Halteweg (cm)`);
+      train.drive = drive;
+    }
     return train;
   });
 }
@@ -91,6 +99,10 @@ export function validateTrips(input: unknown, ctx?: { trainIds: Set<string>; rou
     };
     const destination = text(t.destination, 40, `${where}: Ziel`);
     if (destination) trip.destination = destination;
+    if (t.drive !== undefined && t.drive !== null) {
+      if (t.drive !== "forward" && t.drive !== "reverse") fail(`${where}: Fahren muss „forward“ oder „reverse“ sein`);
+      trip.drive = t.drive as "forward" | "reverse";
+    }
     if (t.repeat !== undefined && t.repeat !== null) {
       if (typeof t.repeat !== "object") fail(`${where}: Takt ungültig`);
       const r = t.repeat as Record<string, unknown>;

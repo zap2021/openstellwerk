@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import type { FastifyInstance } from "fastify";
 import {
   DEFAULT_CLOCK, Dispatcher, parseHHMM, setClock, startClock, stopClock, validateSettings, validateTrains, validateTrips,
-  type Action, type ClockState, type Instance, type RouteInfo, type RouteResult, type TimetableSnapshot, type Trip,
+  type Action, type ClockState, type Instance, type RouteInfo, type RouteResult, type TimetableSnapshot, type Train, type Trip,
 } from "@z21/timetable";
 import { JsonFile } from "./json-file.js";
 import type { SignalBox } from "./layout.js";
@@ -47,8 +47,13 @@ export class TimetableRunner {
   /** A running clock is written to the file this often (real ms), so a restart resumes near where it was. */
   private clockSaveMs: number;
   private lastSave = Date.now();
+  /** Instances whose departure has been announced (onDeparture), so each is announced once. */
+  private announced = new Set<string>();
+  private onDeparture?: (trip: Trip, train: Train) => void;
 
-  constructor(private station: Station, private box: SignalBox, private trains: TrainStore, file?: string, opts: { tickMs?: number; clockSaveMs?: number } = {}) {
+  /** @param opts.onDeparture called once when the route of a trip with `drive` is set: the caller lets the loco drive */
+  constructor(private station: Station, private box: SignalBox, private trains: TrainStore, file?: string, opts: { tickMs?: number; clockSaveMs?: number; onDeparture?: (trip: Trip, train: Train) => void } = {}) {
+    this.onDeparture = opts.onDeparture;
     this.tickMs = opts.tickMs ?? 1000;
     this.clockSaveMs = opts.clockSaveMs ?? 30_000;
     this.store = new JsonFile(file);
@@ -244,8 +249,23 @@ export class TimetableRunner {
       this.execute(out.actions);
     }
     this.instances = out.instances;
+    this.announce();
     this.detect();
     this.publish();
+  }
+
+  /** Trips with `drive`: hand the loco to the caller once, when the route is set. */
+  private announce() {
+    for (const i of this.instances) {
+      if (i.status !== "set" || this.announced.has(i.id)) continue;
+      this.announced.add(i.id);
+      const trip = this.trips.find((t) => t.id === i.tripId);
+      const train = trip && this.trains.get(trip.trainId);
+      if (trip?.drive && train) {
+        try { this.onDeparture?.(trip, train); } catch (e) { console.error("Fahrplan, Abfahrt:", (e as Error).message); }
+      }
+    }
+    for (const id of this.announced) if (!this.instances.some((i) => i.id === id)) this.announced.delete(id);
   }
 
   /** Runs the actions; returns the answers to the route requests. */

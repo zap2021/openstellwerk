@@ -209,8 +209,8 @@ it("(h2) ended events are not drained while disconnected: a route completed befo
   await occupy(1, true);
   await until(() => inst(id)?.status === "running");
   await occupy(2, true);
-  await occupy(1, false);
   runner.stop(); // the end of the route reaches the runner only after the reconnect
+  await occupy(1, false); // arrived: the route completes
   await occupy(2, false);
   await until(() => route("r1") === undefined);
   station.client.disconnect();

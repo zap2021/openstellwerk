@@ -9,6 +9,9 @@ import {
 } from "@z21/protocol";
 import { Z21Client } from "./z21-client.js";
 import type { AchievementView } from "./achievements.js";
+import type { Journey } from "./journeys.js";
+import type { DriveResult, DriveView } from "./auto-drive.js";
+import type { Calibration, MeasureView } from "./calibration.js";
 import { Garage, type GarageLoco, type GarageSource } from "./garage.js";
 
 /** Progress of the address scan that looks for locos the command station already knows about. */
@@ -116,6 +119,12 @@ export interface StationState {
   /** Timetable clock, trains and upcoming departures (see TimetableRunner). */
   timetable?: TimetableSnapshot;
   achievements?: AchievementView;
+  /** Journeys to a chosen block (see JourneyRunner). */
+  journeys?: Journey[];
+  /** Locos the server drives right now and how the last drives ended (see AutoDriver). */
+  autoDrive?: { jobs: DriveView[]; results: DriveResult[] };
+  /** Speed tables per loco address and the measuring run, if any (see calibration.ts). */
+  calibration?: { tables: Record<string, Calibration>; run?: MeasureView };
 }
 
 /** Progress of a route that is being set. */
