@@ -39,8 +39,9 @@ it("drives a virtual train through a route: set, entered, released", async () =>
   expect((await post("/api/interlocking/r1/request")).statusCode).toBe(200);
   await until(() => status("r1") === "set");
   await until(() => status("r1") === "running"); // the train enters the start block ...
-  await until(() => status("r1") === undefined); // ... and has left the target block again
+  await until(() => status("r1") === undefined); // ... and has arrived in the target block
   expect(station.snapshot().interlocking).toEqual([]);
+  await until(() => station.snapshot().rmbus.find((m) => m.module === 1)!.inputs.every((i) => !i)); // the virtual train then disappears
 });
 
 it("ends the train when its route is released before it left", async () => {

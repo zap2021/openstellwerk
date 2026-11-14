@@ -66,31 +66,32 @@ it("sets a route: turnouts first, signal last, then locks everything", async () 
   expect((await app.inject({ method: "PUT", url: "/api/layout", payload: layout })).statusCode).toBe(409);
 });
 
-it("puts the signal back to Halt when the train enters and releases after it left", async () => {
+it("puts the signal back to Halt when the train enters and releases when it has arrived", async () => {
   sim.extras.setRmBus(1, 1, true); // train in block 1
   await until(() => status("r1") === "running");
   await until(() => station.snapshot().extAccessories[5] === 0);
   expect((await post("/api/interlocking/r1/release")).statusCode).toBe(409); // needs force while a train is inside
 
-  sim.extras.setRmBus(1, 2, true); // moves on to block 2 ...
-  sim.extras.setRmBus(1, 1, false);
+  sim.extras.setRmBus(1, 2, true); // head in block 2, tail still in block 1
   await new Promise((r) => setTimeout(r, 150));
   expect(status("r1")).toBe("running");
-  sim.extras.setRmBus(1, 2, false); // ... and leaves
+  sim.extras.setRmBus(1, 1, false); // arrived: the train may stay in the target block
   await until(() => status("r1") === undefined);
+  sim.extras.setRmBus(1, 2, false); // the following tests need the block free
+  await until(() => station.snapshot().rmbus.find((m) => m.module === 1)?.inputs[1] === false);
   expect((await post("/api/layout/tile/w1/set", { state: 0 })).statusCode).toBe(200); // unlocked again
   expect(box.drainEnded()).toEqual([{ routeId: "r1", reason: "completed" }]);
   expect(box.drainEnded()).toEqual([]);
 });
 
 it("refuses a route when its block is occupied, and lets the operator force-release", async () => {
-  sim.extras.setRmBus(1, 3, true);
-  await until(() => station.snapshot().rmbus.find((m) => m.module === 1)?.inputs[2] === true);
+  sim.extras.setRmBus(1, 2, true); // the target block
+  await until(() => station.snapshot().rmbus.find((m) => m.module === 1)?.inputs[1] === true);
   const busy = await post("/api/interlocking/r2/request");
   expect(busy.statusCode).toBe(409);
   expect(busy.json().message).toMatch(/besetzt/);
-  sim.extras.setRmBus(1, 3, false);
-  await until(() => station.snapshot().rmbus.find((m) => m.module === 1)?.inputs[2] === false);
+  sim.extras.setRmBus(1, 2, false);
+  await until(() => station.snapshot().rmbus.find((m) => m.module === 1)?.inputs[1] === false);
 
   expect((await post("/api/interlocking/r2/request")).statusCode).toBe(200);
   await until(() => status("r2") === "set");

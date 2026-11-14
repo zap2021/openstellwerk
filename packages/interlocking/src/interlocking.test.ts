@@ -89,11 +89,48 @@ describe("running a route", () => {
     expect(enter).toEqual([{ type: "turnout", address: 30, output: 0 }]); // signal back to Halt behind the train
     expect(il.states()[0]!.status).toBe("running");
 
-    il.step({ ...settled(), rmbus: [{ module: 1, inputs: [false, true, false, false] }] }, 600); // train moves on
+    il.step({ ...settled(), rmbus: [{ module: 1, inputs: [true, true, false, false] }] }, 600); // head in the target, tail still in b1
     expect(il.states()[0]!.status).toBe("running");
-    il.step({ ...settled(), rmbus: [{ module: 1, inputs: [false, false, false, false] }] }, 700); // and leaves
+    il.step({ ...settled(), rmbus: [{ module: 1, inputs: [false, true, false, false] }] }, 700); // arrived: only the target is occupied
     expect(il.states()).toEqual([]);
-    expect(il.request("r2", live(), 800).ok).toBe(true); // b2 is free again
+    expect(il.request("r2", live({ occ: [2] }), 800).reason).toMatch(/Gleis 2.*besetzt/); // the train stands there
+    expect(il.request("r2", live(), 900).ok).toBe(true); // once it has left, b2 can be used again
+  });
+
+  it("accepts a start block the train already stands in, and clears Halt when it enters the next block", () => {
+    const il = new Interlocking(layout);
+    const at = (...occ: number[]) => ({ ...settled(), rmbus: [{ module: 1, inputs: [1, 2, 3, 4].map((i) => occ.includes(i)) }] });
+    expect(il.request("r1", live({ occ: [1] }), 0).ok).toBe(true);
+    expect(il.step(at(1), 100)).toEqual([{ type: "turnout", address: 30, output: 1 }]); // no fault: the start block is the train
+    expect(il.states()[0]!.status).toBe("set");
+    il.step(at(1), 200);
+    expect(il.states()[0]!.status).toBe("set"); // standing in the start block is not "entered"
+    expect(il.step(at(1, 2), 300)).toEqual([{ type: "turnout", address: 30, output: 0 }]);
+    expect(il.states()[0]!.status).toBe("running");
+    il.step(at(2), 400); // the train stays in the target block
+    expect(il.states()).toEqual([]);
+    expect(il.drainEnded()).toEqual([{ routeId: "r1", reason: "completed" }]);
+  });
+
+  it("only excuses the start block: an occupied target or block in between still refuses", () => {
+    const il = new Interlocking(layout);
+    expect(il.request("r1", live({ occ: [1, 2] }), 0).reason).toMatch(/Gleis 2.*besetzt/);
+    expect(il.request("r5", live({ occ: [1, 3] }), 0).reason).toMatch(/Gleis 3.*besetzt/);
+    expect(il.request("r5", live({ occ: [1] }), 0).ok).toBe(true);
+  });
+
+  it("does not release on arrival while a block behind the train is still occupied or silent", () => {
+    const il = new Interlocking(layout);
+    const at = (...occ: number[]) => ({ ...settled(), rmbus: [{ module: 1, inputs: [1, 2, 3, 4].map((i) => occ.includes(i)) }] });
+    il.request("r5", live({ occ: [1] }), 0);
+    il.step(at(1), 100);
+    il.step(at(1, 3), 200);
+    il.step(at(3, 4), 300); // head in the target, tail in b3
+    expect(il.states()[0]!.status).toBe("running");
+    il.step({ ...settled(), rmbus: [] }, 400); // detectors silent
+    expect(il.states()[0]!.status).toBe("running");
+    il.step(at(4), 500);
+    expect(il.states()).toEqual([]);
   });
 
   it("stays locked while a detector goes silent during the run", () => {
@@ -175,8 +212,7 @@ describe("review findings", () => {
     il.step(train(), 300);           // b1 frees before b2 reports: a gap
     expect(il.states()[0]!.status).toBe("running");
     expect(il.request("r2", live(), 350).ok).toBe(false); // b2 is still locked
-    il.step(train(2), 400);          // arrives at the target block
-    il.step(train(), 500);           // and leaves
+    il.step(train(2), 400);          // arrives at the target block: released, the train may stay
     expect(il.states()).toEqual([]);
   });
 

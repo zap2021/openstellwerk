@@ -128,9 +128,9 @@ Die Monitore (RailCom, LocoNet, Melder, R-BUS, Booster, Uhr) sind standardmäßi
 
 Im Gleisbild-Editor fasst du Gleisfelder zu **Blöcken** zusammen; ein Block gilt als belegt, sobald einer seiner Melder belegt meldet. Eine Fahrstraße mit Start- oder Ziel-Block ist **gesichert**. Streckenblöcke ohne Weiche trägst du bei der Fahrstraße unter „Blöcke dazwischen“ ein, sonst werden sie weder geprüft noch verriegelt. Schritte einer Fahrstraße müssen schaltbare Felder sein (Weiche, Signal):
 
-- Sie wird nur eingestellt, wenn alle ihre Blöcke sicher frei sind. Ein Melder, der noch nichts gemeldet hat, zählt nicht als frei.
+- Sie wird nur eingestellt, wenn alle ihre Blöcke sicher frei sind. Einzige Ausnahme ist der Startblock: Er darf belegt sein, denn dort steht der Zug, für den die Fahrstraße ist. Ein Melder, der noch nichts gemeldet hat, zählt nicht als frei.
 - Weichen werden zuerst gestellt, das Startsignal erst, wenn alle Lagen zurückgemeldet sind. Sie bleiben verriegelt: Handschaltung (auch über den Weichen-Tab, die Signal-Seite und „Testen“ im Editor) und ungesicherte Fahrstraßen auf diese Adressen werden abgelehnt. Halt-Befehle der Sicherung überholen andere Schaltaufträge in der Warteschlange.
-- Fährt der Zug ein, geht das Signal auf Halt. Die Fahrstraße löst sich auf, sobald der Zug den Zielblock erreicht hat und alle Blöcke wieder frei sind. Eine kurze Lücke zwischen zwei Meldern löst nichts aus. Erreicht der Zug das Ziel nie, bleibt sie bis zur Notauflösung verriegelt.
+- Fährt der Zug ein (ein anderer Block als der schon belegte Startblock meldet besetzt), geht das Signal auf Halt. Die Fahrstraße löst sich auf, sobald der Zug angekommen ist: Der Zielblock wurde erreicht und alle anderen Blöcke sind wieder frei; im Zielblock darf der Zug stehen bleiben. Eine kurze Lücke zwischen zwei Meldern löst nichts aus. Erreicht der Zug das Ziel nie, bleibt sie bis zur Notauflösung verriegelt.
 - Wird eine verriegelte Weiche verstellt, fällt ein Block aus oder melden die Weichen nicht rechtzeitig (15 s), geht die Fahrstraße in **Störung**: Signal auf Halt, Verriegelung bleibt, bis du sie quittierst. Eine Fahrstraße mit Zug darin löst nur die Notauflösung.
 - Bei getrennter Verbindung friert die Sicherung ein und löst nichts auf.
 - Gleisbild-Änderungen sind nur ohne angeforderte Fahrstraßen möglich.
@@ -150,10 +150,6 @@ Die Sicherung braucht Belegtmelder. Ohne sie lassen sich Fahrstraßen nicht eins
 - **Datensicherung:** enthält Züge (ohne Standort) und den Fahrplan (Fahrten, Verspätungsgrenze).
 - **Demo-Modus:** lädt Beispielzüge und -fahrplan (`docs/beispiel-fahrplan.json`), wenn noch keine Züge und Fahrten existieren und das Gleisbild die Blöcke und Fahrstraßen des Beispiels hat; die Uhr startet bei 05:58 mit Faktor 20. Ein älteres gespeichertes Beispiel-Gleisbild ohne die Fahrstraßen r3/r4 bitte im Editor neu importieren (`docs/beispiel-gleisbild.json`).
 - **Folgt in Stufe 2:** Lok automatisch fahren.
-
-#### Bekannte Einschränkung der Automatik (Stufe 1)
-
-Die gesicherten Fahrstraßen aus Phase 1 verlangen, dass alle ihre Blöcke frei sind – auch der Startblock. Steht der Zug im Startblock und meldet dort ein echter Melder besetzt, lehnt die Sicherung die Fahrstraße ab; ein Zug, der im Zielblock hält, hält die Fahrstraße bis zur Notauflösung offen. Mit dem Simulator und im Demo-Modus tritt das nicht auf, mit echten Rückmeldern schon. Das Verhalten der Sicherung (Startblock darf vom Zug selbst belegt sein, Auflösung beim Erreichen des Zielblocks) wird als Erstes in der nächsten Ausbaustufe geändert. Bis dahin lässt sich der Fahrplan nur ohne echte Melder (Simulator, Demo) vollständig nutzen.
 
 ### Noch nicht enthalten
 
