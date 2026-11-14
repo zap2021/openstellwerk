@@ -36,6 +36,7 @@ printf '\nPasswort wiederholen: '
 read -r -s PASSWORD_CONFIRM
 printf '\n'
 [[ -n $PASSWORD && $PASSWORD == "$PASSWORD_CONFIRM" ]] || die 'Passwörter sind leer oder stimmen nicht überein.'
+(( ${#PASSWORD} >= 3 )) || die 'Das Passwort braucht mindestens 3 Zeichen.'
 LC_ALL=C grep -q '^[ -~]*$' <<< "$PASSWORD" || die 'Das Passwort darf nur druckbare ASCII-Zeichen enthalten.'
 unset PASSWORD_CONFIRM
 

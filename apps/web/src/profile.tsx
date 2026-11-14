@@ -25,8 +25,8 @@ export function ProfilePage({ user, state, run, done }: { user: SessionUser; sta
         <h3>Passwort ändern</h3>
         <div className="row tight">
           <input type="password" placeholder="bisheriges Passwort" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" />
-          <input type="password" placeholder="neues Passwort (min. 8 Zeichen)" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
-          <button disabled={!current || password.length < 8}
+          <input type="password" placeholder="neues Passwort" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
+          <button disabled={!current || !password}
             onClick={() => run(api("POST", "/api/me/password", { current, password }).then(() => { setCurrent(""); setPassword(""); setInfo("Passwort geändert; andere Geräte müssen sich neu anmelden"); }))}>Ändern</button>
         </div>
         {info && <p className="hint">{info}</p>}

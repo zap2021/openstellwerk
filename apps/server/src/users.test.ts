@@ -5,7 +5,7 @@ import Fastify from "fastify";
 import { afterAll, describe, expect, it } from "vitest";
 import { registerAuth } from "./auth.js";
 import { requiredRole } from "./roles.js";
-import { hashPassword, parseUsers, UserStore, verifyPassword } from "./users.js";
+import { hashPassword, minPasswordLength, parseUsers, UserStore, verifyPassword } from "./users.js";
 
 describe("passwords", () => {
   it("hashes with a salt and verifies", () => {
@@ -35,7 +35,8 @@ describe("UserStore", () => {
   it("validates names and passwords", () => {
     const s = make();
     expect(() => s.create({ name: "a b", password: "annaanna1" })).toThrow(/Anmeldename/);
-    expect(() => s.create({ name: "ben", password: "kurz" })).toThrow(/mindestens/);
+    expect(() => s.create({ name: "ben", password: "ab" })).toThrow(/mindestens 3 Zeichen/);
+    expect([minPasswordLength(undefined), minPasswordLength("8"), minPasswordLength("0"), minPasswordLength("x")]).toEqual([3, 8, 3, 3]);
   });
   it("authenticates by name (any case) and refuses blocked accounts", () => {
     const s = make();

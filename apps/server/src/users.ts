@@ -23,7 +23,15 @@ export const toPublic = ({ hash: _h, ...u }: User): PublicUser => u;
 
 const fail = (m: string, statusCode = 400): never => { throw Object.assign(new Error(m), { statusCode }); };
 
-export const MIN_PASSWORD = 8;
+/**
+ * Mindestlänge neuer Passwörter. Standard 3 (Heimnetz, bequem); mit Z21_MIN_PASSWORD (1..64) strenger einstellbar,
+ * z. B. 8 oder mehr, wenn der Server aus dem Internet erreichbar ist.
+ */
+export function minPasswordLength(env: string | undefined = process.env.Z21_MIN_PASSWORD): number {
+  const n = Number(env);
+  return env && Number.isInteger(n) && n >= 1 && n <= 64 ? n : 3;
+}
+export const MIN_PASSWORD = minPasswordLength();
 const NAME = /^[\p{L}\p{N}._-]{1,32}$/u;
 
 export function hashPassword(password: string): string {

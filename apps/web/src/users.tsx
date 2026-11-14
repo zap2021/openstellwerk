@@ -32,7 +32,7 @@ export function UsersPage({ me, run }: { me?: SessionUser; run: Run }) {
                 <td><button onClick={() => act(api("PUT", `/api/users/${u.id}`, { active: !u.active }))}>{u.active ? "aktiv – sperren" : "gesperrt – freigeben"}</button></td>
                 <td className="row tight">
                   <button onClick={() => {
-                    const pw = window.prompt(`Neues Passwort für ${u.name} (mindestens 8 Zeichen):`);
+                    const pw = window.prompt(`Neues Passwort für ${u.name}:`);
                     if (pw) void act(api("POST", `/api/users/${u.id}/password`, { password: pw }));
                   }}>Passwort setzen</button>
                   {u.id !== me?.id && <button className="danger" onClick={() => ifSure(`Benutzer ${u.name} löschen?`, () => act(api("DELETE", `/api/users/${u.id}`)))}>Löschen</button>}
@@ -52,8 +52,8 @@ export function UsersPage({ me, run }: { me?: SessionUser; run: Run }) {
           <input placeholder="Anmeldename" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} autoComplete="off" />
           <input placeholder="Anzeigename (optional)" value={draft.displayName} onChange={(e) => setDraft({ ...draft, displayName: e.target.value })} />
           <select value={draft.role} onChange={(e) => setDraft({ ...draft, role: e.target.value })}><option value="user">Benutzer</option><option value="admin">Admin</option></select>
-          <input type="password" placeholder="Passwort (min. 8 Zeichen)" value={draft.password} onChange={(e) => setDraft({ ...draft, password: e.target.value })} autoComplete="new-password" />
-          <button type="submit" className="active" disabled={!draft.name.trim() || draft.password.length < 8}>Anlegen</button>
+          <input type="password" placeholder="Passwort" value={draft.password} onChange={(e) => setDraft({ ...draft, password: e.target.value })} autoComplete="new-password" />
+          <button type="submit" className="active" disabled={!draft.name.trim() || !draft.password}>Anlegen</button>
         </div>
       </form>
     </section>
