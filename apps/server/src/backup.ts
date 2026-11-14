@@ -7,6 +7,9 @@ import { checkJpeg, parseAddress, syncGarageImages, type LocoImageStore } from "
 import type { SignalBox } from "./layout.js";
 import type { TimetableRunner } from "./timetable.js";
 import type { TrainStore } from "./trains.js";
+import { AutomationStore, type Automation } from "./automations.js";
+import { parseAchievements, type AchievementStore } from "./achievements.js";
+import { parseUsers, type User, type UserStore } from "./users.js";
 
 /**
  * Backup of everything the user maintains in this application and that is NOT stored on the command station:
@@ -14,10 +17,13 @@ import type { TrainStore } from "./trains.js";
  *  - layout: track diagram, blocks and routes
  *  - cameras: configured cameras (passwords only on request)
  *  - trains and timetable: trains (without their location), trips and the lateness setting
+ *  - automations: per-loco triggers, conditions and actions
+ *  - achievements: score and counters of the layout and of each user
+ *  - users: accounts with roles and password hashes (never plain passwords); a backup needs at least one active admin
  * Loco speeds, turnout positions, CVs, clock and network settings live on the Z21 and are not part of it.
  */
 export const BACKUP_FORMAT = "z21-web-backup";
-export const BACKUP_PARTS = ["garage", "layout", "cameras", "trains", "timetable", "locoImages"] as const;
+export const BACKUP_PARTS = ["garage", "layout", "cameras", "trains", "timetable", "locoImages", "automations", "achievements", "users"] as const;
 export type BackupPart = (typeof BACKUP_PARTS)[number];
 
 export interface Backup {
@@ -31,12 +37,15 @@ export interface Backup {
   /** address → base64 of the small JPEG; only present when there are pictures (and they were asked for) */
   locoImages?: Record<string, string>;
   timetable?: { trips: Trip[]; settings: { lateLimit: number } };
+  automations?: Record<string, Automation[]>;
+  achievements?: ReturnType<AchievementStore["export"]>;
+  users?: User[];
 }
 
 const httpError = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode });
 
 export class BackupService {
-  constructor(private garage: Garage, private box: SignalBox, private cameras: CameraStore, private trains: TrainStore, private timetable: TimetableRunner, private images: LocoImageStore, private changed: () => void = () => {}) {}
+  constructor(private garage: Garage, private box: SignalBox, private cameras: CameraStore, private trains: TrainStore, private timetable: TimetableRunner, private images: LocoImageStore, private changed: () => void = () => {}, private extras: { automations?: AutomationStore; achievements?: AchievementStore; users?: UserStore } = {}) {}
 
   create(opts: { passwords?: boolean; images?: boolean } = {}): Backup {
     const locoImages: Record<string, string> = {};
@@ -51,6 +60,9 @@ export class BackupService {
       trains: this.trains.list().map(({ location: _l, ...t }) => t),
       timetable: { trips: this.timetable.get().trips, settings: { lateLimit: this.timetable.get().lateLimit } },
       ...(Object.keys(locoImages).length ? { locoImages } : {}),
+      ...(this.extras.automations ? { automations: this.extras.automations.all() } : {}),
+      ...(this.extras.achievements ? { achievements: this.extras.achievements.export() } : {}),
+      ...(this.extras.users && this.extras.users.count() ? { users: this.extras.users.all() } : {}),
     };
   }
 
@@ -101,6 +113,12 @@ export class BackupService {
       ? (check(() => parseLocoImages(b.locoImages, new Set((garage ?? this.garage.list()).map((l) => l.address)))) as Map<number, Buffer>)
       : undefined;
 
+    const automations = chosen.includes("automations") && this.extras.automations ? (check(() => AutomationStore.parseAll(b.automations)) as ReturnType<typeof AutomationStore.parseAll>) : undefined;
+    const achievements = chosen.includes("achievements") && this.extras.achievements ? (check(() => parseAchievements(b.achievements)) as ReturnType<typeof parseAchievements>) : undefined;
+
+    const users = chosen.includes("users") && this.extras.users ? (check(() => parseUsers(b.users)) as User[]) : undefined;
+    if (users && users.length === 0) throw httpError(400, "Die Sicherung enthält keine Benutzer");
+
     // 2. apply. Garage and pictures (files) are the parts that can fail on disk: if one of them does, put both back as they were.
     const garageBefore = this.garage.list();
     const imagesBefore = new Map(this.images.addresses().map((a) => [a, this.images.get(a)!] as const));
@@ -121,6 +139,9 @@ export class BackupService {
     if (cameras !== undefined) restored.cameras = this.cameras.replaceAll(cameras).length;
     if (trains) { this.trains.replaceAll(trains); restored.trains = trains.length; }
     if (timetable) { this.timetable.replaceAll(timetable); restored.timetable = timetable.trips.length; }
+    if (automations) { this.extras.automations!.replaceAll(automations); restored.automations = [...automations.values()].reduce((n, l) => n + l.length, 0); }
+    if (achievements) { this.extras.achievements!.replace(achievements); restored.achievements = Object.keys(achievements.anlage.unlocked).length + Object.keys(achievements.users).length; }
+    if (users) { this.extras.users!.replaceAll(users); restored.users = users.length; }
     this.changed(); // browsers get the new state right away
     return { restored };
   }

@@ -57,6 +57,7 @@ export interface StationState {
   garage: GarageLoco[];
   layout?: Layout;
   timetable?: TimetableSnapshot;
+  achievements?: AchievementView;
   routeRun?: { routeId: string; done: number; total: number; running: boolean; error?: string };
   /** Interlocked routes that are not idle (mirrors RouteState of @z21/interlocking). */
   /** true while the built-in simulator stands in for a real command station */
@@ -137,4 +138,17 @@ export interface Camera {
   hasPassword: boolean;
   refreshMs?: number;
   insecureTls?: boolean;
+}
+
+/** Erfolge der Anlage (Spiegel von apps/server/src/achievements.ts). */
+export interface SessionUser { id: string; name: string; displayName: string; role: "user" | "admin"; active: boolean; createdAt: number }
+
+export interface AchievementView {
+  score: number;
+  maxScore: number;
+  stats: { starts: number; stops: number; estops: number; departures: number };
+  items: { id: string; title: string; text: string; points: number; progress: number; goal: number; unlockedAt?: number }[];
+  seq: number;
+  latest?: { id: string; title: string; text: string; points: number; by?: string };
+  ranking: { userId: string; name: string; score: number }[];
 }

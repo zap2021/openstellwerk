@@ -1,5 +1,9 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { allowed, requiredRole } from "./roles.js";
+import { toPublic, verifyPassword, type PublicUser, type UserStore } from "./users.js";
+
+declare module "fastify" { interface FastifyRequest { user?: PublicUser } }
 
 export interface AuthOptions {
   /** shared password; empty/undefined = no login (only sensible on loopback) */
@@ -7,6 +11,8 @@ export interface AuthOptions {
   /** refuse logins that arrive over plain HTTP from another machine */
   requireHttps?: boolean;
   sessionTtlMs?: number;
+  /** Benutzerverwaltung: Anmeldung mit Name und Passwort, Rollen. Ohne sie gilt das eine gemeinsame Passwort. */
+  users?: UserStore;
 }
 
 const COOKIE = "z21_session";
@@ -35,33 +41,48 @@ function cookieOf(req: FastifyRequest): string | undefined {
  * are covered without any client changes; SameSite=Strict keeps other sites from riding on the session.
  */
 export function registerAuth(app: FastifyInstance, opts: AuthOptions) {
-  const enabled = !!opts.password;
+  const users = opts.users;
+  /** Mit Benutzern ist die Anmeldung auch ohne gemeinsames Passwort Pflicht. */
+  const enabled = () => !!opts.password || (users?.count() ?? 0) > 0;
   const ttl = opts.sessionTtlMs ?? 30 * 24 * 3600_000;
-  const sessions = new Map<string, number>();
+  const sessions = new Map<string, { exp: number; userId?: string }>();
   const fails = new Map<string, { count: number; until: number }>();
-  const want = enabled ? digest(opts.password!) : undefined;
+  const want = opts.password ? digest(opts.password) : undefined;
 
-  const valid = (req: FastifyRequest) => {
+  /** Gültige Sitzung → der Benutzer (mit Benutzerverwaltung) bzw. `true` (gemeinsames Passwort). Das Konto wird bei jeder Anfrage neu gelesen. */
+  const valid = (req: FastifyRequest): PublicUser | true | false => {
     const t = cookieOf(req);
-    const exp = t ? sessions.get(t) : undefined;
-    if (!t || !exp) return false;
-    if (exp < Date.now()) { sessions.delete(t); return false; }
-    return true;
+    const s = t ? sessions.get(t) : undefined;
+    if (!t || !s) return false;
+    if (s.exp < Date.now()) { sessions.delete(t); return false; }
+    if (!users || !s.userId) return users ? false : true;
+    const u = users.get(s.userId);
+    if (!u || !u.active) { sessions.delete(t); return false; }
+    return toPublic(u);
   };
+  const dropSessionsOf = (userId: string, except?: string) => { for (const [t, s] of sessions) if (s.userId === userId && t !== except) sessions.delete(t); };
   const cookie = (req: FastifyRequest, value: string, maxAgeS: number) =>
     `${COOKIE}=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAgeS}${req.protocol === "https" ? "; Secure" : ""}`;
 
   app.addHook("onRequest", async (req, reply) => {
-    if (!enabled) return;
+    if (!enabled()) return;
     const url = req.url.split("?")[0]!;
     if (!(url.startsWith("/api/") || url === "/ws") || OPEN_PATHS.has(url)) return;
-    if (!valid(req)) return reply.code(401).send({ statusCode: 401, error: "Unauthorized", message: "Anmeldung erforderlich" });
+    const who = valid(req);
+    if (!who) return reply.code(401).send({ statusCode: 401, error: "Unauthorized", message: "Anmeldung erforderlich" });
+    if (who !== true) {
+      req.user = who;
+      if (!allowed(who.role, requiredRole(req.method, url))) return reply.code(403).send({ statusCode: 403, error: "Forbidden", message: "Dafür sind Administratorrechte nötig" });
+    }
   });
 
-  app.get("/api/session", async (req) => ({ required: enabled, authenticated: !enabled || valid(req) }));
+  app.get("/api/session", async (req) => {
+    const who = valid(req);
+    return { required: enabled(), ...(users && users.count() > 0 ? { users: true } : {}), authenticated: !enabled() || !!who, ...(who && who !== true ? { user: who } : {}) };
+  });
 
-  app.post<{ Body: { password?: string } }>("/api/login", async (req, reply) => {
-    if (!enabled) return { ok: true };
+  app.post<{ Body: { name?: string; password?: string } }>("/api/login", async (req, reply) => {
+    if (!enabled()) return { ok: true };
     if (opts.requireHttps && req.protocol !== "https" && !isLoopback(req.ip)) {
       return reply.code(403).send({ statusCode: 403, error: "Forbidden", message: "Anmeldung nur über HTTPS erlaubt" });
     }
@@ -70,18 +91,21 @@ export function registerAuth(app: FastifyInstance, opts: AuthOptions) {
     if (f && f.until > now) {
       return reply.code(429).header("retry-after", Math.ceil((f.until - now) / 1000)).send({ statusCode: 429, error: "Too Many Requests", message: "Zu viele Fehlversuche, bitte kurz warten" });
     }
-    if (!timingSafeEqual(digest(String(req.body?.password ?? "")), want!)) {
+    const password = String(req.body?.password ?? "");
+    const user = users ? users.authenticate(String(req.body?.name ?? ""), password) : undefined;
+    const good = users ? !!user : !!want && timingSafeEqual(digest(password), want);
+    if (!good) {
       const count = (f?.count ?? 0) + 1;
       // free tries first, then 5 s, 10 s, 20 s … capped at 5 min
       fails.set(req.ip, { count, until: count >= 5 ? now + Math.min(300_000, 5000 * 2 ** (count - 5)) : 0 });
       if (fails.size > 2000) fails.clear();
-      return reply.code(401).send({ statusCode: 401, error: "Unauthorized", message: "Falsches Passwort" });
+      return reply.code(401).send({ statusCode: 401, error: "Unauthorized", message: users ? "Name oder Passwort falsch" : "Falsches Passwort" });
     }
     fails.delete(req.ip);
-    for (const [t, exp] of sessions) if (exp < now) sessions.delete(t);
+    for (const [t, v] of sessions) if (v.exp < now) sessions.delete(t);
     if (sessions.size > 500) sessions.delete(sessions.keys().next().value!);
     const token = randomBytes(32).toString("base64url");
-    sessions.set(token, now + ttl);
+    sessions.set(token, { exp: now + ttl, userId: user?.id });
     reply.header("set-cookie", cookie(req, token, Math.floor(ttl / 1000)));
     return { ok: true };
   });
@@ -92,4 +116,36 @@ export function registerAuth(app: FastifyInstance, opts: AuthOptions) {
     reply.header("set-cookie", cookie(req, "", 0));
     return { ok: true };
   });
+
+  if (users) {
+    const err = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode });
+    const me = (req: FastifyRequest) => req.user ?? (() => { throw err(400, "Nur mit Benutzerkonto möglich"); })();
+    app.get("/api/me", async (req) => me(req));
+    app.put<{ Body: { displayName?: string } }>("/api/me", async (req) => users.update(me(req).id, { displayName: req.body?.displayName }));
+    app.post<{ Body: { current?: string; password?: string } }>("/api/me/password", async (req) => {
+      const u = users.get(me(req).id)!;
+      if (!verifyPassword(String(req.body?.current ?? ""), u.hash)) throw err(403, "Das bisherige Passwort stimmt nicht");
+      users.setPassword(u.id, req.body?.password);
+      dropSessionsOf(u.id, cookieOf(req)); // alle anderen Geräte müssen sich neu anmelden
+      return { ok: true };
+    });
+    app.get("/api/users", async () => users.list());
+    app.post<{ Body: Record<string, unknown> }>("/api/users", async (req) => users.create(req.body ?? {}));
+    app.put<{ Params: { id: string }; Body: Record<string, unknown> }>("/api/users/:id", async (req) => {
+      const r = users.update(req.params.id, req.body ?? {});
+      if (!r.active) dropSessionsOf(r.id);
+      return r;
+    });
+    app.post<{ Params: { id: string }; Body: { password?: string } }>("/api/users/:id/password", async (req) => {
+      users.setPassword(req.params.id, req.body?.password);
+      dropSessionsOf(req.params.id);
+      return { ok: true };
+    });
+    app.delete<{ Params: { id: string } }>("/api/users/:id", async (req) => {
+      if (req.user?.id === req.params.id) throw err(409, "Das eigene Konto lässt sich nicht löschen");
+      const removed = users.remove(req.params.id);
+      dropSessionsOf(req.params.id);
+      return { removed };
+    });
+  }
 }

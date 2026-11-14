@@ -2,13 +2,16 @@ import { useRef, useState } from "react";
 import { api } from "./api";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
-type Part = "garage" | "layout" | "cameras" | "trains" | "timetable" | "locoImages";
+type Part = "garage" | "layout" | "cameras" | "trains" | "timetable" | "locoImages" | "automations" | "achievements" | "users";
 
-const LABEL: Record<Part, string> = { garage: "Loks (Namen, Funktionsbezeichnungen, von Hand ergänzte Loks)", layout: "Gleisbild mit Blöcken und Fahrstraßen", cameras: "Kameras", trains: "Züge (ohne Standort)", timetable: "Fahrplan", locoImages: "Lok-Bilder" };
+const LABEL: Record<Part, string> = { garage: "Loks (Namen, Funktionsbezeichnungen, von Hand ergänzte Loks)", layout: "Gleisbild mit Blöcken und Fahrstraßen", cameras: "Kameras", trains: "Züge (ohne Standort)", timetable: "Fahrplan", locoImages: "Lok-Bilder", automations: "Automatismen der Loks", achievements: "Erfolge und Zähler", users: "Benutzer (mit Passwort-Hashes)" };
 const countOf = (b: Record<string, unknown>, p: Part) =>
   p === "layout" ? (b.layout as { tiles?: unknown[] } | undefined)?.tiles?.length
   : p === "timetable" ? (b.timetable as { trips?: unknown[] } | undefined)?.trips?.length
   : p === "locoImages" ? (b.locoImages && typeof b.locoImages === "object" ? Object.keys(b.locoImages).length : undefined)
+  : p === "automations" ? (b.automations ? Object.values(b.automations as Record<string, unknown[]>).reduce((n, l) => n + l.length, 0) : undefined)
+  : p === "users" ? (b.users as unknown[] | undefined)?.length
+  : p === "achievements" ? (b.achievements ? Object.keys(((b.achievements as { anlage?: { unlocked?: object }; unlocked?: object }).anlage ?? (b.achievements as { unlocked?: object })).unlocked ?? {}).length : undefined)
   : (b[p] as unknown[] | undefined)?.length;
 
 /** Backup of everything maintained in this application that the Z21 does not store. */
@@ -58,6 +61,7 @@ export function BackupPanel({ run }: { run: Run }) {
         <label className="check"><input type="checkbox" checked={passwords} onChange={(e) => setPasswords(e.target.checked)} /> Kamera-Passwörter einschließen</label>
         <label className="check"><input type="checkbox" checked={images} onChange={(e) => setImages(e.target.checked)} /> Lok-Bilder einschließen</label>
       </div>
+      <p className="hint warn">Die Sicherung enthält die Benutzerkonten mit Passwort-Hashes (keine Klartext-Passwörter). Trotzdem nur an einem sicheren Ort aufbewahren.</p>
       {passwords && <p className="hint warn">Die Datei enthält dann Passwörter im Klartext. Nur an einem sicheren Ort aufbewahren.</p>}
       <div className="row">
         <button onClick={() => input.current?.click()}>Sicherung öffnen …</button>

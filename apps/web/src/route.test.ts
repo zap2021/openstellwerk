@@ -13,4 +13,8 @@ describe("route", () => {
   it("round-trips", () => {
     for (const h of ["#/", "#/verwaltung", "#/verwaltung/backup", "#/anzeige"]) expect(routeHash(parseRoute(h))).toBe(h);
   });
+  it("knows the profile page", () => {
+    expect(parseRoute("#/profil")).toEqual({ area: "profile" });
+    expect(routeHash({ area: "profile" })).toBe("#/profil");
+  });
 });

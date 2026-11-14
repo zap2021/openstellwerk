@@ -12,10 +12,14 @@ import { registerMaintenanceRoutes } from "./maintenance.js";
 import { CameraStore, registerCameraRoutes } from "./cameras.js";
 import { discover } from "./z21-client.js";
 import { exposureProblem, registerAuth } from "./auth.js";
+import { UserStore } from "./users.js";
 import { registerLayoutRoutes, SignalBox } from "./layout.js";
 import { Demo, registerDemoRoutes } from "./demo.js";
 import { BackupService, registerBackupRoutes } from "./backup.js";
 import { registerTrainRoutes, TrainStore } from "./trains.js";
+import { AchievementStore, registerAchievementRoutes } from "./achievements.js";
+import { detectEvents } from "./automations.js";
+import { AutomationEngine, AutomationStore, registerAutomationRoutes } from "./automations.js";
 import { registerTimetableRoutes, TimetableRunner } from "./timetable.js";
 import { readTls, tlsFilesFromEnv, watchTls } from "./tls.js";
 
@@ -23,7 +27,18 @@ const PORT = Number(process.env.PORT ?? 3001);
 const HOST = process.env.HOST ?? "127.0.0.1"; // local unless explicitly opened up (then a password is required)
 const PASSWORD = process.env.Z21_PASSWORD || undefined;
 
-const problem = exposureProblem({ host: HOST, password: PASSWORD, allowOpen: process.env.Z21_ALLOW_OPEN === "1" });
+const dataDir = process.env.DATA_DIR ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../data");
+
+/* Benutzer: ohne users.json und mit Z21_PASSWORD entsteht beim ersten Start ein Admin "admin" mit diesem Passwort. */
+const users = new UserStore(path.join(dataDir, "users.json"));
+if (users.count() === 0 && PASSWORD) {
+  try {
+    users.create({ name: "admin", displayName: "Administrator", role: "admin", password: PASSWORD });
+    console.warn('Benutzer "admin" angelegt (Passwort aus Z21_PASSWORD). Danach gilt das Konto, nicht mehr die Umgebungsvariable.');
+  } catch (e) { console.error("Admin konnte nicht angelegt werden:", (e as Error).message); process.exit(1); }
+}
+
+const problem = exposureProblem({ host: HOST, password: PASSWORD ?? (users.count() > 0 ? "users" : undefined), allowOpen: process.env.Z21_ALLOW_OPEN === "1" });
 if (problem) { console.error(problem); process.exit(1); }
 
 const tlsFiles = tlsFilesFromEnv(process.env);
@@ -35,11 +50,16 @@ const app = Fastify({
 } as FastifyServerOptions);
 if (tlsFiles) watchTls(app.server as unknown as HttpsServer, tlsFiles, (err) => (err ? app.log.error(err, "TLS reload failed") : app.log.warn("TLS certificate reloaded")));
 
-const dataDir = process.env.DATA_DIR ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../data");
 const garageFile = process.env.GARAGE_FILE ?? path.join(dataDir, "garage.json");
 const station = new Station(new Garage(garageFile));
 await app.register(websocket);
-registerAuth(app, { password: PASSWORD, requireHttps: process.env.Z21_REQUIRE_HTTPS === "1" });
+registerAuth(app, { password: users.count() > 0 ? undefined : PASSWORD, users, requireHttps: process.env.Z21_REQUIRE_HTTPS === "1" });
+// Wer einer Lok zuletzt einen Fahrbefehl gegeben hat, bekommt die Erfolge für Anfahren und Halten.
+app.addHook("preHandler", async (req) => {
+  if (!req.user || req.method !== "POST") return;
+  const m = /^\/api\/loco\/(\d+)\/(?:drive|stop|estop|function\/\d+|function-group)$/.exec(req.url.split("?")[0]!);
+  if (m) achievements.touch(Number(m[1]), req.user.id);
+});
 
 const int = (v: unknown, min: number, max: number, name: string) => {
   const n = Number(v);
@@ -140,6 +160,17 @@ app.put<{ Params: { addr: string }; Body: { mode: string } }>("/api/turnout/:add
 const box = new SignalBox(station, path.join(dataDir, "layout.json"));
 registerLayoutRoutes(app, box);
 
+/* ---------- automations per loco ---------- */
+const automationStore = new AutomationStore(path.join(dataDir, "automations.json"));
+const automations = new AutomationEngine(automationStore, (a, fn, act) => station.setFunction(a, fn, act));
+const achievements = new AchievementStore(path.join(dataDir, "achievements.json"), () => station.notify(), (id) => users.get(id)?.displayName);
+station.addExtra(() => ({ achievements: achievements.view() }));
+registerAchievementRoutes(app, achievements);
+station.on("locoChange", (prev, next) => { automations.onLoco(prev, next); achievements.onLocoEvents(detectEvents(prev, next), achievements.actorOf(next.address)); });
+station.on("locosReset", () => automations.cancelPending());
+station.on("state", (s) => { if (s.timetable) achievements.onInstances(s.timetable.instances); });
+registerAutomationRoutes(app, automationStore);
+
 /* ---------- trains and timetable ---------- */
 const trains = new TrainStore(path.join(dataDir, "trains.json"));
 const runner = new TimetableRunner(station, box, trains, path.join(dataDir, "timetable.json"));
@@ -159,7 +190,7 @@ syncGarageImages(station.garage, locoImages);
 registerLocoImageRoutes(app, station.garage, locoImages, () => station.notify());
 
 /* ---------- backup: everything the user maintains that the Z21 does not store ---------- */
-registerBackupRoutes(app, new BackupService(station.garage, box, cameraStore, trains, runner, locoImages, () => station.notify()));
+registerBackupRoutes(app, new BackupService(station.garage, box, cameraStore, trains, runner, locoImages, () => station.notify(), { automations: automationStore, achievements, users }));
 
 /* ---------- network settings (read-only) ---------- */
 registerMaintenanceRoutes(app, station);
@@ -309,4 +340,4 @@ const webDist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../.
 if (existsSync(webDist)) await app.register(fastifyStatic, { root: webDist });
 
 await app.listen({ port: PORT, host: HOST });
-app.log.warn(`Z21 Web: ${tlsFiles ? "https" : "http"}://${HOST}:${PORT} – Anmeldung ${PASSWORD ? "aktiv" : "aus"}`);
+app.log.warn(`Z21 Web: ${tlsFiles ? "https" : "http"}://${HOST}:${PORT} – Anmeldung ${users.count() > 0 || PASSWORD ? "aktiv" : "aus"}`);

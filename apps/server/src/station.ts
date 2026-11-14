@@ -8,6 +8,7 @@ import {
   type Layout, type Message, type RailComData, type SystemState, type TrackPower,
 } from "@z21/protocol";
 import { Z21Client } from "./z21-client.js";
+import type { AchievementView } from "./achievements.js";
 import { Garage, type GarageLoco, type GarageSource } from "./garage.js";
 
 /** Progress of the address scan that looks for locos the command station already knows about. */
@@ -114,13 +115,14 @@ export interface StationState {
   demo?: boolean;
   /** Timetable clock, trains and upcoming departures (see TimetableRunner). */
   timetable?: TimetableSnapshot;
+  achievements?: AchievementView;
 }
 
 /** Progress of a route that is being set. */
 export interface RouteRun { routeId: string; done: number; total: number; running: boolean; error?: string }
 
 /** Holds the live model of the connected command station and exposes high-level operations. */
-export class Station extends EventEmitter<{ state: [StationState]; loconet: [LocoNetLine]; connected: [] }> {
+export class Station extends EventEmitter<{ state: [StationState]; loconet: [LocoNetLine]; connected: []; locoChange: [LocoInfo | undefined, LocoInfo]; locosReset: [] }> {
   /** Set by the demo mode; shown in the snapshot so the UI can say it is not real. */
   demo = false;
   /** Parts that other modules (signal box, timetable, ...) add to the snapshot; later ones win. */
@@ -229,7 +231,13 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
           : m.programmingMode ? "programming" : m.trackVoltageOff ? "off" : "on";
         break;
       case "systemState": this.systemState = m.state; break;
-      case "locoInfo": this.locos.set(m.info.address, m.info); if (isActiveLoco(m.info)) this.remember(m.info.address, "active"); break;
+      case "locoInfo": {
+        const prev = this.locos.get(m.info.address);
+        this.locos.set(m.info.address, m.info);
+        if (isActiveLoco(m.info)) this.remember(m.info.address, "active");
+        this.emit("locoChange", prev, m.info); // automations listen here
+        break;
+      }
       case "turnoutInfo": this.turnouts[m.address] = m.position; break;
       case "railcom": this.railcom.set(m.data.address, { ...m.data, ts }); this.remember(m.data.address, "railcom"); break;
       case "loconet":
@@ -316,6 +324,7 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
     this.scanAbort = true;
     this.scanState = undefined;
     this.locos.clear();
+    this.emit("locosReset");
     this.turnouts = {};
     this.railcom.clear();
     this.loconetDetectors.clear();

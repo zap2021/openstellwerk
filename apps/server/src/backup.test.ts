@@ -11,6 +11,9 @@ import { SignalBox } from "./layout.js";
 import { Station } from "./station.js";
 import { TrainStore } from "./trains.js";
 import { TimetableRunner } from "./timetable.js";
+import { AutomationStore } from "./automations.js";
+import { AchievementStore } from "./achievements.js";
+import { UserStore } from "./users.js";
 
 const dir = mkdtempSync(path.join(tmpdir(), "backup-"));
 const garage = new Garage();
@@ -20,6 +23,9 @@ const cameras = new CameraStore();
 const trains = new TrainStore();
 const images = new LocoImageStore();
 const runner = new TimetableRunner(station, box, trains);
+const automations = new AutomationStore();
+const achievements = new AchievementStore(undefined);
+const users = new UserStore();
 const app = Fastify();
 
 const layout = {
@@ -29,7 +35,7 @@ const layout = {
 };
 
 beforeAll(async () => {
-  registerBackupRoutes(app, new BackupService(garage, box, cameras, trains, runner, images, () => station.notify()));
+  registerBackupRoutes(app, new BackupService(garage, box, cameras, trains, runner, images, () => station.notify(), { automations, achievements, users }));
   await app.ready();
   garage.upsert(3, { name: "V 200", functionNames: { 0: "Licht", 2: "Horn" }, source: "manual" });
   garage.upsert(1000, { name: "Dampflok" });
@@ -68,7 +74,7 @@ it("restores everything into a fresh state and keeps the camera password without
 
   const res = await restore({ backup });
   expect(res.statusCode).toBe(200);
-  expect(res.json()).toEqual({ restored: { garage: 2, layout: 2, cameras: 1, trains: 0, timetable: 0 } });
+  expect(res.json()).toEqual({ restored: { garage: 2, layout: 2, cameras: 1, trains: 0, timetable: 0, automations: 0, achievements: 0 } });
   expect(garage.list().map((l) => l.address)).toEqual([3, 1000]);
   expect(garage.get(3)?.functionNames).toEqual({ 0: "Licht", 2: "Horn" });
   expect(box.get().blocks).toHaveLength(1);
@@ -109,7 +115,7 @@ it("rejects broken files and changes nothing, even when another part is fine", a
   await bad((b) => { b.garage = [{ address: 5 }, { address: 5 }]; }, /doppelt/);
   await bad((b) => { (b.layout as { cols: number }).cols = 1; }, /Spaltenzahl/); // garage is valid, layout is not
   await bad((b) => { (b.cameras as { url: string }[])[0]!.url = "rtsp://cam"; }, /Kamera 1.*RTSP/);
-  await bad((b) => { delete b.garage; delete b.layout; delete b.cameras; delete b.trains; delete b.timetable; }, /nichts/);
+  await bad((b) => { delete b.garage; delete b.layout; delete b.cameras; delete b.trains; delete b.timetable; delete b.automations; delete b.achievements; }, /nichts/);
   expect((await restore({ backup: null })).statusCode).toBe(400);
 });
 
@@ -132,7 +138,7 @@ it("round-trips trains (without location) and the timetable", async () => {
   const expected = trainsOf();
   trains.replaceAll([]); runner.replaceAll({ trips: [], lateLimit: 5 });
   const res = await restore({ backup: b });
-  expect(res.json()).toEqual({ restored: { garage: expect.any(Number), layout: 2, cameras: 1, trains: 1, timetable: 1 } });
+  expect(res.json()).toEqual({ restored: { garage: expect.any(Number), layout: 2, cameras: 1, trains: 1, timetable: 1, automations: expect.any(Number), achievements: expect.any(Number) } });
   expect(trainsOf()).toEqual(expected);
   expect(runner.get().trips).toEqual(b.timetable.trips);
   expect(runner.get().lateLimit).toBe(7);
@@ -273,4 +279,47 @@ it("restoring the garage removes the pictures of locos that are gone, and keeps 
   expect(images.has(1000)).toBe(false);
   expect(images.has(3)).toBe(true);
   expect(garage.get(3)!.imageVersion).toBe(images.version(3));
+});
+
+it("backs up and restores automations and achievements", async () => {
+  automations.set(3, [{ id: "a", name: "Licht", trigger: { type: "start" }, actions: [{ type: "function", fn: 1, do: "on" }] }]);
+  achievements.onLocoEvents([{ type: "start" }]);
+  const backup = await get();
+  expect(backup.automations["3"]).toHaveLength(1);
+  expect(backup.achievements.anlage.stats.starts).toBe(1);
+
+  automations.set(3, []);
+  achievements.reset();
+  const res = await restore({ backup, parts: ["automations", "achievements"] });
+  expect(res.json()).toEqual({ restored: { automations: 1, achievements: 1 } });
+  expect(automations.get(3)[0]).toMatchObject({ id: "a", name: "Licht" });
+  expect(achievements.view().stats.starts).toBe(1);
+});
+
+it("changes nothing when the automations in the file are bad", async () => {
+  automations.set(3, []);
+  const backup = await get();
+  backup.automations = { "3": [{ id: "x" }] };
+  const before = achievements.view().stats.starts;
+  const res = await restore({ backup: { ...backup, achievements: { stats: { starts: 99 } } }, parts: ["achievements", "automations"] });
+  expect(res.statusCode).toBe(400);
+  expect(achievements.view().stats.starts).toBe(before);
+});
+
+it("backs up users with hashes, restores them and refuses a backup without an active admin", async () => {
+  users.create({ name: "admin", password: "adminadmin" });
+  users.create({ name: "anna", password: "annaanna1" });
+  const backup = await get();
+  expect(backup.users).toHaveLength(2);
+  expect(backup.users[0].hash).toMatch(/^scrypt\$/);
+  expect(JSON.stringify(backup)).not.toContain("adminadmin");
+
+  users.replaceAll([users.all()[0]!]);
+  const res = await restore({ backup, parts: ["users"] });
+  expect(res.json()).toEqual({ restored: { users: 2 } });
+  expect(users.authenticate("anna", "annaanna1")).toBeDefined();
+
+  const noAdmin = { ...backup, users: backup.users.map((u: object) => ({ ...u, role: "user" })) };
+  expect((await restore({ backup: noAdmin, parts: ["users"] })).statusCode).toBe(400);
+  expect(users.count()).toBe(2);
 });

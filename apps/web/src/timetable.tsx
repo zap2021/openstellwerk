@@ -4,6 +4,7 @@ import type { Layout, Route } from "@z21/protocol/layout";
 import { api, type StationState } from "./api";
 import { ifSure } from "./confirm";
 import { imageUrl } from "./loco-image";
+import { AchievementBanner } from "./achievements";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
 
@@ -319,6 +320,8 @@ export function DepartureBoard({ state, trips }: { state: StationState; trips?: 
   const images = new Map(state.garage.flatMap((g) => (g.imageVersion ? [[g.address, g.imageVersion] as const] : [])));
   const rows = boardRows(tt.instances, all, tt.trains, state.layout, 8, images);
   return (
+    <>
+    <AchievementBanner view={state.achievements} />
     <table className="board">
       <thead><tr><th>Zeit</th><th>Zug</th><th>Ziel</th><th>Gleis</th><th>Status</th></tr></thead>
       <tbody>
@@ -332,5 +335,6 @@ export function DepartureBoard({ state, trips }: { state: StationState; trips?: 
         ))}
       </tbody>
     </table>
+    </>
   );
 }
