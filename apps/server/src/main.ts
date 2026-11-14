@@ -8,7 +8,7 @@ import fastifyStatic from "@fastify/static";
 import { Station } from "./station.js";
 import { Garage } from "./garage.js";
 import { LocoImageStore, registerLocoImageRoutes, syncGarageImages } from "./loco-images.js";
-import { readNetworkSettings } from "./maintenance.js";
+import { registerMaintenanceRoutes } from "./maintenance.js";
 import { CameraStore, registerCameraRoutes } from "./cameras.js";
 import { discover } from "./z21-client.js";
 import { exposureProblem, registerAuth } from "./auth.js";
@@ -162,10 +162,7 @@ registerLocoImageRoutes(app, station.garage, locoImages, () => station.notify())
 registerBackupRoutes(app, new BackupService(station.garage, box, cameraStore, trains, runner, locoImages, () => station.notify()));
 
 /* ---------- network settings (read-only) ---------- */
-app.get("/api/network", async () => {
-  if (!station.client.host) throw Object.assign(new Error("not connected"), { statusCode: 409 });
-  return readNetworkSettings(station.client.host);
-});
+registerMaintenanceRoutes(app, station);
 
 /* ---------- garage: known locos, discovery ---------- */
 app.post<{ Body: { from?: number; to?: number } }>("/api/garage/scan", async (req) => {
