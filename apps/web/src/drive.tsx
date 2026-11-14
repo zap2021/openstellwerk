@@ -97,6 +97,8 @@ export function DriveTab({ state, run }: { state: StationState; run: Run }) {
   const [selected, setSelected] = useState<number>(remembered);
   const [range, setRange] = useState(SCAN_DEFAULT);
   const [manual, setManual] = useState("");
+  /** What the right-hand side shows for the selected loco: the throttle with its functions, or the loco's automations. */
+  const [view, setView] = useState<"drive" | "automation">("drive");
   const autoScanned = useRef<string>();
 
   // Discover automatically once per connection: ask the station about the usual address range and for RailCom data.
@@ -193,9 +195,18 @@ export function DriveTab({ state, run }: { state: StationState; run: Run }) {
 
       {selected ? (
         <div className="controls">
-          <Throttle key={selected} addr={selected} state={state} run={run} garage={state.garage?.find((g) => g.address === selected)} />
-          <Functions key={`f${selected}`} addr={selected} state={state} run={run} garage={state.garage?.find((g) => g.address === selected)} />
-          <Automations key={`a${selected}`} addr={selected} names={{ ...DEFAULT_FN_NAMES, ...(state.garage?.find((g) => g.address === selected)?.functionNames ?? {}) }} run={run} />
+          <nav className="subnav" aria-label="Ansicht der Lok">
+            <button className={view === "drive" ? "active" : ""} onClick={() => setView("drive")}>Fahren</button>
+            <button className={view === "automation" ? "active" : ""} onClick={() => setView("automation")}>Automatik</button>
+          </nav>
+          {view === "drive" ? (
+            <>
+              <Throttle key={selected} addr={selected} state={state} run={run} garage={state.garage?.find((g) => g.address === selected)} />
+              <Functions key={`f${selected}`} addr={selected} state={state} run={run} garage={state.garage?.find((g) => g.address === selected)} />
+            </>
+          ) : (
+            <Automations key={`a${selected}`} addr={selected} names={{ ...DEFAULT_FN_NAMES, ...(state.garage?.find((g) => g.address === selected)?.functionNames ?? {}) }} run={run} />
+          )}
         </div>
       ) : (
         <div className="panel"><p>Wähle links eine Lok oder trage eine Adresse ein.</p></div>
