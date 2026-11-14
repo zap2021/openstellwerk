@@ -3,7 +3,7 @@ import type { Layout } from "@z21/protocol";
 import type { Train } from "@z21/timetable";
 import { JourneyRunner, findPath, type Journey } from "./journeys.js";
 
-/** a → b → c, a → d, and a short cut a → c that is listed last. */
+/** a → b → c and a → d → c; routes only lead one way. */
 const layout = {
   cols: 8, rows: 2, tiles: [],
   blocks: ["a", "b", "c", "d", "island"].map((id) => ({ id, name: `Block ${id.toUpperCase()}`, tileIds: [] })),

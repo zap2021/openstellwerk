@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { imageUrl } from "./loco-image";
 import { LocoPicture } from "./loco-picture";
+import { kmh } from "./calibration";
 import { api, type GarageLoco, type StationState } from "./api";
 import { Automations } from "./automations";
 
@@ -211,6 +212,7 @@ function Throttle({ addr, state, run, garage }: { addr: number; state: StationSt
   const last = useRef(0);
   const speed = local ?? loco?.speed ?? 0;
   const forward = loco?.forward ?? true;
+  const cal = state.calibration?.tables[String(addr)];
 
   // Subscribe to the loco's state once so that sliders and function buttons show the truth.
   useEffect(() => { if (!loco) void api("GET", `/api/loco/${addr}`).catch(() => undefined); }, [addr]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -241,7 +243,7 @@ function Throttle({ addr, state, run, garage }: { addr: number; state: StationSt
       </div>
       <div className="speedo">
         <strong className="big">{speed}</strong>
-        <span className="dir">{speed === 0 ? "steht" : forward ? "vorwärts" : "rückwärts"}</span>
+        <span className="dir">{speed === 0 ? "steht" : forward ? "vorwärts" : "rückwärts"}{speed > 0 && cal ? ` · ≈ ${kmh(cal, speed)} km/h` : ""}</span>
       </div>
       <input
         className="slider"
