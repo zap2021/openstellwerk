@@ -83,10 +83,11 @@ select { font: inherit; color: inherit; background: transparent; border: 1px sol
 .speedo .dir { color: var(--muted); }
 .slider { width: 100%; height: 36px; padding: 0; margin: 8px 0; }
 .big-stop { min-width: 120px; padding: 12px 20px; font-weight: 600; }
-.fn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
-.fn { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px; min-height: 58px; }
-.fn .fn-no { font-weight: 600; } .fn .fn-name { font-size: 12px; opacity: .85; min-height: 1em; overflow: hidden; text-overflow: ellipsis; max-width: 100%; white-space: nowrap; }
-.fn-edit { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); } .fn-edit input { width: 100%; box-sizing: border-box; padding: 5px 8px; }
+.fn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
+.fn-grid.editing { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.fn { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 8px; min-height: 40px; }
+.fn .fn-no { font-weight: 600; } .fn .fn-name { font-size: 12px; opacity: .85; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fn-edit { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); } .fn-edit input { width: 100%; box-sizing: border-box; padding: 5px 8px; }
 
 /* ---- Kamera ---- */
 .camview { position: relative; background: #000; border-radius: 6px; overflow: hidden; min-height: 120px; aspect-ratio: 16 / 9; display: flex; align-items: center; justify-content: center; }

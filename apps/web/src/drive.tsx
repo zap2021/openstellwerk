@@ -25,14 +25,6 @@ const RAILCOM_FRESH_MS = 60_000;
 /** Same rule as on the server: a queried address always answers, only a non-idle state means "in use". */
 const isActive = (l: StationState["locos"][number]) => l.busy || l.speed > 0 || l.emergencyStop || l.functions.some(Boolean);
 
-const FUNCTION_GROUPS: { title: string; from: number; to: number }[] = [
-  { title: "F0 – F4", from: 0, to: 4 },
-  { title: "F5 – F8", from: 5, to: 8 },
-  { title: "F9 – F12", from: 9, to: 12 },
-  { title: "F13 – F20", from: 13, to: 20 },
-  { title: "F21 – F28", from: 21, to: 28 },
-  { title: "F29 – F31", from: 29, to: 31 },
-];
 const DEFAULT_FN_NAMES: Record<number, string> = { 0: "Licht" };
 
 interface Candidate {
@@ -341,32 +333,24 @@ function Functions({ addr, state, run, garage }: { addr: number; state: StationS
       {onlyNamed && !edit && hiddenCount > 0 && (
         <p className="hint">{hiddenCount} unbeschriftete Funktionen ausgeblendet – „Beschriften“ wählen oder den Haken „nur beschriftete“ entfernen.</p>
       )}
-      {FUNCTION_GROUPS.filter((g) => g.from <= maxFn).map((g) => {
-        const nums = Array.from({ length: Math.min(g.to, maxFn) - g.from + 1 }, (_, i) => g.from + i).filter((n) => edit || !onlyNamed || names[n]);
-        if (nums.length === 0) return null;
-        return (
-          <div key={g.title} className="fn-group">
-            <h3>{g.title}</h3>
-            <div className="fn-grid">
-              {nums.map((n) => edit ? (
-                <label key={n} className="fn-edit">
-                  <span>F{n}</span>
-                  <input defaultValue={garage?.functionNames?.[n] ?? (DEFAULT_FN_NAMES[n] ?? "")} placeholder="Name" maxLength={24} onBlur={(e) => saveName(n, e.target.value)} />
-                </label>
-              ) : (
-                <button
-                  key={n}
-                  className={`fn ${loco?.functions[n] ? "active" : ""}`}
-                  onClick={() => run(post(`/api/loco/${addr}/function/${n}`, { action: "toggle" }))}
-                >
-                  <span className="fn-no">F{n}</span>
-                  <span className="fn-name">{names[n] ?? ""}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        );
-      })}
+      <div className={`fn-grid${edit ? " editing" : ""}`}>
+        {Array.from({ length: maxFn + 1 }, (_, n) => n).filter((n) => edit || !onlyNamed || names[n]).map((n) => edit ? (
+          <label key={n} className="fn-edit">
+            <span>F{n}</span>
+            <input defaultValue={garage?.functionNames?.[n] ?? (DEFAULT_FN_NAMES[n] ?? "")} placeholder="Name" maxLength={24} onBlur={(e) => saveName(n, e.target.value)} />
+          </label>
+        ) : (
+          <button
+            key={n}
+            className={`fn ${loco?.functions[n] ? "active" : ""}`}
+            title={names[n] ? `F${n} – ${names[n]}` : `F${n}`}
+            onClick={() => run(post(`/api/loco/${addr}/function/${n}`, { action: "toggle" }))}
+          >
+            <span className="fn-no">F{n}</span>
+            {names[n] ? <span className="fn-name">{names[n]}</span> : null}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
