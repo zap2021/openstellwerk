@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { api } from "./api";
+import { sure } from "./confirm";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
 type Part = "garage" | "layout" | "cameras" | "trains" | "timetable" | "locoImages" | "automations" | "layoutRules" | "calibration" | "achievements" | "users";
@@ -41,7 +42,7 @@ export function BackupPanel({ run }: { run: Run }) {
   const restore = () => {
     if (!file) return;
     const names = chosen.map((p) => LABEL[p].split(" (")[0]).join(", ");
-    if (!window.confirm(`Folgendes wird durch den Inhalt der Datei ersetzt: ${names}.\nDer bisherige Stand dieser Teile geht verloren.`)) return;
+    if (!sure(`Folgendes wird durch den Inhalt der Datei ersetzt: ${names}.\nDer bisherige Stand dieser Teile geht verloren.`)) return;
     void run(
       api<{ restored: Partial<Record<Part, number>> }>("POST", "/api/backup/restore", { backup: file.backup, parts: chosen }).then((r) => {
         setDone(`Wiederhergestellt: ${Object.entries(r.restored).map(([k, n]) => `${LABEL[k as Part].split(" (")[0]} (${n})`).join(", ")}`);

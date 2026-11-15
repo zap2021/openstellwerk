@@ -67,7 +67,7 @@ export class Z21Client extends EventEmitter<{ message: [Message]; wire: [WireEve
   }
 
   send(buf: Buffer) {
-    if (!this.socket || !this.host) throw new Error("not connected");
+    if (!this.socket || !this.host) throw new Error("Keine Verbindung zur Zentrale");
     this.emit("wire", { dir: "tx", hex: buf.toString("hex"), ts: Date.now() });
     this.socket.send(buf, this.port, this.host);
   }
@@ -78,7 +78,7 @@ export class Z21Client extends EventEmitter<{ message: [Message]; wire: [WireEve
     return new Promise((resolve, reject) => {
       const done = (fn: () => void) => { clearTimeout(t); this.off("message", onMsg); fn(); };
       const onMsg = (m: Message) => { if (match(m)) done(() => resolve(m)); };
-      const t = setTimeout(() => done(() => reject(Object.assign(new Error("timeout waiting for Z21"), { statusCode: 504 }))), timeoutMs);
+      const t = setTimeout(() => done(() => reject(Object.assign(new Error("Die Zentrale hat nicht rechtzeitig geantwortet"), { statusCode: 504 }))), timeoutMs);
       this.on("message", onMsg);
       try { this.send(buf); } catch (e) { done(() => reject(e)); }
     });

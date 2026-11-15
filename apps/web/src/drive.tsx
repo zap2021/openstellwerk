@@ -4,6 +4,7 @@ import { LocoPicture } from "./loco-picture";
 import { kmh } from "./calibration";
 import { api, type GarageLoco, type StationState } from "./api";
 import { Automations } from "./automations";
+import { sure } from "./confirm";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
 const post = (url: string, body?: unknown) => api("POST", url, body);
@@ -131,7 +132,7 @@ export function DriveTab({ state, run }: { state: StationState; run: Run }) {
             : <button onClick={() => run(post("/api/railcom/poll", { addr: 0 }).then(() => post("/api/garage/scan", range)))}>Belegte Adressen suchen</button>}
           <button
             title="Eine Lok auf das Programmiergleis stellen und ihre Adresse aus den CVs lesen"
-            onClick={() => window.confirm("Lok auf dem Programmiergleis auslesen (CV29, CV1 bzw. CV17/18)? Das kann einige Sekunden dauern.") && run(post("/api/garage/read-prog"))}
+            onClick={() => sure("Lok auf dem Programmiergleis auslesen (CV29, CV1 bzw. CV17/18)? Das kann einige Sekunden dauern.") && run(post("/api/garage/read-prog"))}
           >Programmiergleis lesen</button>
         </div>
         {scan && (
@@ -321,7 +322,7 @@ function LocoSettings({ addr, state, run, garage }: { addr: number; state: Stati
         <button onClick={() => run(api("GET", `/api/loco/${addr}/mode`))} title="Gespeichertes Format aus der Zentrale lesen">Format lesen</button>
         <button onClick={() => run(api("GET", `/api/loco/${addr}`))}>Lok abfragen</button>
         <button
-          onClick={() => window.confirm(`Lok ${addr} aus der Zentrale entfernen? Das Senden auf dem Gleis stoppt, bis ein neuer Fahr- oder Funktionsbefehl kommt.`) && run(post(`/api/loco/${addr}/purge`))}
+          onClick={() => sure(`Lok ${addr} aus der Zentrale entfernen? Das Senden auf dem Gleis stoppt, bis ein neuer Fahr- oder Funktionsbefehl kommt.`) && run(post(`/api/loco/${addr}/purge`))}
         >Lok aus Zentrale entfernen</button>
       </div>
       <p className="hint">Das Ausgabeformat (DCC/Motorola) wird dauerhaft in der Zentrale gespeichert. Adressen ab 256 sind immer DCC.</p>

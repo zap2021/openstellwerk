@@ -69,9 +69,16 @@ app.addHook("preHandler", async (req) => {
   if (m) achievements.touch(Number(m[1]), req.user.id);
 });
 
+/** What the fields of a request are called in the interface (error messages are shown to the user as they are). */
+const FIELD: Record<string, string> = {
+  address: "Adresse", value: "Wert", cv: "CV", register: "Register", weekday: "Wochentag", reportAddress: "Meldeadresse", rate: "Faktor",
+  output: "Ausgang", minute: "Minute", hour: "Stunde", decoder: "Decoder", bit: "Bit", from: "Anfang des Bereichs", to: "Ende des Bereichs",
+  state: "Zustand", speed: "Fahrstufe", settings: "Einstellungen", power: "Leistung", port: "Port", nid: "NID", group: "Gruppe",
+  function: "Funktion", byte: "Byte", bits: "Bits",
+};
 const int = (v: unknown, min: number, max: number, name: string) => {
   const n = Number(v);
-  if (!Number.isInteger(n) || n < min || n > max) throw Object.assign(new Error(`${name} must be ${min}..${max}`), { statusCode: 400 });
+  if (!Number.isInteger(n) || n < min || n > max) throw Object.assign(new Error(`${FIELD[name] ?? name}: ganze Zahl von ${min} bis ${max} erwartet`), { statusCode: 400 });
   return n;
 };
 
@@ -124,7 +131,7 @@ app.post<{ Body: { addr?: number } }>("/api/railcom/poll", async (req) => {
 });
 
 app.post<{ Body: { bytes: number[] } }>("/api/loconet/send", async (req) => {
-  if (!Array.isArray(req.body?.bytes)) throw Object.assign(new Error("bytes must be an array"), { statusCode: 400 });
+  if (!Array.isArray(req.body?.bytes)) throw Object.assign(new Error("Bytes: Liste von Zahlen erwartet"), { statusCode: 400 });
   try { station.sendLocoNet(req.body.bytes.map((b) => int(b, 0, 255, "byte"))); }
   catch (e) { throw Object.assign(e as Error, { statusCode: 400 }); }
   return { ok: true };
@@ -136,7 +143,7 @@ app.post<{ Body: { kind: "sic" | "report" | "lissy" | "can"; reportAddress?: num
   else if (kind === "sic") station.pollLocoNetDetectors("Sic");
   else if (kind === "report") station.pollLocoNetDetectors("ReportAddress", int(reportAddress ?? 1017, 1, 65535, "reportAddress"));
   else if (kind === "lissy") station.pollLocoNetDetectors("Lissy", int(reportAddress ?? 1, 0, 65535, "reportAddress"));
-  else throw Object.assign(new Error("unknown kind"), { statusCode: 400 });
+  else throw Object.assign(new Error("Unbekannte Art"), { statusCode: 400 });
   return { ok: true };
 });
 
@@ -151,7 +158,7 @@ app.put<{ Params: { cv: string }; Body: { value: number } }>("/api/cv/:cv", asyn
 
 /* ---------- settings ---------- */
 const mode = (v: unknown) => {
-  if (v !== "dcc" && v !== "mm") throw Object.assign(new Error('mode must be "dcc" or "mm"'), { statusCode: 400 });
+  if (v !== "dcc" && v !== "mm") throw Object.assign(new Error("Format muss DCC oder Motorola sein"), { statusCode: 400 });
   return v;
 };
 app.get<{ Params: { addr: string } }>("/api/loco/:addr/mode", async (req) => ({ mode: await station.readLocoMode(int(req.params.addr, 1, 9999, "address")) }));
@@ -406,7 +413,7 @@ app.put<{ Body: { settings: number; rate?: number; start?: { weekday: number; ho
 /* ---------- CAN boosters (via Z21) ---------- */
 const nid = (v: unknown) => int(v, 0xc101, 0xc1ff, "nid");
 const name = (v: unknown) => {
-  if (typeof v !== "string") throw Object.assign(new Error("name must be a string"), { statusCode: 400 });
+  if (typeof v !== "string") throw Object.assign(new Error("Name: Text erwartet"), { statusCode: 400 });
   return v;
 };
 const bad = (e: unknown) => Object.assign(e as Error, { statusCode: 400 });

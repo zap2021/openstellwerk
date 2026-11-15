@@ -83,9 +83,9 @@ export function parseName(d: Buffer): string {
 
 /** Encodes a device name, zero padded to `size`. Quote and backslash are forbidden by the spec. */
 export function encodeName(name: string, size: number): Buffer {
-  if (/["\\]/.test(name)) throw new RangeError('name must not contain " or \\');
+  if (/["\\]/.test(name)) throw new RangeError('Der Name darf weder " noch \\ enthalten');
   const raw = Buffer.from(name, "latin1");
-  if (raw.length >= size) throw new RangeError(`name too long (max ${size - 1} characters)`);
+  if (raw.length >= size) throw new RangeError(`Der Name ist zu lang (höchstens ${size - 1} Zeichen)`);
   const out = Buffer.alloc(size);
   raw.copy(out);
   return out;

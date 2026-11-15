@@ -109,7 +109,7 @@ export class SignalBox {
         if (!this.station.client.connected) {
           const jobs = new Set([job, ...this.pending.map((i) => i.job)]);
           this.pending = [];
-          for (const j of jobs) j.reject(httpError(409, "not connected"));
+          for (const j of jobs) j.reject(httpError(409, "Keine Verbindung zur Zentrale"));
           break;
         }
         this.send(c);
@@ -128,7 +128,7 @@ export class SignalBox {
     let commands: LayoutCommand[];
     try { commands = tileCommands(tile, state); } catch (e) { throw httpError(400, (e as Error).message); }
     if (commands.length === 0) throw httpError(409, "Dieses Feld ist noch mit keiner Adresse verknüpft");
-    if (!this.station.client.connected) throw httpError(409, "not connected");
+    if (!this.station.client.connected) throw httpError(409, "Keine Verbindung zur Zentrale");
     await this.enqueue(commands);
     return { ok: true, commands: commands.length };
   }
@@ -169,7 +169,7 @@ export class SignalBox {
 
   /** Request a route for HTTP callers: refusal becomes a 409. */
   requestRoute(id: string) {
-    if (!this.station.client.connected) throw httpError(409, "not connected");
+    if (!this.station.client.connected) throw httpError(409, "Keine Verbindung zur Zentrale");
     const out = this.tryRequestRoute(id);
     if (!out.ok) throw httpError(409, out.reason);
     return { ok: true };
@@ -253,7 +253,7 @@ export class SignalBox {
     const locked = route.steps.find((s) => this.il.lockedBy(s.tileId));
     if (locked) throw httpError(409, "Ein Feld der Fahrstraße ist durch eine gesicherte Fahrstraße verriegelt");
     if (this.routeRun?.running) throw httpError(409, "Es wird gerade eine Fahrstraße gestellt");
-    if (!this.station.client.connected) throw httpError(409, "not connected");
+    if (!this.station.client.connected) throw httpError(409, "Keine Verbindung zur Zentrale");
     const commands = routeCommands(this.layout, route);
     if (commands.length === 0) throw httpError(409, "Die Fahrstraße enthält keine verknüpften Felder");
     const run: RouteRun = (this.routeRun = { routeId: id, done: 0, total: commands.length, running: true });

@@ -1,6 +1,6 @@
 /**
- * The "are you sure" question for risky actions in the administration area (writing to decoders, disconnecting,
- * switching booster power …). Everyday operation (driving, switching, routes, NOT-HALT) never asks.
+ * The "are you sure" question for risky actions (writing to decoders, disconnecting, deleting, emergency release …).
+ * Everyday operation (driving, switching, routes, Nothalt) never asks. Every such question goes through here.
  */
 export const sure = (message: string): boolean => window.confirm(message);
 

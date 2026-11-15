@@ -58,7 +58,7 @@ export interface MaintenanceResponse {
 }
 
 export function parseMaintenanceResponse(pkt: Buffer): MaintenanceResponse {
-  if (pkt.length < 8) throw new RangeError("maintenance frame shorter than its 8 byte header");
+  if (pkt.length < 8) throw new RangeError("Antwort vom Wartungsport ist kürzer als ihr Kopf (8 Bytes)");
   const rawLen = pkt.readUInt16LE(0);
   const len = Math.min(rawLen & 0x7fff, pkt.length);
   const seq = pkt.readUInt16LE(6);
@@ -80,7 +80,7 @@ export interface NetworkSettings {
 const dotted = (b: Buffer, o: number, rev: boolean) => (rev ? [b[o + 3], b[o + 2], b[o + 1], b[o]] : [b[o], b[o + 1], b[o + 2], b[o + 3]]).join(".");
 
 export function parseNetworkSettings(data: Buffer): NetworkSettings {
-  if (data.length < 12) throw new RangeError("IP settings block must be 12 bytes");
+  if (data.length < 12) throw new RangeError("Die Netzwerkeinstellungen müssen 12 Bytes lang sein");
   const pick = (rev: boolean) => ({ ip: dotted(data, 0, rev), mask: dotted(data, 4, rev), gateway: dotted(data, 8, rev) });
   return { raw: data.subarray(0, 12).toString("hex"), asIs: pick(false), reversed: pick(true) };
 }

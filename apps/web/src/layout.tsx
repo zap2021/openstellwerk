@@ -6,6 +6,7 @@ import {
 } from "@z21/protocol/layout";
 import { api, type StationState } from "./api";
 import { DepartureBoard, formatHMS, useModelTime } from "./timetable";
+import { sure } from "./confirm";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
 type Tool = "select" | "erase" | TileKind;
@@ -156,7 +157,7 @@ function Operate({ layout, state, run }: { layout: Layout; state: StationState; 
                 {!s && <button onClick={() => run(api("POST", `/api/interlocking/${r.id}/request`))}>Fahrstraße einstellen</button>}
                 {s && s.status !== "running" && <button onClick={() => run(api("POST", `/api/interlocking/${r.id}/release`))}>Auflösen</button>}
                 {s && s.status === "running" && (
-                  <button className="danger" onClick={() => window.confirm(`Notauflösung „${r.name}“? Das hebt die Verriegelung auf, obwohl ein Zug in der Fahrstraße ist.`) && run(api("POST", `/api/interlocking/${r.id}/release`, { force: true }))}>Notauflösung</button>
+                  <button className="danger" onClick={() => sure(`Notauflösung „${r.name}“? Das hebt die Verriegelung auf, obwohl ein Zug in der Fahrstraße ist.`) && run(api("POST", `/api/interlocking/${r.id}/release`, { force: true }))}>Notauflösung</button>
                 )}
                 {s?.status === "fault" && <button className="danger" onClick={() => run(api("POST", `/api/interlocking/${r.id}/release`, { force: true }))}>Störung quittieren</button>}
               </div>
@@ -323,7 +324,7 @@ function Editor({ saved, state, run, close }: { saved: Layout; state: StationSta
     a.click();
     URL.revokeObjectURL(a.href);
   };
-  const importFile = (f?: File) => f && (draft.tiles.length === 0 || window.confirm("Das aktuelle Gleisbild im Editor wird durch die Datei ersetzt (gespeichert wird erst mit „Speichern“). Fortfahren?")) && run(f.text().then((t) => { setDraft(validateLayout(JSON.parse(t))); setDirty(true); setSelected(undefined); setRouteId(undefined); }));
+  const importFile = (f?: File) => f && (draft.tiles.length === 0 || sure("Das aktuelle Gleisbild im Editor wird durch die Datei ersetzt (gespeichert wird erst mit „Speichern“). Fortfahren?")) && run(f.text().then((t) => { setDraft(validateLayout(JSON.parse(t))); setDirty(true); setSelected(undefined); setRouteId(undefined); }));
   /** Send the commands of one position straight to the station, without saving the diagram first. */
   const test = (t: Tile, s: number) => run((async () => {
     for (const c of tileCommands(t, s)) {
@@ -339,7 +340,7 @@ function Editor({ saved, state, run, close }: { saved: Layout; state: StationSta
       <div className="row">
         <h2 className="grow">Gleisbild bearbeiten{dirty ? " *" : ""}</h2>
         <button className="active" disabled={!dirty} onClick={save}>Speichern</button>
-        <button onClick={() => (!dirty || window.confirm("Ungespeicherte Änderungen verwerfen?")) && close()}>{dirty ? "Verwerfen" : "Fertig"}</button>
+        <button onClick={() => (!dirty || sure("Ungespeicherte Änderungen verwerfen?")) && close()}>{dirty ? "Verwerfen" : "Fertig"}</button>
       </div>
 
       <div className="row palette">

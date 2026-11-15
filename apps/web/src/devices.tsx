@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type BoosterSystemState, type DecoderState, type StationState } from "./api";
-import { ifSure } from "./confirm";
+import { ifSure, sure } from "./confirm";
 import { age, MonitorSwitch, useMonitor, useNow } from "./monitors";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
@@ -33,7 +33,7 @@ export function SignalsTab({ state, run }: { state: StationState; run: Run }) {
       <h2>Signalbild (10837)</h2>
       <div className="row">
         <label>Wert 0–255 <input type="number" min={0} max={255} value={value} onChange={(e) => setValue(Number(e.target.value))} /></label>
-        <button onClick={() => run(post(`/api/accessory/${addr}`, { value }))}>Senden</button>
+        <button onClick={() => run(post(`/api/accessory/${addr}`, { value }))}>Signalbild senden</button>
         {[[0, "Halt"], [16, "Fahrt"], [4, "40 km/h"], [65, "Rangieren"], [66, "dunkel"]].map(([v, l]) => (
           <button key={v} onClick={() => { setValue(v as number); run(post(`/api/accessory/${addr}`, { value: v })); }}>{l}</button>
         ))}
@@ -51,7 +51,7 @@ export function SignalsTab({ state, run }: { state: StationState; run: Run }) {
       </div>
 
       <h2>Not-Halt für alle erweiterten Zubehördecoder</h2>
-      <button className="danger" onClick={() => window.confirm("RCN-213 Not-Halt an alle erweiterten Zubehördecoder senden?") && run(post("/api/accessory-estop"))}>
+      <button className="danger" onClick={() => sure("RCN-213 Not-Halt an alle erweiterten Zubehördecoder senden?") && run(post("/api/accessory-estop"))}>
         Not-Halt Zubehör
       </button>
     </section>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type LocoNetLine, type MonitorKind, type StationState } from "./api";
+import { sure } from "./confirm";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
 
@@ -96,7 +97,7 @@ export function LocoNetTab({ state, lines, clear, run }: { state: StationState; 
   const bytes = parseHex(hex);
   const send = () => {
     if (!bytes) return;
-    if (!window.confirm(`Diese Nachricht wird auf den LocoNet-Bus der Anlage geschrieben:\n\n${bytes.map((b) => b.toString(16).padStart(2, "0")).join(" ")}\n\nFortfahren?`)) return;
+    if (!sure(`Diese Nachricht wird auf den LocoNet-Bus der Anlage geschrieben:\n\n${bytes.map((b) => b.toString(16).padStart(2, "0")).join(" ")}\n\nFortfahren?`)) return;
     run(api("POST", "/api/loconet/send", { bytes }));
   };
 

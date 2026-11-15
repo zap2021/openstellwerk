@@ -75,7 +75,7 @@ export async function readNetworkSettings(host: string, opts: { port?: number; t
 export function registerMaintenanceRoutes(app: FastifyInstance, station: { demo: boolean; client: { host?: string } }) {
   app.get("/api/network", async () => {
     if (station.demo) throw Object.assign(new Error("Im Demo-Modus gibt es keine Zentrale mit Wartungsport; die Netzwerkabfrage geht nur an echter Hardware."), { statusCode: 409 });
-    if (!station.client.host) throw Object.assign(new Error("not connected"), { statusCode: 409 });
+    if (!station.client.host) throw Object.assign(new Error("Keine Verbindung zur Zentrale"), { statusCode: 409 });
     return readNetworkSettings(station.client.host);
   });
 }

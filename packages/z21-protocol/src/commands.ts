@@ -5,7 +5,7 @@ export type SpeedSteps = 14 | 28 | 128;
 
 /** Loco addresses >= 128 are sent with the two top bits of the MSB set. */
 export function locoAddr(addr: number): [number, number] {
-  if (addr < 1 || addr > 9999) throw new RangeError(`loco address out of range: ${addr}`);
+  if (addr < 1 || addr > 9999) throw new RangeError(`Lokadresse ${addr} liegt nicht zwischen 1 und 9999`);
   return addr >= 128 ? [(addr >> 8) | 0xc0, addr & 0xff] : [0, addr];
 }
 

@@ -152,7 +152,7 @@ export function tileState(t: Tile, live: LayoutLiveState): number | undefined {
 
 /** Commands that bring a tile into the given position. Empty if the tile is not linked. */
 export function tileCommands(t: Tile, state: number): LayoutCommand[] {
-  if (!Number.isInteger(state) || state < 0 || state >= stateCount(t)) throw new RangeError(`state ${state} not valid for ${t.kind}`);
+  if (!Number.isInteger(state) || state < 0 || state >= stateCount(t)) throw new RangeError(`Zustand ${state} gibt es bei diesem Feld nicht`);
   const turnout = (address: number | undefined, value: number, invert?: boolean): LayoutCommand[] =>
     address === undefined ? [] : [{ type: "turnout", address, output: ((value ? 1 : 0) ^ (invert ? 1 : 0)) as 0 | 1 }];
   switch (t.kind) {

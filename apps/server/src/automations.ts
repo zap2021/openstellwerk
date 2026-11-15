@@ -233,7 +233,7 @@ export class AutomationEngine {
 export function registerAutomationRoutes(app: FastifyInstance, store: AutomationStore) {
   const addrOf = (v: string) => {
     const n = Number(v);
-    return Number.isInteger(n) && n >= 1 && n <= 9999 ? n : fail("address must be 1..9999");
+    return Number.isInteger(n) && n >= 1 && n <= 9999 ? n : fail("Lokadresse muss 1..9999 sein");
   };
   app.get<{ Params: { addr: string } }>("/api/locos/:addr/automations", async (req) => store.get(addrOf(req.params.addr)));
   app.put<{ Params: { addr: string }; Body: unknown }>("/api/locos/:addr/automations", async (req) => store.set(addrOf(req.params.addr), req.body));

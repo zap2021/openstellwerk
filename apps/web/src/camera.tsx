@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type Camera } from "./api";
+import { sure } from "./confirm";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
 
@@ -130,7 +131,7 @@ export function CamerasTab({ cameras, reload, run }: { cameras: Camera[]; reload
             <button className="active" onClick={save}>Speichern</button>
             <button title="Standbild-Adresse für Reolink-Kameras einsetzen" onClick={() => setForm({ ...form, kind: "snapshot", url: REOLINK(form.url.replace(/^https?:\/\//, "").split("/")[0] ?? ""), insecureTls: true })}>Reolink-Vorlage</button>
             {selected && cam?.hasPassword && <button onClick={() => run(api("PUT", `/api/cameras/${selected}`, { password: "" }).then(() => reload()))}>Passwort entfernen</button>}
-            {selected && <button className="danger" onClick={() => window.confirm(`Kamera „${cam?.name}“ löschen?`) && run(api("DELETE", `/api/cameras/${selected}`).then(() => { edit(); reload(); }))}>Löschen</button>}
+            {selected && <button className="danger" onClick={() => sure(`Kamera „${cam?.name}“ löschen?`) && run(api("DELETE", `/api/cameras/${selected}`).then(() => { edit(); reload(); }))}>Löschen</button>}
           </div>
           <p className="hint">
             Der Server holt das Bild und reicht es weiter, die Zugangsdaten bleiben auf dem Server (<code>apps/server/data/cameras.json</code>, nicht in Git, im Klartext).

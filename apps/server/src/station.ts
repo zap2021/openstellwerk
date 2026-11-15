@@ -390,9 +390,9 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
 
   /** Raw LocoNet message WITHOUT checksum. This writes onto the layout's LocoNet bus. */
   sendLocoNet(message: number[]) {
-    if (message.length < 1 || message.length > 126) throw new RangeError("LocoNet message must be 1..126 bytes (without checksum)");
+    if (message.length < 1 || message.length > 126) throw new RangeError("Eine LocoNet-Nachricht hat 1 bis 126 Bytes (ohne Prüfsumme)");
     if (message[0]! < 0x80 || message.slice(1).some((b) => b < 0 || b > 0x7f)) {
-      throw new RangeError("first byte must be an opcode (>= 0x80), all following bytes must be <= 0x7F");
+      throw new RangeError("Das erste Byte muss ein Opcode sein (ab 0x80), alle weiteren Bytes höchstens 0x7F");
     }
     this.client.send(cmd.loconetFromLan(message));
   }
@@ -508,9 +508,9 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
    * Runs in the background; progress is part of the state snapshot.
    */
   startScan(from: number, to: number) {
-    if (this.scanState?.running) throw Object.assign(new Error("A scan is already running"), { statusCode: 409 });
-    if (!this.client.connected) throw Object.assign(new Error("not connected"), { statusCode: 409 });
-    if (to < from || to - from + 1 > MAX_SCAN) throw Object.assign(new Error(`range must be 1..${MAX_SCAN} addresses`), { statusCode: 400 });
+    if (this.scanState?.running) throw Object.assign(new Error("Es läuft schon eine Suche"), { statusCode: 409 });
+    if (!this.client.connected) throw Object.assign(new Error("Keine Verbindung zur Zentrale"), { statusCode: 409 });
+    if (to < from || to - from + 1 > MAX_SCAN) throw Object.assign(new Error(`Der Bereich darf 1 bis ${MAX_SCAN} Adressen umfassen`), { statusCode: 400 });
     this.scanAbort = false;
     const s: ScanState = (this.scanState = { running: true, from, to, current: from, found: [] });
     const publish = () => this.emit("state", this.snapshot());
@@ -544,7 +544,7 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
     const cv29 = await this.readCv(29);
     const long = !!(cv29 & 0x20);
     const address = long ? ((((await this.readCv(17)) & 0x3f) << 8) | (await this.readCv(18))) : await this.readCv(1);
-    if (address < 1 || address > 9999) throw Object.assign(new Error(`decoder reports invalid address ${address}`), { statusCode: 422 });
+    if (address < 1 || address > 9999) throw Object.assign(new Error(`Der Decoder meldet die ungültige Adresse ${address}`), { statusCode: 422 });
     this.garage.upsert(address, { source: "prog" });
     this.emit("state", this.snapshot());
     return { address, long, cv29 };
