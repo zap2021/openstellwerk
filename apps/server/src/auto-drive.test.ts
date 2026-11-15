@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Layout, LocoInfo } from "@z21/protocol";
+import type { Layout, LocoInfo } from "@openstellwerk/protocol";
 import { AutoDriver, creepSpeed, orderFor, type DriveOrder } from "./auto-drive.js";
 
 const layout = {

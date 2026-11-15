@@ -44,7 +44,7 @@ export async function resizeToJpeg(file: Blob, max = MAX_SIDE): Promise<Blob> {
 export async function uploadLocoImage(address: number, jpeg: Blob): Promise<number> {
   const res = await request(`/api/garage/${address}/image`, { method: "PUT", headers: { "content-type": "image/jpeg" }, body: jpeg });
   const json = await res.json().catch(() => ({}));
-  if (res.status === 401) window.dispatchEvent(new Event("z21-unauthorized"));
+  if (res.status === 401) window.dispatchEvent(new Event("openstellwerk-unauthorized"));
   if (!res.ok) throw new Error(json.message ?? res.statusText);
   return json.imageVersion as number;
 }

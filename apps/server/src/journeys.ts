@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { FastifyInstance } from "fastify";
-import type { Layout } from "@z21/protocol";
-import type { Train } from "@z21/timetable";
+import type { Layout } from "@openstellwerk/protocol";
+import type { Train } from "@openstellwerk/timetable";
 
 /*
  * Zielfahrt: Zug und Zielblock wählen, der Server sucht die Kette gesicherter Fahrstraßen und stellt sie Abschnitt für

@@ -1,5 +1,6 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { JsonFile } from "./json-file.js";
+import { setting } from "./env.js";
 
 /* Benutzer und Rollen. Rudimentär: zwei Rollen, Passwörter als scrypt-Hash, Speicher in users.json. */
 
@@ -24,10 +25,10 @@ export const toPublic = ({ hash: _h, ...u }: User): PublicUser => u;
 const fail = (m: string, statusCode = 400): never => { throw Object.assign(new Error(m), { statusCode }); };
 
 /**
- * Mindestlänge neuer Passwörter. Standard 3 (Heimnetz, bequem); mit Z21_MIN_PASSWORD (1..64) strenger einstellbar,
+ * Mindestlänge neuer Passwörter. Standard 3 (Heimnetz, bequem); mit OPENSTELLWERK_MIN_PASSWORD (1..64) strenger einstellbar,
  * z. B. 8 oder mehr, wenn der Server aus dem Internet erreichbar ist.
  */
-export function minPasswordLength(env: string | undefined = process.env.Z21_MIN_PASSWORD): number {
+export function minPasswordLength(env: string | undefined = setting("MIN_PASSWORD")): number {
   const n = Number(env);
   return env && Number.isInteger(n) && n >= 1 && n <= 64 ? n : 3;
 }

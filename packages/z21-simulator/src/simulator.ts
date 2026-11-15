@@ -3,7 +3,7 @@ import { SimExtras, type SimDevice } from "./extras.js";
 import {
   Broadcast, CAN_ALL_DETECTORS, decodeFrames, encodeFrame, decodeX, locoNetChecksum, reply, Z21_PORT,
   type LocoInfo, type SystemState, type TrackPower,
-} from "@z21/protocol";
+} from "@openstellwerk/protocol";
 
 const RAILCOM_FLAGS = Broadcast.RailComSubscribed | Broadcast.AllRailCom;
 const LOCONET_ANY = Broadcast.LocoNet | Broadcast.LocoNetLocos | Broadcast.LocoNetSwitches;

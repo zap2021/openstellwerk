@@ -83,11 +83,11 @@ function status(c: Candidate) {
 }
 
 /** Whether the function area shows only labelled functions; kept per browser. */
-const onlyNamedStored = () => { try { return localStorage.getItem("z21.fnOnlyNamed") !== "0"; } catch { return true; } };
-const storeOnlyNamed = (on: boolean) => { try { localStorage.setItem("z21.fnOnlyNamed", on ? "1" : "0"); } catch { /* private mode */ } };
+const onlyNamedStored = () => { try { return localStorage.getItem("openstellwerk.fnOnlyNamed") !== "0"; } catch { return true; } };
+const storeOnlyNamed = (on: boolean) => { try { localStorage.setItem("openstellwerk.fnOnlyNamed", on ? "1" : "0"); } catch { /* private mode */ } };
 
-const remembered = () => { try { return Number(localStorage.getItem("z21.loco")) || 0; } catch { return 0; } };
-const remember = (a: number) => { try { localStorage.setItem("z21.loco", String(a)); } catch { /* private mode */ } };
+const remembered = () => { try { return Number(localStorage.getItem("openstellwerk.loco")) || 0; } catch { return 0; } };
+const remember = (a: number) => { try { localStorage.setItem("openstellwerk.loco", String(a)); } catch { /* private mode */ } };
 
 export function DriveTab({ state, run }: { state: StationState; run: Run }) {
   const candidates = useCandidates(state);

@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { FastifyInstance } from "fastify";
-import { validateTrains, type Train, type TrainLocation } from "@z21/timetable";
+import { validateTrains, type Train, type TrainLocation } from "@openstellwerk/timetable";
 import { JsonFile } from "./json-file.js";
 
 const err = (message: string, statusCode: number) => Object.assign(new Error(message), { statusCode });

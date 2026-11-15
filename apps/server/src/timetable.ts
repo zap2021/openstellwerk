@@ -4,7 +4,7 @@ import type { FastifyInstance } from "fastify";
 import {
   DEFAULT_CLOCK, Dispatcher, parseHHMM, setClock, startClock, stopClock, validateSettings, validateTrains, validateTrips,
   type Action, type ClockState, type Instance, type RouteInfo, type RouteResult, type TimetableSnapshot, type Train, type Trip,
-} from "@z21/timetable";
+} from "@openstellwerk/timetable";
 import { JsonFile } from "./json-file.js";
 import type { SignalBox } from "./layout.js";
 import type { Station } from "./station.js";

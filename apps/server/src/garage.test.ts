@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { Z21Simulator } from "@z21/simulator";
+import { Z21Simulator } from "@openstellwerk/simulator";
 import { Garage } from "./garage.js";
 import { Station } from "./station.js";
 

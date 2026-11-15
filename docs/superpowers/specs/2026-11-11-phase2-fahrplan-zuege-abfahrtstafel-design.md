@@ -37,7 +37,7 @@ Browser ──HTTP/WebSocket──▶ Server
                               └─ Station-Snapshot: Feld "timetable"
 ```
 
-- **`packages/timetable`** (neu, rein, ohne I/O, nur Abhängigkeit `@z21/protocol`): Typen, Fahrplanuhr, Auflösung von Fahrten zu Abfahrten, Zustandsautomat `Dispatcher`.
+- **`packages/timetable`** (neu, rein, ohne I/O, nur Abhängigkeit `@openstellwerk/protocol`): Typen, Fahrplanuhr, Auflösung von Fahrten zu Abfahrten, Zustandsautomat `Dispatcher`.
 - **`apps/server/src/trains.ts`**: `TrainStore` (Züge, Standort, Persistenz über `JsonFile`) und Routen `/api/trains`.
 - **`apps/server/src/timetable.ts`**: `TimetableRunner` (Fahrten, Einstellungen, Uhr, Persistenz, Timer, Anbindung an die Sicherung) und Routen `/api/timetable`, `/api/trips`.
 - **Die Sicherung wird nie umgangen.** Der Runner fordert Fahrstraßen ausschließlich über `SignalBox.requestRoute` an.

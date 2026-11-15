@@ -1,5 +1,5 @@
 {
-  "name": "@z21/server",
+  "name": "@openstellwerk/server",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,10 +10,10 @@
   "dependencies": {
     "@fastify/static": "^10.1.10",
     "@fastify/websocket": "^11.0.0",
-    "@z21/interlocking": "*",
-    "@z21/protocol": "*",
-    "@z21/simulator": "*",
-    "@z21/timetable": "*",
+    "@openstellwerk/interlocking": "*",
+    "@openstellwerk/protocol": "*",
+    "@openstellwerk/simulator": "*",
+    "@openstellwerk/timetable": "*",
     "fastify": "^5.2.0",
     "tsx": "^4.19.0"
   }

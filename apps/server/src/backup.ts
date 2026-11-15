@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { validateLayout, type Layout } from "@z21/protocol";
-import { validateSettings, validateTrains, validateTrips, type Train, type Trip } from "@z21/timetable";
+import { validateLayout, type Layout } from "@openstellwerk/protocol";
+import { validateSettings, validateTrains, validateTrips, type Train, type Trip } from "@openstellwerk/timetable";
 import type { Camera, CameraStore } from "./cameras.js";
 import { parseGarage, type Garage, type GarageLoco } from "./garage.js";
 import { checkJpeg, parseAddress, syncGarageImages, type LocoImageStore } from "./loco-images.js";
@@ -26,7 +26,9 @@ import { parseUsers, type User, type UserStore } from "./users.js";
  *  - users: accounts with roles and password hashes (never plain passwords); a backup needs at least one active admin
  * Loco speeds, turnout positions, CVs, clock and network settings live on the Z21 and are not part of it.
  */
-export const BACKUP_FORMAT = "z21-web-backup";
+export const BACKUP_FORMAT = "openstellwerk-backup";
+/** Sicherungen aus der Zeit, als das Projekt noch „z21-web“ hieß, bleiben lesbar. */
+export const LEGACY_BACKUP_FORMAT = "z21-web-backup";
 export const BACKUP_PARTS = ["garage", "layout", "cameras", "trains", "timetable", "locoImages", "automations", "layoutRules", "calibration", "achievements", "users"] as const;
 export type BackupPart = (typeof BACKUP_PARTS)[number];
 
@@ -82,7 +84,7 @@ export class BackupService {
    */
   restore(input: unknown, parts: readonly BackupPart[] = BACKUP_PARTS): { restored: Record<string, number> } {
     const b = (input ?? {}) as Record<string, unknown>;
-    if (b.format !== BACKUP_FORMAT) throw httpError(400, "Das ist keine Sicherungsdatei dieser Anwendung");
+    if (b.format !== BACKUP_FORMAT && b.format !== LEGACY_BACKUP_FORMAT) throw httpError(400, "Das ist keine Sicherungsdatei dieser Anwendung");
     if (b.version !== 1) throw httpError(400, `Sicherungsversion ${String(b.version)} wird nicht unterstützt`);
     const chosen = parts.filter((p) => b[p] !== undefined);
     if (!chosen.length) throw httpError(400, "Die Datei enthält nichts von dem, was wiederhergestellt werden soll");
@@ -189,7 +191,7 @@ export function registerBackupRoutes(app: FastifyInstance, service: BackupServic
   // GET so the browser can simply download it; passwords only when asked for
   app.get<{ Querystring: { passwords?: string; images?: string } }>("/api/backup", async (req, reply) => {
     const date = new Date().toISOString().slice(0, 10);
-    reply.header("content-disposition", `attachment; filename="z21-web-backup-${date}.json"`).header("cache-control", "no-store");
+    reply.header("content-disposition", `attachment; filename="openstellwerk-backup-${date}.json"`).header("cache-control", "no-store");
     return service.create({ passwords: req.query.passwords === "1", images: req.query.images !== "0" });
   });
   app.post<{ Body: { backup?: unknown; parts?: string[] } }>("/api/backup/restore", { bodyLimit: 300 * 1024 * 1024 }, async (req) => {

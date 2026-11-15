@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { UpdateService, compareVersions, type UpdateDeps } from "./update.js";
 
 let dir: string;
-beforeEach(() => { dir = mkdtempSync(path.join(tmpdir(), "z21-update-")); mkdirSync(path.join(dir, "install")); mkdirSync(path.join(dir, "work")); });
+beforeEach(() => { dir = mkdtempSync(path.join(tmpdir(), "openstellwerk-update-")); mkdirSync(path.join(dir, "install")); mkdirSync(path.join(dir, "work")); });
 afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -34,7 +34,7 @@ function setup(o: { release?: unknown; status?: number; archiveVersion?: string;
     log: (text) => { logged.push(text); },
     now: () => 1_000,
   };
-  const service = new UpdateService({ baseUrl: "https://git.example/", repo: "me/z21-web", token: o.token, installDir: path.join(dir, "install"), workDir: path.join(dir, "work"), current: "0.3.0" }, deps);
+  const service = new UpdateService({ baseUrl: "https://git.example/", repo: "me/openstellwerk", token: o.token, installDir: path.join(dir, "install"), workDir: path.join(dir, "work"), current: "0.3.0" }, deps);
   const settle = async () => { for (let i = 0; i < 200 && !["idle", "failed", "restarting"].includes(service.view().phase); i++) await new Promise((r) => setTimeout(r, 5)); };
   return { service, calls, requests, logged, settle, restarted: () => restarted };
 }
@@ -55,12 +55,12 @@ describe("UpdateService", () => {
     const v = await service.check();
     expect(v).toMatchObject({ latest: "0.4.0", notes: "Neu: alles", available: true, checkedAt: 1000 });
     expect(v.error).toBeUndefined();
-    expect(requests[0]).toEqual({ url: "https://git.example/api/v1/repos/me/z21-web/releases/latest", auth: "token geheim" });
+    expect(requests[0]).toEqual({ url: "https://git.example/api/v1/repos/me/openstellwerk/releases/latest", auth: "token geheim" });
     expect(service.summary()).toEqual({ current: "0.3.0", latest: "0.4.0", available: true });
   });
 
   it("reports why a check failed and offers nothing", async () => {
-    expect((await setup({ status: 403 }).service.check()).error).toMatch(/nicht öffentlich.*Z21_UPDATE_TOKEN/);
+    expect((await setup({ status: 403 }).service.check()).error).toMatch(/nicht öffentlich.*OPENSTELLWERK_UPDATE_TOKEN/);
     expect((await setup({ status: 401, token: "x" }).service.check()).error).toMatch(/lehnt das Zugriffstoken ab/);
     expect((await setup({ status: 404 }).service.check()).error).toMatch(/Kein veröffentlichtes Release/);
     expect((await setup({ status: 500 }).service.check()).error).toMatch(/HTTP 500/);
@@ -79,7 +79,7 @@ describe("UpdateService", () => {
     await settle();
     expect(service.view().phase).toBe("restarting");
     expect(calls).toEqual(["tar -xzf -C --strip-components=1", "npm ci", "npm run build", "smoke", "rsync -a --delete --exclude=/apps/server/data", "rsync -a --delete --exclude=/apps/server/data --exclude=.smoke-data"]);
-    expect(requests[1]!.url).toBe("https://git.example/api/v1/repos/me/z21-web/archive/v0.4.0.tar.gz");
+    expect(requests[1]!.url).toBe("https://git.example/api/v1/repos/me/openstellwerk/archive/v0.4.0.tar.gz");
     expect(restarted()).toBe(true);
     expect(JSON.parse(readFileSync(path.join(dir, "work", "last.json"), "utf8"))).toEqual({ from: "0.3.0", to: "0.4.0", at: 1000 });
     expect(existsSync(path.join(dir, "work", "staging"))).toBe(false);

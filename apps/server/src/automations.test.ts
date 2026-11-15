@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { LocoInfo } from "@z21/protocol";
+import type { LocoInfo } from "@openstellwerk/protocol";
 import { AutomationEngine, AutomationStore, detectEvents, triggered, validateAutomations, type Automation } from "./automations.js";
 
 const loco = (o: Partial<LocoInfo> = {}): LocoInfo => ({ address: 3, steps: 128, busy: false, forward: true, speed: 0, emergencyStop: false, functions: [], ...o });

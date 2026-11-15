@@ -110,9 +110,9 @@ Eingaben und Zustände, die die Spezifikation voraussetzt, die aber leicht durch
 ### Task 4: Paket `packages/timetable` – Typen, Uhr, Format
 
 **Files:**
-- Create: `packages/timetable/package.json` (`@z21/timetable`, `main: src/index.ts`, keine Abhängigkeiten), `packages/timetable/src/{index,types,clock,format}.ts`
+- Create: `packages/timetable/package.json` (`@openstellwerk/timetable`, `main: src/index.ts`, keine Abhängigkeiten), `packages/timetable/src/{index,types,clock,format}.ts`
 - Test: `packages/timetable/src/clock.test.ts`, `format.test.ts`
-- Modify: `apps/server/package.json`, `apps/web/package.json` (Abhängigkeit `"@z21/timetable": "*"`), danach `npm install`
+- Modify: `apps/server/package.json`, `apps/web/package.json` (Abhängigkeit `"@openstellwerk/timetable": "*"`), danach `npm install`
 
 **Interfaces – Produces (`types.ts`):**
 ```ts
@@ -154,7 +154,7 @@ export function departures(trip: Pick<Trip, "departure" | "repeat">): number[]  
 
 - [ ] **Step 1: Failing tests:** (a) gültiger Zug/Fahrt wird normalisiert (Texte getrimmt); (b) doppelte Lokadresse → Fehler mit „Lokadresse 3“; (c) Standort in unbekanntem Block wird mit `ctx` entfernt, ohne `ctx` behalten; (d) `departures({ departure: 600, repeat: { every: 20, until: 660 } })` → `[600, 620, 640, 660]` (`until` inklusive); (e) `every` größer als Rest: `[600]`; (f) `until: 500` bei `departure: 600` → Fehler; `every: 1, departure: 0, until: 1439` (1440 Abfahrten) → Fehler „höchstens 200 Abfahrten“; (g) `dwell: 121` und `departure: 1440` → Fehler; (h) mit `ctx` unbekannte Fahrstraße → Fehler, ohne `ctx` kein Fehler; (i) `validateSettings({ lateLimit: 0 })` wirft, `({})` → 5.
 - [ ] **Step 2:** `npx vitest run packages/timetable/src/validate.test.ts` – FAIL.
-- [ ] **Step 3: Implement** nach dem Muster von `validateLayout` (Hilfsfunktionen `int`, `text`, `fail` lokal; keine Abhängigkeit zu `@z21/protocol`).
+- [ ] **Step 3: Implement** nach dem Muster von `validateLayout` (Hilfsfunktionen `int`, `text`, `fail` lokal; keine Abhängigkeit zu `@openstellwerk/protocol`).
 - [ ] **Step 4:** `npx vitest run packages/timetable` – PASS.
 - [ ] **Step 5: Commit** `git commit -m "timetable: validation of trains, trips and settings; repeat expansion"`.
 
@@ -200,7 +200,7 @@ export class Dispatcher {
 - Test: `apps/server/src/trains.test.ts`
 
 **Interfaces:**
-- Consumes: `validateTrains`, `Train`, `TrainLocation` aus `@z21/timetable`; `JsonFile` aus `./json-file.js`.
+- Consumes: `validateTrains`, `Train`, `TrainLocation` aus `@openstellwerk/timetable`; `JsonFile` aus `./json-file.js`.
 - Produces:
 ```ts
 export class TrainStore {
@@ -286,7 +286,7 @@ Routen: `GET /api/timetable`, `POST /api/trips`, `PUT /api/trips/:id`, `DELETE /
 
 **Files:**
 - Create: `apps/web/src/trains.tsx`, `apps/web/src/timetable.tsx` (Teil `TimetableAdmin`)
-- Modify: `apps/web/src/admin.tsx` (Seiten `trains` „Züge“, `timetable` „Fahrplan“ in Gruppe „Anlage“; erlaubt, sobald `state` existiert wie `layout`), `apps/web/src/api.ts` (`StationState.timetable?: TimetableSnapshot`, Typen aus `@z21/timetable`), `apps/web/src/backup.tsx` (Teile `trains`, `timetable` mit Beschriftung und Anzahl)
+- Modify: `apps/web/src/admin.tsx` (Seiten `trains` „Züge“, `timetable` „Fahrplan“ in Gruppe „Anlage“; erlaubt, sobald `state` existiert wie `layout`), `apps/web/src/api.ts` (`StationState.timetable?: TimetableSnapshot`, Typen aus `@openstellwerk/timetable`), `apps/web/src/backup.tsx` (Teile `trains`, `timetable` mit Beschriftung und Anzahl)
 - Test: `apps/web/src/timetable.test.ts` nur für reine Hilfsfunktionen, die du hier anlegst (siehe Step 1)
 
 **Interfaces:**

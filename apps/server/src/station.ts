@@ -1,12 +1,12 @@
 import { EventEmitter } from "node:events";
-import type { RouteState } from "@z21/interlocking";
-import type { TimetableSnapshot } from "@z21/timetable";
+import type { RouteState } from "@openstellwerk/interlocking";
+import type { TimetableSnapshot } from "@openstellwerk/timetable";
 import {
   Broadcast, cmd, LocoNetDetectorPoll,
   type BoosterSystemState, type CanBoosterState, type DecoderState, type FastClockSettings, type FastClockTime,
   type ZLinkHwInfo, type CanDetectorValue, type LocoInfo, type LocoNetDecoded, type LocoNetDetectorEvent, type LocoNetDirection,
   type Layout, type Message, type RailComData, type SystemState, type TrackPower,
-} from "@z21/protocol";
+} from "@openstellwerk/protocol";
 import { Z21Client } from "./z21-client.js";
 import type { AchievementView } from "./achievements.js";
 import type { Journey } from "./journeys.js";
@@ -112,7 +112,7 @@ export interface StationState {
   scan?: ScanState;
   layout?: Layout;
   routeRun?: RouteRun;
-  /** Interlocked routes that are not idle (see @z21/interlocking). */
+  /** Interlocked routes that are not idle (see @openstellwerk/interlocking). */
   interlocking?: RouteState[];
   /** true while the built-in simulator stands in for a real command station */
   demo?: boolean;

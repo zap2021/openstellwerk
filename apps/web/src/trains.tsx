@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DEFAULT_DRIVE, type Train } from "@z21/timetable";
+import { DEFAULT_DRIVE, type Train } from "@openstellwerk/timetable";
 import { kmh } from "./calibration";
 import { api, type StationState } from "./api";
 import { ifSure } from "./confirm";

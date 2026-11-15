@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Layout } from "@z21/protocol";
-import type { Train } from "@z21/timetable";
+import type { Layout } from "@openstellwerk/protocol";
+import type { Train } from "@openstellwerk/timetable";
 import { JourneyRunner, findPath, type Journey } from "./journeys.js";
 
 /** a → b → c and a → d → c; routes only lead one way. */

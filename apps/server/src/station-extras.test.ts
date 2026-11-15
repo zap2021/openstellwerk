@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { Z21Simulator } from "@z21/simulator";
+import { Z21Simulator } from "@openstellwerk/simulator";
 import { Station } from "./station.js";
 
 const until = async (cond: () => boolean, ms = 1500) => {

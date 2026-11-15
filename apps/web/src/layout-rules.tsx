@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { isSwitchable, stateCount, stateName, type Layout, type Tile } from "@z21/protocol/layout";
+import { isSwitchable, stateCount, stateName, type Layout, type Tile } from "@openstellwerk/protocol/layout";
 import { api } from "./api";
 import { toMs } from "./automations";
 

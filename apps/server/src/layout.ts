@@ -2,8 +2,8 @@ import type { FastifyInstance } from "fastify";
 import {
   EMPTY_LAYOUT, feedbackBuses, routeCommands, stateCount, tileCommands, turnoutAddresses, validateLayout,
   type Layout, type LayoutCommand,
-} from "@z21/protocol";
-import { Interlocking, type EndedRoute, type RouteState } from "@z21/interlocking";
+} from "@openstellwerk/protocol";
+import { Interlocking, type EndedRoute, type RouteState } from "@openstellwerk/interlocking";
 import { JsonFile } from "./json-file.js";
 import type { RouteRun, Station } from "./station.js";
 

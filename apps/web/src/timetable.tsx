@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { formatHHMM, modelNow, parseHHMM, statusText, timeOfDay, type ClockState, type Instance, type Status, type Train, type Trip } from "@z21/timetable";
-import type { Layout, Route } from "@z21/protocol/layout";
+import { formatHHMM, modelNow, parseHHMM, statusText, timeOfDay, type ClockState, type Instance, type Status, type Train, type Trip } from "@openstellwerk/timetable";
+import type { Layout, Route } from "@openstellwerk/protocol/layout";
 import { api, type StationState } from "./api";
 import { ifSure } from "./confirm";
 import { imageUrl } from "./loco-image";

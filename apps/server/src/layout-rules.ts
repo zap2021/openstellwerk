@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { blockOccupied, stateCount, stateName, tileState, type Layout, type LayoutLiveState } from "@z21/protocol";
+import { blockOccupied, stateCount, stateName, tileState, type Layout, type LayoutLiveState } from "@openstellwerk/protocol";
 import { JsonFile } from "./json-file.js";
 
 /*

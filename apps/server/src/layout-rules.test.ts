@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Fastify from "fastify";
-import type { Layout } from "@z21/protocol";
+import type { Layout } from "@openstellwerk/protocol";
 import {
   LayoutRuleEngine, LayoutRuleStore, conditionsHold, locosInBlock, missingRefs, registerLayoutRuleRoutes, validateRules,
   type LayoutRule, type RuleActions,

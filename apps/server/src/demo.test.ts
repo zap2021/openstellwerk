@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import Fastify from "fastify";
-import { Z21Simulator } from "@z21/simulator";
+import { Z21Simulator } from "@openstellwerk/simulator";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { Demo, registerDemoRoutes } from "./demo.js";
 import { registerLayoutRoutes, SignalBox } from "./layout.js";

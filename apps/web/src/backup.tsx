@@ -32,7 +32,7 @@ export function BackupPanel({ run }: { run: Run }) {
     setDone(undefined);
     await run((async () => {
       const backup = JSON.parse(await f.text()) as Record<string, unknown>;
-      if (backup?.format !== "z21-web-backup") throw new Error("Das ist keine Sicherungsdatei dieser Anwendung");
+      if (backup?.format !== "openstellwerk-backup" && backup?.format !== "z21-web-backup") throw new Error("Das ist keine Sicherungsdatei dieser Anwendung");
       const parts = (Object.keys(LABEL) as Part[]).filter((p) => backup[p] !== undefined);
       setFile({ name: f.name, backup });
       setChosen(parts);

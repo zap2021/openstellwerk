@@ -1,9 +1,9 @@
 # HTTPS mit Let's Encrypt über Caddy (https://caddyserver.com). Caddy holt und erneuert das Zertifikat selbst.
-# Z21 Web läuft dahinter nur lokal:  HOST=127.0.0.1  TRUST_PROXY=1  Z21_REQUIRE_HTTPS=1
+# OpenStellwerk läuft dahinter nur lokal:  HOST=127.0.0.1  TRUST_PROXY=1  OPENSTELLWERK_REQUIRE_HTTPS=1
 #
-# "z21.example.de" durch die eigene Domain ersetzen; sie muss auf diesen Rechner zeigen.
+# "stellwerk.example.de" durch die eigene Domain ersetzen; sie muss auf diesen Rechner zeigen.
 
-z21.example.de {
+stellwerk.example.de {
 	reverse_proxy 127.0.0.1:3001
 
 	# Variante A (Standard, HTTP-01): Port 80 und 443 dieses Rechners müssen aus dem Internet erreichbar sein.

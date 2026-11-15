@@ -6,8 +6,9 @@ import "@fontsource/barlow/latin-600.css";
 import "@fontsource/barlow-condensed/latin-500.css";
 import "@fontsource/barlow-condensed/latin-600.css";
 import "./styles.css";
-import { applyTheme, storedTheme } from "./theme";
+import { applyTheme, migrateStorage, storedTheme } from "./theme";
 
+migrateStorage();
 applyTheme(storedTheme());
 
 createRoot(document.getElementById("root")!).render(<App />);

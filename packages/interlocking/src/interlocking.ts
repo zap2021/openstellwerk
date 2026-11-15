@@ -21,7 +21,7 @@
 import {
   blockOccupied, tileCommands, tileState,
   type Layout, type LayoutCommand, type LayoutLiveState, type Route, type RouteStep, type Tile,
-} from "@z21/protocol/layout";
+} from "@openstellwerk/protocol/layout";
 
 /** setting = turnouts being driven; set = signal cleared, waiting for the train; running = train inside; fault = needs the operator. */
 export type RouteStatus = "idle" | "setting" | "set" | "running" | "fault";

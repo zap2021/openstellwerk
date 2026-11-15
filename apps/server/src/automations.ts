@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { LocoInfo } from "@z21/protocol";
+import type { LocoInfo } from "@openstellwerk/protocol";
 import { JsonFile } from "./json-file.js";
 
 /* Automatismen je Lok (Auslöser → Bedingung → Aktion). Auswertung ist rein; Zeitsteuerung steckt im AutomationEngine. */

@@ -1,7 +1,7 @@
 {
-  "name": "Z21 Web",
-  "short_name": "Z21",
-  "description": "Modellbahnsteuerung für die Z21",
+  "name": "OpenStellwerk",
+  "short_name": "Stellwerk",
+  "description": "Freie Modellbahnsteuerung für Zentralen mit Z21-LAN-Protokoll",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Layout } from "@z21/protocol";
+import type { Layout } from "@openstellwerk/protocol";
 import { CalibrationRunner, CalibrationStore, cmPerSec, kmh, validateCalibration } from "./calibration.js";
 
 const layout = {

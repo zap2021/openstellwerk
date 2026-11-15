@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Instance, Status, Train, Trip } from "@z21/timetable";
-import type { Layout, Route } from "@z21/protocol/layout";
+import type { Instance, Status, Train, Trip } from "@openstellwerk/timetable";
+import type { Layout, Route } from "@openstellwerk/protocol/layout";
 import { boardRows, modelNowSkewed, tripRows } from "./timetable";
 
 const trains: Train[] = [{ id: "t1", name: "IC 1", address: 3 }];

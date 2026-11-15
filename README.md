@@ -1,13 +1,15 @@
-# Z21 Web
+# OpenStellwerk
 
-Plattformunabhängiger Ersatz für `Z21_Maintenance.exe` (Windows/Delphi) und Grundlage für eine vollständige Modellbahnsteuerung. Läuft auf macOS, Linux und Windows mit Node.js ≥ 22.
+Freie Modellbahnsteuerung im Browser für Zentralen mit Z21-LAN-Protokoll: Fahren, Stellwerk mit gesicherten Fahrstraßen, Fahrplan und Verwaltung. Ersetzt außerdem die meisten Funktionen der `Z21_Maintenance.exe` (Windows/Delphi). Läuft auf macOS, Linux und Windows mit Node.js ≥ 22.
+
+OpenStellwerk ist ein privates Projekt und kein Produkt von Roco, Fleischmann oder der Modelleisenbahn GmbH und wird von ihnen nicht unterstützt. „Z21“ ist eine Marke ihres Inhabers und steht hier nur für das Gerät und sein öffentlich dokumentiertes LAN-Protokoll. Bis Version 0.4.1 hieß das Projekt „z21-web“.
 
 ## Architektur
 
 ```
 Browser (React/Vite)  ──HTTP + WebSocket──▶  Node-Server (Fastify)  ──UDP :21105──▶  Z21
                                                   │                  ──Serial (später)──▶ zLink-USB
-                                                  └── @z21/protocol (Codec, ohne I/O)
+                                                  └── @openstellwerk/protocol (Codec, ohne I/O)
 ```
 
 Ein Browser kann weder UDP noch zuverlässig serielle Ports ansprechen (Web Serial gibt es nicht in Safari/Firefox). Deshalb übernimmt ein lokaler Node-Server die Hardware-Anbindung; die Oberfläche läuft im Browser und ist damit auch auf Tablet/Handy am Anlagenrand nutzbar.
@@ -36,7 +38,7 @@ Dann <http://localhost:5173> öffnen und mit `127.0.0.1` (Simulator) oder der IP
 ```bash
 npm ci
 npm run build                                   # Oberfläche einmal bauen (apps/web/dist)
-NODE_ENV=production HOST=0.0.0.0 Z21_PASSWORD='…' npm start
+NODE_ENV=production HOST=0.0.0.0 OPENSTELLWERK_PASSWORD='…' npm start
 ```
 
 Ein einziger Node-Prozess liefert Oberfläche, API und WebSocket auf Port 3001 aus (rund 90 MB RAM). Bedient wird im Browser eines anderen Geräts: `http://<adresse-des-pi>:3001`.
@@ -44,12 +46,14 @@ Ein einziger Node-Prozess liefert Oberfläche, API und WebSocket auf Port 3001 a
 | Variable | Bedeutung |
 |---|---|
 | `HOST`, `PORT` | Bindeadresse und Port (Standard `127.0.0.1:3001`) |
-| `Z21_PASSWORD` | Gemeinsames Passwort. **Pflicht**, sobald `HOST` nicht `127.0.0.1` ist – ohne startet der Server nicht (bewusst offen: `Z21_ALLOW_OPEN=1`) |
+| `OPENSTELLWERK_PASSWORD` | Gemeinsames Passwort. **Pflicht**, sobald `HOST` nicht `127.0.0.1` ist – ohne startet der Server nicht (bewusst offen: `OPENSTELLWERK_ALLOW_OPEN=1`) |
 | `DATA_DIR` | Ordner für Lokliste, Kameras und Gleisbild (Standard `apps/server/data`) |
 | `LOG_LEVEL` | Standard `warn` bei `NODE_ENV=production` (schont die SD-Karte), sonst `info` |
 | `TLS_CERT`, `TLS_KEY` | Pfade zu Zertifikat und Schlüssel: der Server spricht dann selbst HTTPS und lädt erneuerte Dateien ohne Neustart nach |
 | `TRUST_PROXY=1` | Hinter einem Proxy (Caddy, nginx): `X-Forwarded-*` auswerten |
-| `Z21_REQUIRE_HTTPS=1` | Anmeldung über unverschlüsseltes HTTP ablehnen |
+| `OPENSTELLWERK_REQUIRE_HTTPS=1` | Anmeldung über unverschlüsseltes HTTP ablehnen |
+
+Installationen aus der Zeit vor der Umbenennung (bis 0.4.1) laufen weiter: Wo eine Variable `OPENSTELLWERK_…` fehlt, gilt die gleichnamige mit dem alten Präfix `Z21_…`. Sicherungsdateien aus dieser Zeit lassen sich weiter einspielen.
 
 ### Raspberry Pi: Installation per Kommandozeile
 
@@ -59,14 +63,14 @@ Voraussetzungen sind Raspberry Pi OS (ARM64/64 Bit oder ARMv7/32 Bit), Internetz
 sudo bash deploy/install-raspberry-pi.sh
 ```
 
-Das Skript fragt interaktiv nach einem Passwort (druckbare ASCII-Zeichen), installiert fehlende Hilfsprogramme und bei Bedarf Node.js 22 passend zur Architektur, kopiert das Projekt nach `/opt/z21-web`, baut die Oberfläche und aktiviert den systemd-Dienst. Die Konfiguration liegt in `/etc/z21-web.env`, die Anwendungsdaten liegen in `/var/lib/z21-web`. Anschließend `http://<adresse-des-pi>:3001` im Browser öffnen. `npm ci` und der Build können auf einem Pi 3 einige Minuten dauern.
+Das Skript fragt interaktiv nach einem Passwort (druckbare ASCII-Zeichen), installiert fehlende Hilfsprogramme und bei Bedarf Node.js 22 passend zur Architektur, kopiert das Projekt nach `/opt/openstellwerk`, baut die Oberfläche und aktiviert den systemd-Dienst. Die Konfiguration liegt in `/etc/openstellwerk.env`, die Anwendungsdaten liegen in `/var/lib/openstellwerk`. Anschließend `http://<adresse-des-pi>:3001` im Browser öffnen. `npm ci` und der Build können auf einem Pi 3 einige Minuten dauern.
 
-Das Skript ist für eine **Erstinstallation** gedacht: Es überschreibt weder eine vorhandene Installation noch eine bestehende Konfiguration oder Dienstdatei. Nach einem Fehler bleiben bereits angelegte Dateien zur Prüfung erhalten; für einen erneuten Versuch müssen diese gezielt geprüft und gegebenenfalls entfernt werden. Bestehende Daten in `/var/lib/z21-web` werden nicht gelöscht.
+Das Skript ist für eine **Erstinstallation** gedacht: Es überschreibt weder eine vorhandene Installation noch eine bestehende Konfiguration oder Dienstdatei. Nach einem Fehler bleiben bereits angelegte Dateien zur Prüfung erhalten; für einen erneuten Versuch müssen diese gezielt geprüft und gegebenenfalls entfernt werden. Bestehende Daten in `/var/lib/openstellwerk` werden nicht gelöscht.
 
 ```bash
-sudo systemctl status z21-web      # Dienststatus
-sudo journalctl -u z21-web -f      # Protokoll
-sudo systemctl restart z21-web     # nach Konfigurationsänderungen
+sudo systemctl status openstellwerk      # Dienststatus
+sudo journalctl -u openstellwerk -f      # Protokoll
+sudo systemctl restart openstellwerk     # nach Konfigurationsänderungen
 ```
 
 Bei Netzwerkkameras einen kleinen Stream (Substream) wählen, jedes Bild läuft durch den Pi.
@@ -79,7 +83,7 @@ Build und manueller Produktionsstart wurden auf einem Raspberry Pi mit Raspbian 
 
 ### Version und Update
 
-Die installierte Version steht oben in der Kopfzeile neben „Z21 Web“ (z. B. `v0.4.1`) und über `GET /api/version`. Sie kommt aus dem `version`-Feld der `package.json`; Releases sind Git-Tags der Form `vX.Y.Z` auf `git.wuelfi.ng`.
+Die installierte Version steht oben in der Kopfzeile neben „OpenStellwerk“ (z. B. `v0.4.1`) und über `GET /api/version`. Sie kommt aus dem `version`-Feld der `package.json`; Releases sind Git-Tags der Form `vX.Y.Z` auf `git.wuelfi.ng`.
 
 **Update aus der Oberfläche** (Verwaltung → Verbindung → Update, nur Admin). Der Server fragt die Git-Plattform alle 12 Stunden nach dem neuesten Release; Admins sehen dann oben „Update vX.Y.Z“. Die Seite zeigt die Release-Notizen und spielt die Version auf Knopfdruck ein:
 
@@ -91,37 +95,37 @@ Die installierte Version steht oben in der Kopfzeile neben „Z21 Web“ (z. B. 
 
 Scheitert ein Schritt vor 5, bleibt die laufende Installation unberührt und die Seite zeigt den Grund. Die Anwendungsdaten werden nie angefasst. Solange Fahrstraßen angefordert sind oder eine Zielfahrt, eine Fahrplanfahrt oder eine Messreihe läuft, startet kein Update. Alles läuft als Dienstbenutzer, ohne root; auf einem Raspberry Pi 3 dauert es einige Minuten.
 
-Einstellungen in `/etc/z21-web.env` (danach `sudo systemctl restart z21-web`):
+Einstellungen in `/etc/openstellwerk.env` (danach `sudo systemctl restart openstellwerk`):
 
 | Variable | Bedeutung |
 |---|---|
-| `Z21_UPDATE_TOKEN` | Zugriffstoken der Git-Plattform. Nötig, wenn das Repository nicht öffentlich ist (auf `git.wuelfi.ng` unter Einstellungen → Anwendungen ein Token nur mit Leserecht auf Repositories erzeugen). |
-| `Z21_UPDATE_URL`, `Z21_UPDATE_REPO` | Git-Plattform (Forgejo/Gitea) und Repository, Standard `https://git.wuelfi.ng` und `sebastian/z21-web` |
-| `Z21_UPDATE_CHECK=0` | keine regelmäßige Prüfung (die Seite kann weiter von Hand prüfen) |
+| `OPENSTELLWERK_UPDATE_TOKEN` | Zugriffstoken der Git-Plattform. Nötig, wenn das Repository nicht öffentlich ist (auf `git.wuelfi.ng` unter Einstellungen → Anwendungen ein Token nur mit Leserecht auf Repositories erzeugen). |
+| `OPENSTELLWERK_UPDATE_URL`, `OPENSTELLWERK_UPDATE_REPO` | Git-Plattform (Forgejo/Gitea) und Repository, Standard `https://git.wuelfi.ng` und `sebastian/openstellwerk` |
+| `OPENSTELLWERK_UPDATE_CHECK=0` | keine regelmäßige Prüfung (die Seite kann weiter von Hand prüfen) |
 
 **Zurück zur vorherigen Version**, falls die neue nach dem Neustart Ärger macht (über SSH):
 
 ```bash
-sudo systemctl stop z21-web
-sudo rsync -a --delete /var/lib/z21-web/update/previous/ /opt/z21-web/
-sudo chown -R z21: /opt/z21-web && sudo systemctl start z21-web
+sudo systemctl stop openstellwerk
+sudo rsync -a --delete /var/lib/openstellwerk/update/previous/ /opt/openstellwerk/
+sudo chown -R openstellwerk: /opt/openstellwerk && sudo systemctl start openstellwerk
 ```
 
-**Update von Hand** (ohne Zugriff des Pi auf die Git-Plattform); die Daten in `/var/lib/z21-web` und `/etc/z21-web.env` bleiben unberührt:
+**Update von Hand** (ohne Zugriff des Pi auf die Git-Plattform); die Daten in `/var/lib/openstellwerk` und `/etc/openstellwerk.env` bleiben unberührt:
 
 ```bash
 # auf dem Rechner mit dem Checkout (neue Version ausgecheckt, z. B. git checkout v0.4.1)
-rsync -az --delete --exclude=.git --exclude=node_modules --exclude='*/node_modules' --exclude='*/dist' ./ <pi>:/tmp/z21-new/
+rsync -az --delete --exclude=.git --exclude=node_modules --exclude='*/node_modules' --exclude='*/dist' ./ <pi>:/tmp/openstellwerk-new/
 
 # auf dem Pi
-sudo tar -czf ~/z21-web-backup-$(date +%Y%m%d).tgz --exclude=node_modules -C / opt/z21-web var/lib/z21-web   # Sicherung
-sudo rsync -a --delete --exclude=node_modules --exclude='*/node_modules' --exclude='*/dist' /tmp/z21-new/ /opt/z21-web/
-sudo chown -R z21: /opt/z21-web && sudo systemctl stop z21-web
-sudo runuser -u z21 -- env PATH="/opt/z21-web-node/bin:/usr/bin:/bin" bash -c 'cd /opt/z21-web && npm ci && npm run build'
-sudo systemctl start z21-web && sudo journalctl -u z21-web -n 20 --no-pager
+sudo tar -czf ~/openstellwerk-backup-$(date +%Y%m%d).tgz --exclude=node_modules -C / opt/openstellwerk var/lib/openstellwerk   # Sicherung
+sudo rsync -a --delete --exclude=node_modules --exclude='*/node_modules' --exclude='*/dist' /tmp/openstellwerk-new/ /opt/openstellwerk/
+sudo chown -R openstellwerk: /opt/openstellwerk && sudo systemctl stop openstellwerk
+sudo runuser -u openstellwerk -- env PATH="/opt/openstellwerk-node/bin:/usr/bin:/bin" bash -c 'cd /opt/openstellwerk && npm ci && npm run build'
+sudo systemctl start openstellwerk && sudo journalctl -u openstellwerk -n 20 --no-pager
 ```
 
-(`/opt/z21-web-node/bin` gilt, wenn das Skript Node.js selbst installiert hat; sonst den Pfad des systemweiten Node verwenden.)
+(`/opt/openstellwerk-node/bin` gilt, wenn das Skript Node.js selbst installiert hat; sonst den Pfad des systemweiten Node verwenden.)
 
 ### Als App auf dem Handy oder Tablet
 
@@ -256,9 +260,9 @@ Zugriff mit **Benutzername und Passwort**, zwei Rollen:
 | **Benutzer** | Fahren, Weichen und Signale schalten, Fahrstraßen anfordern, Zielfahrten starten, Nothalt, Fahrplan und Stellwerk ansehen, Lok-Bilder ändern, eigenes Profil (Anzeigename, Passwort) und eigene Erfolge |
 | **Admin** | zusätzlich die ganze Verwaltung: Benutzer, Gleisbild, Regeln, Züge, Fahrplan, Kameras, CV-Programmierung, Netzwerk, Datensicherung, Automatismen, Zurücksetzen der Erfolge |
 
-- **Erster Start:** Gibt es keine `users.json` und ist `Z21_PASSWORD` gesetzt, entsteht der Admin `admin` mit diesem Passwort (einmalige Neuanmeldung). Danach gilt das Konto; `Z21_PASSWORD` wird nicht mehr zum Anmelden benutzt. Läuft der Server nur lokal ohne Passwort und ohne Konten, ist alles offen wie bisher; das erste in der Verwaltung angelegte Konto wird Admin und schaltet die Anmeldung ein.
+- **Erster Start:** Gibt es keine `users.json` und ist `OPENSTELLWERK_PASSWORD` gesetzt, entsteht der Admin `admin` mit diesem Passwort (einmalige Neuanmeldung). Danach gilt das Konto; `OPENSTELLWERK_PASSWORD` wird nicht mehr zum Anmelden benutzt. Läuft der Server nur lokal ohne Passwort und ohne Konten, ist alles offen wie bisher; das erste in der Verwaltung angelegte Konto wird Admin und schaltet die Anmeldung ein.
 - **Verwaltung → Anlage → Benutzer** (Admin): anlegen, Rolle ändern, sperren, Passwort setzen, löschen. Der letzte aktive Admin lässt sich nicht löschen, sperren oder herabstufen. Rollenwechsel und Sperren wirken sofort.
-- **Passwörter** (mindestens 3 Zeichen; mit `Z21_MIN_PASSWORD=8` in `/etc/z21-web.env` strenger, empfohlen sobald der Server von außen erreichbar ist) liegen nur als scrypt-Hash in `users.json`. Wer sein Passwort ändert, meldet alle anderen Geräte ab. Fehlversuche werden gebremst.
+- **Passwörter** (mindestens 3 Zeichen; mit `OPENSTELLWERK_MIN_PASSWORD=8` in `/etc/openstellwerk.env` strenger, empfohlen sobald der Server von außen erreichbar ist) liegen nur als scrypt-Hash in `users.json`. Wer sein Passwort ändert, meldet alle anderen Geräte ab. Fehlversuche werden gebremst.
 - **Rechte** prüft der Server (`apps/server/src/roles.ts`): Standard ist *Admin*, nur ausdrücklich freigegebene Routen sind für Benutzer offen. Die Oberfläche blendet die Verwaltung für Benutzer nur zusätzlich aus.
 - **Erfolge je Benutzer:** Anfahren, Halten und Nothalt zählen für den Benutzer, der der Lok zuletzt (bis 15 s vorher) einen Fahrbefehl gegeben hat, und immer auch für die Anlage. Fahrplanfahrten zählen für die Anlage. Die Abfahrtstafel nennt den Benutzer beim Freischalten. Profil mit eigenen Erfolgen und Rangliste unter dem Namen oben rechts.
 - **Datensicherung** enthält die Konten mit Passwort-Hashes; Wiederherstellen verlangt mindestens einen aktiven Admin in der Datei.

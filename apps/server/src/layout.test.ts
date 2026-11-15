@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import Fastify from "fastify";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { Z21Simulator } from "@z21/simulator";
-import { routeIsSet, tileState, type Layout } from "@z21/protocol";
+import { Z21Simulator } from "@openstellwerk/simulator";
+import { routeIsSet, tileState, type Layout } from "@openstellwerk/protocol";
 import { registerLayoutRoutes, SignalBox } from "./layout.js";
 import { Station } from "./station.js";
 

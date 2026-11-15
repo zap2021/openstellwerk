@@ -1,0 +1,31 @@
+# systemd-Dienst für OpenStellwerk auf einem Raspberry Pi (oder jedem anderen Linux).
+#   sudo cp deploy/openstellwerk.service /etc/systemd/system/
+#   sudo install -m 600 /dev/null /etc/openstellwerk.env   # dann OPENSTELLWERK_PASSWORD=… hineinschreiben
+#   sudo systemctl daemon-reload && sudo systemctl enable --now openstellwerk
+[Unit]
+Description=OpenStellwerk (Modellbahnsteuerung)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=openstellwerk
+WorkingDirectory=/opt/openstellwerk
+ExecStart=/usr/bin/npm start
+Environment=NODE_ENV=production
+Environment=HOST=0.0.0.0
+Environment=PORT=3001
+Environment=DATA_DIR=/var/lib/openstellwerk
+# OPENSTELLWERK_PASSWORD (Pflicht bei HOST=0.0.0.0), optional TLS_CERT/TLS_KEY, TRUST_PROXY, OPENSTELLWERK_REQUIRE_HTTPS
+EnvironmentFile=/etc/openstellwerk.env
+Restart=on-failure
+RestartSec=3
+# Der Pi 3 hat 1 GB RAM: Node nicht mehr als nötig nehmen lassen
+Environment=NODE_OPTIONS=--max-old-space-size=256
+StateDirectory=openstellwerk
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import type { FastifyInstance } from "fastify";
-import { Z21Simulator } from "@z21/simulator";
-import type { Layout } from "@z21/protocol";
+import { Z21Simulator } from "@openstellwerk/simulator";
+import type { Layout } from "@openstellwerk/protocol";
 import type { SignalBox } from "./layout.js";
 import type { Station } from "./station.js";
 import type { TimetableRunner } from "./timetable.js";

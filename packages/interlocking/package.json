@@ -1,5 +1,5 @@
 {
-  "name": "@z21/interlocking",
+  "name": "@openstellwerk/interlocking",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,6 +8,6 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@z21/protocol": "*"
+    "@openstellwerk/protocol": "*"
   }
 }

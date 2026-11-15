@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateLayout, type Layout, type LayoutLiveState } from "@z21/protocol/layout";
+import { validateLayout, type Layout, type LayoutLiveState } from "@openstellwerk/protocol/layout";
 import { Interlocking } from "./interlocking.js";
 
 const fb = (input: number) => ({ bus: "rbus" as const, module: 1, input });

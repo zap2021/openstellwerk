@@ -28,7 +28,7 @@ describe("exposure check", () => {
     expect(exposureProblem({ host: "127.0.0.1" })).toBeUndefined();
     expect(exposureProblem({ host: "0.0.0.0", password: "x" })).toBeUndefined();
     expect(exposureProblem({ host: "0.0.0.0", allowOpen: true })).toBeUndefined();
-    expect(exposureProblem({ host: "0.0.0.0" })).toMatch(/Z21_PASSWORD/);
+    expect(exposureProblem({ host: "0.0.0.0" })).toMatch(/OPENSTELLWERK_PASSWORD/);
     expect(exposureProblem({ host: "192.168.1.5" })).toBeTruthy();
   });
 });
@@ -63,7 +63,7 @@ describe("with a password", () => {
     const cookie = cookieFrom(res);
     expect((await app.inject({ url: "/api/state", headers: { cookie } })).statusCode).toBe(200);
     expect((await app.inject({ url: "/api/session", headers: { cookie } })).json().authenticated).toBe(true);
-    expect((await app.inject({ url: "/api/state", headers: { cookie: "z21_session=erfunden" } })).statusCode).toBe(401);
+    expect((await app.inject({ url: "/api/state", headers: { cookie: "openstellwerk_session=erfunden" } })).statusCode).toBe(401);
     await app.inject({ method: "POST", url: "/api/logout", headers: { cookie } });
     expect((await app.inject({ url: "/api/state", headers: { cookie } })).statusCode).toBe(401);
   });

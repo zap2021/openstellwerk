@@ -1,6 +1,6 @@
 import dgram from "node:dgram";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { buildReadRequest, decryptWords, encryptWords, MaintenanceRead, parseMaintenanceResponse, parseNetworkSettings } from "@z21/protocol";
+import { buildReadRequest, decryptWords, encryptWords, MaintenanceRead, parseMaintenanceResponse, parseNetworkSettings } from "@openstellwerk/protocol";
 import Fastify from "fastify";
 import { readNetworkSettings, registerMaintenanceRoutes } from "./maintenance.js";
 

@@ -65,7 +65,7 @@ export function CameraView({ cam }: { cam: Camera }) {
 
 const EMPTY = { name: "", kind: "mjpeg" as Camera["kind"], url: "", username: "", password: "", refreshMs: 1000, insecureTls: false };
 
-const REOLINK = (host: string) => `https://${host || "IP-DER-KAMERA"}/cgi-bin/api.cgi?cmd=Snap&channel=0&rs=z21web&user={user}&password={password}`;
+const REOLINK = (host: string) => `https://${host || "IP-DER-KAMERA"}/cgi-bin/api.cgi?cmd=Snap&channel=0&rs=openstellwerk&user={user}&password={password}`;
 
 export function CamerasTab({ cameras, reload, run }: { cameras: Camera[]; reload: () => void; run: Run }) {
   const [selected, setSelected] = useState<string>();
@@ -147,7 +147,7 @@ export function CamerasTab({ cameras, reload, run }: { cameras: Camera[]; reload
 
 /** Camera sidebar: always visible next to every tab. */
 export function CameraSidebar({ cameras, onConfigure }: { cameras: Camera[]; onConfigure: () => void }) {
-  const [id, setId] = useState(store.get("z21.dockCam"));
+  const [id, setId] = useState(store.get("openstellwerk.dockCam"));
   const cam = cameras.find((c) => c.id === id) ?? cameras[0];
   return (
     <aside className="camside">
@@ -155,7 +155,7 @@ export function CameraSidebar({ cameras, onConfigure }: { cameras: Camera[]; onC
         <div className="head">
           <h2>Kamera</h2>
           {cameras.length > 1 && (
-            <select value={cam?.id} onChange={(e) => { setId(e.target.value); store.set("z21.dockCam", e.target.value); }}>
+            <select value={cam?.id} onChange={(e) => { setId(e.target.value); store.set("openstellwerk.dockCam", e.target.value); }}>
               {cameras.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           )}

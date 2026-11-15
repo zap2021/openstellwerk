@@ -1,5 +1,5 @@
-import { blockOccupied, type Layout, type LayoutLiveState, type LocoInfo } from "@z21/protocol";
-import { DEFAULT_DRIVE, type Train, type TrainDrive } from "@z21/timetable";
+import { blockOccupied, type Layout, type LayoutLiveState, type LocoInfo } from "@openstellwerk/protocol";
+import { DEFAULT_DRIVE, type Train, type TrainDrive } from "@openstellwerk/timetable";
 import { cmPerSec, type Calibration } from "./calibration.js";
 
 /*

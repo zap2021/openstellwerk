@@ -13,12 +13,13 @@ import { readVersion } from "./version.js";
 import { AutoDriver, orderFor } from "./auto-drive.js";
 import { JourneyRunner, registerJourneyRoutes } from "./journeys.js";
 import { CalibrationRunner, CalibrationStore, registerCalibrationRoutes } from "./calibration.js";
-import type { Train } from "@z21/timetable";
+import type { Train } from "@openstellwerk/timetable";
 import { EventLog, registerHistoryRoutes } from "./history.js";
 import { UpdateService, registerUpdateRoutes } from "./update.js";
 import { LayoutRuleEngine, LayoutRuleStore, locosInBlock, registerLayoutRuleRoutes } from "./layout-rules.js";
 import { CameraStore, registerCameraRoutes } from "./cameras.js";
 import { discover } from "./z21-client.js";
+import { setting } from "./env.js";
 import { exposureProblem, registerAuth } from "./auth.js";
 import { UserStore } from "./users.js";
 import { registerLayoutRoutes, SignalBox } from "./layout.js";
@@ -33,20 +34,20 @@ import { readTls, tlsFilesFromEnv, watchTls } from "./tls.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
 const HOST = process.env.HOST ?? "127.0.0.1"; // local unless explicitly opened up (then a password is required)
-const PASSWORD = process.env.Z21_PASSWORD || undefined;
+const PASSWORD = setting("PASSWORD") || undefined;
 
 const dataDir = process.env.DATA_DIR ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../data");
 
-/* Benutzer: ohne users.json und mit Z21_PASSWORD entsteht beim ersten Start ein Admin "admin" mit diesem Passwort. */
+/* Benutzer: ohne users.json und mit OPENSTELLWERK_PASSWORD entsteht beim ersten Start ein Admin "admin" mit diesem Passwort. */
 const users = new UserStore(path.join(dataDir, "users.json"));
 if (users.count() === 0 && PASSWORD) {
   try {
     users.create({ name: "admin", displayName: "Administrator", role: "admin", password: PASSWORD });
-    console.warn('Benutzer "admin" angelegt (Passwort aus Z21_PASSWORD). Danach gilt das Konto, nicht mehr die Umgebungsvariable.');
+    console.warn('Benutzer "admin" angelegt (Passwort aus OPENSTELLWERK_PASSWORD). Danach gilt das Konto, nicht mehr die Umgebungsvariable.');
   } catch (e) { console.error("Admin konnte nicht angelegt werden:", (e as Error).message); process.exit(1); }
 }
 
-const problem = exposureProblem({ host: HOST, password: PASSWORD ?? (users.count() > 0 ? "users" : undefined), allowOpen: process.env.Z21_ALLOW_OPEN === "1" });
+const problem = exposureProblem({ host: HOST, password: PASSWORD ?? (users.count() > 0 ? "users" : undefined), allowOpen: setting("ALLOW_OPEN") === "1" });
 if (problem) { console.error(problem); process.exit(1); }
 
 const tlsFiles = tlsFilesFromEnv(process.env);
@@ -61,7 +62,7 @@ if (tlsFiles) watchTls(app.server as unknown as HttpsServer, tlsFiles, (err) => 
 const garageFile = process.env.GARAGE_FILE ?? path.join(dataDir, "garage.json");
 const station = new Station(new Garage(garageFile));
 await app.register(websocket);
-registerAuth(app, { password: users.count() > 0 ? undefined : PASSWORD, users, requireHttps: process.env.Z21_REQUIRE_HTTPS === "1" });
+registerAuth(app, { password: users.count() > 0 ? undefined : PASSWORD, users, requireHttps: setting("REQUIRE_HTTPS") === "1" });
 // Wer einer Lok zuletzt einen Fahrbefehl gegeben hat, bekommt die Erfolge für Anfahren und Halten.
 app.addHook("preHandler", async (req) => {
   if (!req.user || req.method !== "POST") return;
@@ -289,9 +290,9 @@ registerBackupRoutes(app, new BackupService(station.garage, box, cameraStore, tr
 
 /* ---------- update: new versions from the git platform (issue #1) ---------- */
 const updates = new UpdateService({
-  baseUrl: process.env.Z21_UPDATE_URL || "https://git.wuelfi.ng",
-  repo: process.env.Z21_UPDATE_REPO || "sebastian/z21-web",
-  token: process.env.Z21_UPDATE_TOKEN || undefined,
+  baseUrl: setting("UPDATE_URL") || "https://git.wuelfi.ng",
+  repo: setting("UPDATE_REPO") || "sebastian/openstellwerk",
+  token: setting("UPDATE_TOKEN") || undefined,
   installDir: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.."),
   workDir: path.join(dataDir, "update"),
   current: appVersion,
@@ -304,7 +305,7 @@ const updates = new UpdateService({
 });
 registerUpdateRoutes(app, updates);
 station.addExtra(() => ({ update: updates.summary() }));
-if (process.env.Z21_UPDATE_CHECK !== "0") updates.startChecking();
+if (setting("UPDATE_CHECK") !== "0") updates.startChecking();
 
 /* ---------- network settings (read-only) ---------- */
 registerMaintenanceRoutes(app, station);
@@ -454,4 +455,4 @@ const webDist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../.
 if (existsSync(webDist)) await app.register(fastifyStatic, { root: webDist });
 
 await app.listen({ port: PORT, host: HOST });
-app.log.warn(`Z21 Web: ${tlsFiles ? "https" : "http"}://${HOST}:${PORT} – Anmeldung ${users.count() > 0 || PASSWORD ? "aktiv" : "aus"}`);
+app.log.warn(`OpenStellwerk: ${tlsFiles ? "https" : "http"}://${HOST}:${PORT} – Anmeldung ${users.count() > 0 || PASSWORD ? "aktiv" : "aus"}`);

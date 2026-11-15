@@ -1,6 +1,6 @@
 import dgram from "node:dgram";
 import { EventEmitter } from "node:events";
-import { Broadcast, cmd, decodeFrames, parseFrame, Z21_PORT, type Message } from "@z21/protocol";
+import { Broadcast, cmd, decodeFrames, parseFrame, Z21_PORT, type Message } from "@openstellwerk/protocol";
 
 export interface WireEvent {
   dir: "tx" | "rx";

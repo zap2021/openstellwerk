@@ -1,5 +1,5 @@
 {
-  "name": "@z21/web",
+  "name": "@openstellwerk/web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,8 +10,8 @@
   "dependencies": {
     "@fontsource/barlow": "^5.3.0",
     "@fontsource/barlow-condensed": "^5.3.0",
-    "@z21/protocol": "*",
-    "@z21/timetable": "*",
+    "@openstellwerk/protocol": "*",
+    "@openstellwerk/timetable": "*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

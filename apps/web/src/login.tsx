@@ -12,8 +12,8 @@ export function useSession() {
   useEffect(() => {
     refresh();
     const lost = () => setSession((s) => (s ? { ...s, authenticated: false } : s));
-    window.addEventListener("z21-unauthorized", lost);
-    return () => window.removeEventListener("z21-unauthorized", lost);
+    window.addEventListener("openstellwerk-unauthorized", lost);
+    return () => window.removeEventListener("openstellwerk-unauthorized", lost);
   }, [refresh]);
   const logout = () => { void api("POST", "/api/logout").catch(() => undefined).then(refresh); };
   return { known: !!session, required: !!session?.required, usersMode: !!session?.users, user: session?.user, authenticated: !!session?.authenticated, refresh, logout };
@@ -35,7 +35,7 @@ export function Login({ onDone, usersMode }: { onDone: () => void; usersMode?: b
   };
   return (
     <form className="login" onSubmit={submit}>
-      <h1>Z21 Web</h1>
+      <h1>OpenStellwerk</h1>
       {usersMode && <label>Benutzername
         <input value={name} onChange={(e) => setName(e.target.value)} autoFocus autoComplete="username" />
       </label>}

@@ -109,7 +109,7 @@ async function smokeTest(dir: string, timeoutMs = 120_000): Promise<void> {
   const data = path.join(dir, ".smoke-data");
   mkdirSync(data, { recursive: true });
   const env = { ...process.env, PORT: String(port), HOST: "127.0.0.1", DATA_DIR: data, NODE_ENV: "production" };
-  delete (env as Record<string, unknown>).Z21_PASSWORD; // a fresh, local instance without accounts
+  delete (env as Record<string, unknown>).OPENSTELLWERK_PASSWORD; delete (env as Record<string, unknown>).Z21_PASSWORD; // a fresh, local instance without accounts
   const child = spawn(process.execPath, ["--import", "tsx", "apps/server/src/main.ts"], { cwd: dir, env, stdio: "ignore" });
   let exited: number | null | undefined;
   child.on("exit", (code) => { exited = code; });
@@ -185,7 +185,7 @@ export class UpdateService {
     this.checkedAt = this.now();
     try {
       const res = await this.fetch(url, { headers: this.headers(), signal: AbortSignal.timeout(15_000) });
-      if (res.status === 401 || res.status === 403) throw new Error(this.cfg.token ? "Die Git-Plattform lehnt das Zugriffstoken ab (Z21_UPDATE_TOKEN prüfen)" : "Das Repository ist nicht öffentlich: Zugriffstoken als Z21_UPDATE_TOKEN in /etc/z21-web.env eintragen");
+      if (res.status === 401 || res.status === 403) throw new Error(this.cfg.token ? "Die Git-Plattform lehnt das Zugriffstoken ab (OPENSTELLWERK_UPDATE_TOKEN prüfen)" : "Das Repository ist nicht öffentlich: Zugriffstoken als OPENSTELLWERK_UPDATE_TOKEN in /etc/openstellwerk.env eintragen");
       if (res.status === 404) throw new Error("Kein veröffentlichtes Release gefunden");
       if (!res.ok) throw new Error(`Die Git-Plattform antwortet mit HTTP ${res.status}`);
       const body = (await res.json()) as { tag_name?: unknown; body?: unknown };

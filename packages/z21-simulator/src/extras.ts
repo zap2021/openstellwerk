@@ -1,4 +1,4 @@
-import { Broadcast, reply, type Frame, FastClockFlag } from "@z21/protocol";
+import { Broadcast, reply, type Frame, FastClockFlag } from "@openstellwerk/protocol";
 
 export type SimDevice = "z21" | "booster" | "switchDecoder" | "signalDecoder";
 

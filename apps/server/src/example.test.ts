@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
-import { tilePaths, validateLayout, type Layout } from "@z21/protocol";
-import { validateSettings, validateTrains, validateTrips } from "@z21/timetable";
+import { tilePaths, validateLayout, type Layout } from "@openstellwerk/protocol";
+import { validateSettings, validateTrains, validateTrips } from "@openstellwerk/timetable";
 import { expect, it } from "vitest";
 
 const read = (name: string) => JSON.parse(readFileSync(new URL(`../../../docs/${name}`, import.meta.url), "utf8"));

@@ -51,9 +51,9 @@ const restore = (payload: object) => app.inject({ method: "POST", url: "/api/bac
 
 it("contains locos with names and function labels, the diagram with blocks and the cameras", async () => {
   const res = await app.inject({ method: "GET", url: "/api/backup" });
-  expect(res.headers["content-disposition"]).toMatch(/attachment; filename="z21-web-backup-\d{4}-\d\d-\d\d\.json"/);
+  expect(res.headers["content-disposition"]).toMatch(/attachment; filename="openstellwerk-backup-\d{4}-\d\d-\d\d\.json"/);
   const b = res.json();
-  expect(b).toMatchObject({ format: "z21-web-backup", version: 1 });
+  expect(b).toMatchObject({ format: "openstellwerk-backup", version: 1 });
   expect(b.garage.map((l: { address: number }) => l.address)).toEqual([3, 1000]);
   expect(b.garage[0]).toMatchObject({ name: "V 200", sources: ["manual"], functionNames: { 0: "Licht", 2: "Horn" } });
   expect(b.layout.blocks).toHaveLength(1);

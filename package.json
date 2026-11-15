@@ -1,5 +1,5 @@
 {
-  "name": "z21-web",
+  "name": "openstellwerk",
   "version": "0.4.1",
   "private": true,
   "type": "module",
@@ -8,13 +8,13 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "concurrently -n sim,server,web -c gray,blue,green \"npm run dev -w @z21/simulator\" \"npm run dev -w @z21/server\" \"npm run dev -w @z21/web\"",
-    "dev:server": "npm run dev -w @z21/server",
-    "dev:sim": "npm run dev -w @z21/simulator",
+    "dev": "concurrently -n sim,server,web -c gray,blue,green \"npm run dev -w @openstellwerk/simulator\" \"npm run dev -w @openstellwerk/server\" \"npm run dev -w @openstellwerk/web\"",
+    "dev:server": "npm run dev -w @openstellwerk/server",
+    "dev:sim": "npm run dev -w @openstellwerk/simulator",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "build": "npm run build -w @z21/web",
-    "start": "npm run start -w @z21/server"
+    "build": "npm run build -w @openstellwerk/web",
+    "start": "npm run start -w @openstellwerk/server"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

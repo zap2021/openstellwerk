@@ -15,7 +15,7 @@ export interface AuthOptions {
   users?: UserStore;
 }
 
-const COOKIE = "z21_session";
+const COOKIE = "openstellwerk_session";
 const OPEN_PATHS = new Set(["/api/login", "/api/logout", "/api/session"]);
 
 export const isLoopback = (host: string) => host === "localhost" || host === "::1" || host === "[::1]" || /^127\./.test(host) || /^::ffff:127\./.test(host);
@@ -23,7 +23,7 @@ export const isLoopback = (host: string) => host === "localhost" || host === "::
 /** Returns an error text if the server would be reachable from the network without any protection. */
 export function exposureProblem(o: { host: string; password?: string; allowOpen?: boolean }): string | undefined {
   if (isLoopback(o.host) || o.password || o.allowOpen) return undefined;
-  return `Der Server soll an ${o.host} binden, aber es ist kein Passwort gesetzt. Z21_PASSWORD setzen, oder bewusst ohne Schutz mit Z21_ALLOW_OPEN=1 starten.`;
+  return `Der Server soll an ${o.host} binden, aber es ist kein Passwort gesetzt. OPENSTELLWERK_PASSWORD setzen, oder bewusst ohne Schutz mit OPENSTELLWERK_ALLOW_OPEN=1 starten.`;
 }
 
 const digest = (s: string) => createHash("sha256").update(s).digest();

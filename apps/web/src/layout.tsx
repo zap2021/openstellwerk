@@ -3,7 +3,7 @@ import {
   activePaths, blockOccupied, CENTER, EMPTY_LAYOUT, hasTrack, isSwitchable, needsSecondAddress, routeIsSet, signalAspects, stateCount, stateName,
   tileCommands, tileOccupied, tilePaths, tileState, validateLayout,
   type Block, type FeedbackRef, type Layout, type Route, type Tile, type TileKind,
-} from "@z21/protocol/layout";
+} from "@openstellwerk/protocol/layout";
 import { api, type StationState } from "./api";
 import { DepartureBoard, formatHMS, useModelTime } from "./timetable";
 import { sure } from "./confirm";

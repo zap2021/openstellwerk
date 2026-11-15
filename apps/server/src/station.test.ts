@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { Z21Simulator } from "@z21/simulator";
+import { Z21Simulator } from "@openstellwerk/simulator";
 import { Station } from "./station.js";
 
 const sim = new Z21Simulator();

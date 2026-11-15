@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import type { Layout } from "@z21/protocol/layout";
-import type { TimetableSnapshot } from "@z21/timetable";
+import type { Layout } from "@openstellwerk/protocol/layout";
+import type { TimetableSnapshot } from "@openstellwerk/timetable";
 
 export type MonitorKind = "railcom" | "loconet" | "detectors" | "rmbus" | "boosters" | "clock";
 
@@ -59,7 +59,7 @@ export interface StationState {
   timetable?: TimetableSnapshot;
   achievements?: AchievementView;
   routeRun?: { routeId: string; done: number; total: number; running: boolean; error?: string };
-  /** Interlocked routes that are not idle (mirrors RouteState of @z21/interlocking). */
+  /** Interlocked routes that are not idle (mirrors RouteState of @openstellwerk/interlocking). */
   /** true while the built-in simulator stands in for a real command station */
   demo?: boolean;
   interlocking?: { routeId: string; status: "setting" | "set" | "running" | "fault"; since: number; message?: string }[];
@@ -121,7 +121,7 @@ export async function api<T = unknown>(method: string, url: string, body?: unkno
     body: body ? JSON.stringify(body) : undefined,
   });
   const json = await res.json().catch(() => ({}));
-  if (res.status === 401 && !url.startsWith("/api/login")) window.dispatchEvent(new Event("z21-unauthorized"));
+  if (res.status === 401 && !url.startsWith("/api/login")) window.dispatchEvent(new Event("openstellwerk-unauthorized"));
   if (!res.ok) throw new Error(json.message ?? res.statusText);
   return json as T;
 }

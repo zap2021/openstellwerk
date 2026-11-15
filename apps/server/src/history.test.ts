@@ -21,7 +21,7 @@ it("keeps the newest events first and only as many as allowed", () => {
 });
 
 it("reads a stored file and drops what is not an event", () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "z21-history-"));
+  const dir = mkdtempSync(path.join(tmpdir(), "openstellwerk-history-"));
   try {
     const file = path.join(dir, "history.json");
     writeFileSync(file, JSON.stringify([{ ts: 1, kind: "system", text: "alt", ok: true }, { ts: 2, kind: "unsinn", text: "x" }, null, { ts: 3, kind: "update", text: "neu" }]));

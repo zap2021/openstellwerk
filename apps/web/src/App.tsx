@@ -47,7 +47,7 @@ function Main({ logout, user, refresh }: { logout?: () => void; user?: SessionUs
     <div className={`shell${admin ? " wide" : ""}`}>
       <div className="app">
         <header>
-          <h1>Z21 Web</h1>
+          <h1>OpenStellwerk</h1>
           {version && <small className="version" title="Installierte Version">v{version}</small>}
           {isAdmin && state?.update?.available && <button className="update-badge" onClick={() => go({ area: "admin", page: "update" })} title="Zur Update-Seite">Update v{state.update.latest}</button>}
           <span className={`dot ${connected ? "ok" : online ? "warn" : "bad"}`} />

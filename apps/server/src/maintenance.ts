@@ -4,7 +4,7 @@ import { randomInt } from "node:crypto";
 import {
   buildReadRequest, MAINTENANCE_PORT, MaintenanceRead, parseMaintenanceResponse, parseNetworkSettings,
   type NetworkSettings,
-} from "@z21/protocol";
+} from "@openstellwerk/protocol";
 
 /** A datagram that arrived while waiting but was not our answer (kept to explain a timeout). */
 interface Ignored { from: string; reason: string }
