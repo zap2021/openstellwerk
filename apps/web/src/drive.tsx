@@ -97,8 +97,8 @@ export function DriveTab({ state, run }: { state: StationState; run: Run }) {
   const [selected, setSelected] = useState<number>(remembered);
   const [range, setRange] = useState(SCAN_DEFAULT);
   const [manual, setManual] = useState("");
-  /** What the right-hand side shows for the selected loco: the throttle with its functions, or the loco's automations. */
-  const [view, setView] = useState<"drive" | "automation">("drive");
+  /** What the right-hand side shows for the selected loco: the throttle with its functions, the loco's automations, or its settings. */
+  const [view, setView] = useState<"drive" | "automation" | "settings">("drive");
   const autoScanned = useRef<string>();
 
   // Discover automatically once per connection: ask the station about the usual address range and for RailCom data.
@@ -198,12 +198,15 @@ export function DriveTab({ state, run }: { state: StationState; run: Run }) {
           <nav className="subnav" aria-label="Ansicht der Lok">
             <button className={view === "drive" ? "active" : ""} onClick={() => setView("drive")}>Fahren</button>
             <button className={view === "automation" ? "active" : ""} onClick={() => setView("automation")}>Automatik</button>
+            <button className={view === "settings" ? "active" : ""} onClick={() => setView("settings")}>Einstellungen</button>
           </nav>
           {view === "drive" ? (
             <>
               <Throttle key={selected} addr={selected} state={state} run={run} garage={state.garage?.find((g) => g.address === selected)} />
               <Functions key={`f${selected}`} addr={selected} state={state} run={run} garage={state.garage?.find((g) => g.address === selected)} />
             </>
+          ) : view === "settings" ? (
+            <LocoSettings key={`s${selected}`} addr={selected} state={state} run={run} garage={state.garage?.find((g) => g.address === selected)} />
           ) : (
             <Automations key={`a${selected}`} addr={selected} names={{ ...DEFAULT_FN_NAMES, ...(state.garage?.find((g) => g.address === selected)?.functionNames ?? {}) }} run={run} />
           )}
@@ -217,8 +220,6 @@ export function DriveTab({ state, run }: { state: StationState; run: Run }) {
 
 function Throttle({ addr, state, run, garage }: { addr: number; state: StationState; run: Run; garage?: GarageLoco }) {
   const loco = state.locos.find((l) => l.address === addr);
-  const [binary, setBinary] = useState(29);
-  const [name, setName] = useState(garage?.name ?? "");
   const [local, setLocal] = useState<number>();
   const last = useRef(0);
   const speed = local ?? loco?.speed ?? 0;
@@ -227,7 +228,6 @@ function Throttle({ addr, state, run, garage }: { addr: number; state: StationSt
 
   // Subscribe to the loco's state once so that sliders and function buttons show the truth.
   useEffect(() => { if (!loco) void api("GET", `/api/loco/${addr}`).catch(() => undefined); }, [addr]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { setName(garage?.name ?? ""); }, [garage?.name]);
 
   const drive = (sp: number, fw: boolean) => run(post(`/api/loco/${addr}/drive`, { speed: Math.max(0, Math.min(126, sp)), forward: fw }));
   const slide = (sp: number) => {
@@ -240,17 +240,8 @@ function Throttle({ addr, state, run, garage }: { addr: number; state: StationSt
   return (
     <div className="panel">
       <div className="head">
-        <LocoPicture address={addr} version={garage?.imageVersion} run={run} />
-        <h2>Fahrpult – Lok {addr}</h2>
-        <input
-          className="name"
-          placeholder="Name (z. B. BR 218)"
-          value={name}
-          maxLength={40}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={() => name !== (garage?.name ?? "") && run(put(`/api/garage/${addr}`, { name }))}
-          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-        />
+        {garage?.imageVersion ? <img className="loco-pic" src={imageUrl(addr, garage.imageVersion)} alt="" /> : null}
+        <h2>Fahrpult – {garage?.name ? `${garage.name} (Lok ${addr})` : `Lok ${addr}`}</h2>
       </div>
       <div className="speedo">
         <strong className="big">{speed}</strong>
@@ -280,23 +271,50 @@ function Throttle({ addr, state, run, garage }: { addr: number; state: StationSt
         <button className="big-stop" onClick={() => drive(0, forward)}>Stopp</button>
         <button className="danger" onClick={() => run(post(`/api/loco/${addr}/estop`))} title="DCC-Not-Halt nur für diese Lok (Firmware ab 1.43)">Lok-Nothalt</button>
       </div>
-      <details>
-        <summary>Erweitert</summary>
-        <div className="row">
-          <label>Format <ModeSelect value={addr >= 256 ? "dcc" : state.modes.loco[addr]} onChange={(m) => run(put(`/api/loco/${addr}/mode`, { mode: m }))} /></label>
-          <button onClick={() => run(api("GET", `/api/loco/${addr}/mode`))} title="Gespeichertes Format aus der Zentrale lesen">Format lesen</button>
-          <button onClick={() => run(api("GET", `/api/loco/${addr}`))}>Lok abfragen</button>
-          <button
-            onClick={() => window.confirm(`Lok ${addr} aus der Zentrale entfernen? Das Senden auf dem Gleis stoppt, bis ein neuer Fahr- oder Funktionsbefehl kommt.`) && run(post(`/api/loco/${addr}/purge`))}
-          >Lok aus Zentrale entfernen</button>
-        </div>
-        <p className="hint">Das Ausgabeformat (DCC/Motorola) wird dauerhaft in der Zentrale gespeichert. Adressen ab 256 sind immer DCC.</p>
-        <div className="row">
-          <label>Binärzustand (29–32767) <input type="number" min={29} max={32767} value={binary} onChange={(e) => setBinary(Number(e.target.value))} /></label>
-          <button onClick={() => run(post(`/api/loco/${addr}/binary-state`, { state: binary, on: true }))}>Ein</button>
-          <button onClick={() => run(post(`/api/loco/${addr}/binary-state`, { state: binary, on: false }))}>Aus</button>
-        </div>
-      </details>
+    </div>
+  );
+}
+
+/** Settings of one loco: its name, the output format stored in the command station, and rarely needed commands. */
+function LocoSettings({ addr, state, run, garage }: { addr: number; state: StationState; run: Run; garage?: GarageLoco }) {
+  const [binary, setBinary] = useState(29);
+  const [name, setName] = useState(garage?.name ?? "");
+  useEffect(() => { setName(garage?.name ?? ""); }, [garage?.name]);
+
+  return (
+    <div className="panel">
+      <div className="head"><h2>Einstellungen – Lok {addr}</h2></div>
+      <div className="row">
+        <label>Name
+          <input
+            className="name"
+            placeholder="z. B. BR 218"
+            value={name}
+            maxLength={40}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => name !== (garage?.name ?? "") && run(put(`/api/garage/${addr}`, { name }))}
+            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+          />
+        </label>
+      </div>
+      <LocoPicture address={addr} version={garage?.imageVersion} run={run} />
+      <p className="hint">Die Funktionen beschriftest du unter „Fahren“ mit „Beschriften“.</p>
+      <h3>Zentrale</h3>
+      <div className="row">
+        <label>Format <ModeSelect value={addr >= 256 ? "dcc" : state.modes.loco[addr]} onChange={(m) => run(put(`/api/loco/${addr}/mode`, { mode: m }))} /></label>
+        <button onClick={() => run(api("GET", `/api/loco/${addr}/mode`))} title="Gespeichertes Format aus der Zentrale lesen">Format lesen</button>
+        <button onClick={() => run(api("GET", `/api/loco/${addr}`))}>Lok abfragen</button>
+        <button
+          onClick={() => window.confirm(`Lok ${addr} aus der Zentrale entfernen? Das Senden auf dem Gleis stoppt, bis ein neuer Fahr- oder Funktionsbefehl kommt.`) && run(post(`/api/loco/${addr}/purge`))}
+        >Lok aus Zentrale entfernen</button>
+      </div>
+      <p className="hint">Das Ausgabeformat (DCC/Motorola) wird dauerhaft in der Zentrale gespeichert. Adressen ab 256 sind immer DCC.</p>
+      <h3>Binärzustand</h3>
+      <div className="row">
+        <label>Nummer (29–32767) <input type="number" min={29} max={32767} value={binary} onChange={(e) => setBinary(Number(e.target.value))} /></label>
+        <button onClick={() => run(post(`/api/loco/${addr}/binary-state`, { state: binary, on: true }))}>Ein</button>
+        <button onClick={() => run(post(`/api/loco/${addr}/binary-state`, { state: binary, on: false }))}>Aus</button>
+      </div>
     </div>
   );
 }

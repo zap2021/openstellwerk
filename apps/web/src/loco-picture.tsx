@@ -5,7 +5,7 @@ import { imageUrl, resizeToJpeg, uploadLocoImage } from "./loco-image";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
 
-/** The picture of the selected loco in the throttle header, with change and remove. Errors show in the page's error line. */
+/** The picture of the selected loco in its settings, with change and remove. Errors show in the page's error line. */
 export function LocoPicture({ address, version, run }: { address: number; version?: number; run: Run }) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);

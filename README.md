@@ -217,7 +217,7 @@ Unter **Bedienen → Fahren** lässt sich zu jeder Lok ein kleines Bild hinzufü
 
 ## Automatik je Lok
 
-Unter **Bedienen → Fahren** hat jede Lok neben dem Fahrpult das Untermenü **Automatik**. Ein Automatismus besteht aus **Auslöser → Bedingungen → Aktionen** (nach dem Muster von Home Assistant):
+Unter **Bedienen → Fahren** hat jede Lok drei Untermenüs: **Fahren** (Fahrpult und Funktionen), **Automatik** und **Einstellungen** (Name, Bild, Format in der Zentrale, Binärzustand, Lok aus der Zentrale entfernen). Ein Automatismus besteht aus **Auslöser → Bedingungen → Aktionen** (nach dem Muster von Home Assistant):
 
 - **Auslöser:** Lok fährt an, hält an, beschleunigt, bremst, Richtung wechselt, Lok-Nothalt, Funktion wird ein-/ausgeschaltet.
 - **Bedingungen** (alle müssen zutreffen): Richtung, fährt/steht, Funktion ein/aus.
