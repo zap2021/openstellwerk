@@ -44,13 +44,13 @@ export function AchievementsPanel({ view, run }: { view?: AchievementView; run: 
   return (
     <div className="panel">
       <h2>Erfolge der Anlage</h2>
-      <p className="hint"><strong>{v.score}</strong> von {v.maxScore} Punkten · {v.stats.starts}× angefahren · {v.stats.stops}× angehalten · {v.stats.departures} Fahrplanfahrten · {v.stats.estops}× Nothalt</p>
+      <p className="hint"><strong>{v.score}</strong> von {v.maxScore} Punkten, {v.stats.starts}× angefahren, {v.stats.stops}× angehalten, {v.stats.departures} Fahrplanfahrten, {v.stats.estops}× Nothalt</p>
       <ul className="achievements">
         {v.items.map((i) => (
           <li key={i.id} className={i.unlockedAt ? "done" : ""}>
             <strong>{i.unlockedAt ? "🏆 " : ""}{i.title}</strong> <small>{i.points} Punkte</small>
             <div className="muted">{i.text}</div>
-            <progress max={i.goal} value={i.progress} /> <small>{i.progress}/{i.goal}{i.unlockedAt ? ` · ${new Date(i.unlockedAt).toLocaleDateString("de-DE")}` : ""}</small>
+            <progress max={i.goal} value={i.progress} /> <small>{i.progress}/{i.goal}{i.unlockedAt ? `, ${new Date(i.unlockedAt).toLocaleDateString("de-DE")}` : ""}</small>
           </li>
         ))}
       </ul>

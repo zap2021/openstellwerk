@@ -237,14 +237,15 @@ function Throttle({ addr, state, run, garage }: { addr: number; state: StationSt
     <div className="panel">
       <div className="head">
         {garage?.imageVersion ? <img className="loco-pic" src={imageUrl(addr, garage.imageVersion)} alt="" /> : null}
-        <h2>Fahrpult – {garage?.name ? `${garage.name} (Lok ${addr})` : `Lok ${addr}`}</h2>
+        <h2>{garage?.name || `Lok ${addr}`}{garage?.name ? <small>Lok {addr}</small> : null}</h2>
       </div>
       <div className="speedo">
         <strong className="big">{speed}</strong>
-        <span className="dir">{speed === 0 ? "steht" : forward ? "vorwärts" : "rückwärts"}{speed > 0 && cal ? ` · ≈ ${kmh(cal, speed)} km/h` : ""}</span>
+        <span className="dir">{speed === 0 ? "steht" : forward ? "vorwärts" : "rückwärts"}{speed > 0 && cal ? `, ≈ ${kmh(cal, speed)} km/h` : ""}</span>
       </div>
       <input
         className="slider"
+        style={{ "--p": speed / 126 } as React.CSSProperties}
         type="range"
         min={0}
         max={126}
@@ -286,7 +287,7 @@ function LocoSettings({ addr, state, run, garage }: { addr: number; state: Stati
 
   return (
     <div className="panel">
-      <div className="head"><h2>Einstellungen – Lok {addr}</h2></div>
+      <div className="head"><h2>Einstellungen<small>Lok {addr}</small></h2></div>
       <div className="row">
         <label>Name
           <input

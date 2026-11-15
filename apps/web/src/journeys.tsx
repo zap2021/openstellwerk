@@ -43,7 +43,7 @@ export function JourneyPanel({ state, run }: { state: StationState; run: Run }) 
         <label>Zug
           <select value={trainId} onChange={(e) => setTrainId(e.target.value)}>
             <option value="">– wählen –</option>
-            {trains.map((t) => <option key={t.id} value={t.id}>{trainName(t.id)}{t.location ? ` · ${blockName(t.location.blockId)}` : " · kein Standort"}</option>)}
+            {trains.map((t) => <option key={t.id} value={t.id}>{trainName(t.id)}{t.location ? `, ${blockName(t.location.blockId)}` : ", kein Standort"}</option>)}
           </select>
         </label>
         <label>Ziel
@@ -74,7 +74,7 @@ export function JourneyPanel({ state, run }: { state: StationState; run: Run }) 
               <li key={j.id} className="departure">
                 <span className="meta">
                   <strong>{trainName(j.trainId)} → {blockName(j.targetBlockId)}</strong>
-                  <small className={j.status === "failed" ? "warn" : ""}>{journeyText(j, routeName)}{job ? ` · Lok ${PHASE[job.phase]}` : ""}</small>
+                  <small className={j.status === "failed" ? "warn" : ""}>{journeyText(j, routeName)}{job ? `, Lok ${PHASE[job.phase]}` : ""}</small>
                 </span>
                 {open && <button onClick={() => void change(api("POST", `/api/journeys/${j.id}/cancel`))}>Abbrechen</button>}
               </li>

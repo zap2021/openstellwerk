@@ -16,7 +16,7 @@ export function ProfilePage({ user, state, run, done }: { user: SessionUser; sta
   return (
     <section>
       <div className="panel">
-        <h2>Profil – {user.name}</h2>
+        <h2>Profil<small>{user.name}</small></h2>
         <div className="row tight">
           <label>Anzeigename <input value={displayName} maxLength={40} onChange={(e) => setDisplayName(e.target.value)} /></label>
           <button disabled={!displayName.trim() || displayName.trim() === user.displayName}
@@ -34,7 +34,7 @@ export function ProfilePage({ user, state, run, done }: { user: SessionUser; sta
       {view && (
         <div className="panel">
           <h2>Meine Erfolge</h2>
-          <p className="hint"><strong>{view.score}</strong> von {view.maxScore} Punkten · {view.stats.starts}× angefahren · {view.stats.stops}× angehalten · {view.stats.estops}× Nothalt</p>
+          <p className="hint"><strong>{view.score}</strong> von {view.maxScore} Punkten, {view.stats.starts}× angefahren, {view.stats.stops}× angehalten, {view.stats.estops}× Nothalt</p>
           <ul className="achievements">
             {view.items.map((i) => (
               <li key={i.id} className={i.unlockedAt ? "done" : ""}>

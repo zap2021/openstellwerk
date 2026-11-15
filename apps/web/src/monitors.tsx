@@ -163,7 +163,7 @@ export function DetectorsTab({ state, run }: { state: StationState; run: Run }) 
       <h2>CAN-Melder (10808)</h2>
       {state.canDetectors.length === 0 ? <p>Keine CAN-Melder gemeldet (Z21 ab Firmware 1.30).</p> : state.canDetectors.map((m) => (
         <div key={m.nid} className="module">
-          <strong>NID 0x{m.nid.toString(16).toUpperCase()}</strong> · Modul-Adresse {m.moduleAddress} · {age(m.ts, now)}
+          <strong>NID 0x{m.nid.toString(16).toUpperCase()}</strong>, Modul-Adresse {m.moduleAddress}, {age(m.ts, now)}
           <div className="ports">
             {m.ports.map((p) => (
               <div key={p.port} className={`cell ${p.overload ? "over" : p.occupied ? "busy" : "free"}`} title={p.voltage ? "Spannung vorhanden" : "keine Spannung"}>

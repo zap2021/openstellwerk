@@ -72,7 +72,7 @@ export function BackupPanel({ run }: { run: Run }) {
       {file && (
         <div className="card">
           <strong>{file.name}</strong>
-          {typeof file.backup.createdAt === "string" && <small className="hint"> · erstellt {new Date(file.backup.createdAt).toLocaleString("de-DE")}</small>}
+          {typeof file.backup.createdAt === "string" && <small className="hint">, erstellt {new Date(file.backup.createdAt).toLocaleString("de-DE")}</small>}
           <div className="checks">
             {(Object.keys(LABEL) as Part[]).map((p) => {
               const n = countOf(file.backup, p);

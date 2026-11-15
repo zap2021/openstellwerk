@@ -108,7 +108,7 @@ export function CalibrationPage({ state, run }: { state: StationState; run: Run 
         {measure && (
           <p className={`hint${measure.error ? " warn" : ""}`}>
             {name(measure.address)}: {measure.running ? `Fahrstufe ${measure.steps[measure.index]} (${measure.index + 1}/${measure.steps.length}), ${measure.phase ? PHASE[measure.phase] : ""}` : measure.error ? `abgebrochen – ${measure.error}` : "Messreihe abgeschlossen"}
-            {measure.results.length > 0 && ` · gemessen: ${measure.results.map((p) => `${p.step} → ${p.cmPerSec} cm/s`).join(", ")}`}
+            {measure.results.length > 0 && `, gemessen: ${measure.results.map((p) => `${p.step} → ${p.cmPerSec} cm/s`).join(", ")}`}
           </p>
         )}
       </div>

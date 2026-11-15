@@ -183,7 +183,7 @@ function Operate({ layout, state, run }: { layout: Layout; state: StationState; 
         : <Diagram layout={layout} live={state} onCell={click} />}
       <p className="hint">
         Klick auf eine Weiche oder ein Signal schaltet um; Felder in einer eingestellten Fahrstraße sind verriegelt.
-        Blau = gestellter Weg, rot = belegt, gestrichelt = Lage noch nicht gemeldet.
+        Gelb = gestellter Weg, rot = belegt, gestrichelt = Lage noch nicht gemeldet.
       </p>
     </section>
   );
@@ -205,7 +205,7 @@ export function DisplayView({ state }: { state?: StationState }) {
       <header className="display-head">
         {tt ? <ModelClock clock={tt.clock} serverNow={tt.serverNow} /> : <div className="display-clock" title={z ? "Modellbahn-Uhr der Z21" : "Uhrzeit dieses Geräts (keine Modellbahn-Uhr gemeldet)"}>{time}{z && z.rate > 1 ? <small>×{z.rate}</small> : null}</div>}
         <div className="display-routes">
-          {active.length === 0 ? <span className="muted">Keine Fahrstraße eingestellt</span> : active.map((r) => <span key={r.id} className={`chip ${il.get(r.id)!.status}`}>{r.name} · {STATUS[il.get(r.id)!.status]}</span>)}
+          {active.length === 0 ? <span className="muted">Keine Fahrstraße eingestellt</span> : active.map((r) => <span key={r.id} className={`chip ${il.get(r.id)!.status}`}>{r.name}, {STATUS[il.get(r.id)!.status]}</span>)}
         </div>
         {state?.demo && <span className="demo-badge">DEMO</span>}
         <span className={`dot ${state?.connected ? "ok" : "bad"}`} title={state?.connected ? "mit Zentrale verbunden" : "keine Verbindung"} />

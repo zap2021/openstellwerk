@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { saveTheme, storedTheme, type Theme } from "./theme";
 import { api, type StationState } from "./api";
 import { ifSure } from "./confirm";
 
@@ -46,7 +47,7 @@ export function UpdatePage({ run }: { run: Run }) {
       </div>
       <p>
         Installiert: <strong>v{view.current}</strong>
-        {view.latest && <> · Neueste Version: <strong>v{view.latest}</strong></>}
+        {view.latest && <>, Neueste Version: <strong>v{view.latest}</strong></>}
         {view.checkedAt && <span className="hint"> (geprüft {dateTime(view.checkedAt)})</span>}
       </p>
       {view.lastUpdate && <p className="hint">Letztes Update: von v{view.lastUpdate.from} auf v{view.lastUpdate.to} am {dateTime(view.lastUpdate.at)}.</p>}
@@ -122,6 +123,14 @@ export function MacroBar({ state, run }: { state: StationState; run: Run }) {
       {note && <span className={`hint${note.ok ? "" : " warn"}`}>{macros.find((m) => m.id === note.id)?.name}: {note.text}</span>}
     </div>
   );
+}
+
+/** Nachtschaltung ein/aus: dunkle oder helle Tischfelder. */
+export function NightButton() {
+  const [theme, setTheme] = useState<Theme>(storedTheme);
+  const night = theme === "night";
+  const toggle = () => { const next: Theme = night ? "day" : "night"; saveTheme(next); setTheme(next); };
+  return <button type="button" className={night ? "active" : ""} onClick={toggle} aria-pressed={night} title={night ? "Nachtschaltung ausschalten (helle Felder)" : "Nachtschaltung einschalten (dunkle Felder)"}>Nacht</button>;
 }
 
 /** Vollbild ein/aus (für Tablets und den zweiten Bildschirm); nichts, wenn der Browser es nicht kann. */

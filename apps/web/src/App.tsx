@@ -9,7 +9,7 @@ import { DisplayView, LayoutTab } from "./layout";
 import { CameraSidebar, useCameras } from "./camera";
 import { TimetableOperate } from "./timetable";
 import { useRoute, type Route } from "./route";
-import { FullscreenButton, MacroBar } from "./system";
+import { FullscreenButton, MacroBar, NightButton } from "./system";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
 const post = (url: string, body?: unknown) => api("POST", url, body);
@@ -51,14 +51,15 @@ function Main({ logout, user, refresh }: { logout?: () => void; user?: SessionUs
           {version && <small className="version" title="Installierte Version">v{version}</small>}
           {isAdmin && state?.update?.available && <button className="update-badge" onClick={() => go({ area: "admin", page: "update" })} title="Zur Update-Seite">Update v{state.update.latest}</button>}
           <span className={`dot ${connected ? "ok" : online ? "warn" : "bad"}`} />
-          {state?.demo && <span className="demo-badge" title="Simulierte Zentrale ohne Hardware">DEMO</span>}
-          <span className="status">{state?.demo ? "Simulierte Zentrale" : connected ? `${state?.hw?.hwName ?? "Z21"} @ ${state?.host}` : online ? "nicht mit Zentrale verbunden" : "Server offline"}</span>
+          {state?.demo && <span className="demo-badge" title="Simulierte Zentrale ohne Hardware">Demo</span>}
+          <span className="status">{state?.demo ? "Simulierte Zentrale" : connected ? `${state?.hw?.hwName ?? "Z21"}, ${state?.host}` : online ? "nicht mit Zentrale verbunden" : "Server offline"}</span>
           <div className="areas" role="tablist" aria-label="Bereich">
             <button role="tab" aria-selected={!admin && !profile} className={!admin && !profile ? "active" : ""} onClick={() => go({ area: "operate" })}>Bedienen</button>
             {isAdmin && <button role="tab" aria-selected={admin} className={admin ? "active" : ""} onClick={() => go({ area: "admin" })}>Verwaltung</button>}
           </div>
           {connected && kind !== "decoder" && state && <PowerBar state={state} run={run} />}
           {user && <button className={profile ? "active" : ""} onClick={() => go({ area: "profile" })} title="Profil und Erfolge">{user.displayName}{user.role === "admin" ? " (Admin)" : ""}</button>}
+          <NightButton />
           <FullscreenButton />
           {logout && <button onClick={logout} title="Abmelden">Abmelden</button>}
         </header>
@@ -141,13 +142,15 @@ export function App() {
   return <Main logout={session.required ? session.logout : undefined} user={session.user} refresh={session.refresh} />;
 }
 
+const POWER: Record<string, string> = { on: "Gleisspannung an", off: "Gleisspannung aus", shortCircuit: "Kurzschluss", programming: "Programmiergleis", emergencyStop: "Nothalt" };
+
 function PowerBar({ state, run }: { state: StationState; run: Run }) {
   const on = state.power === "on";
   return (
     <div className="power">
-      <span className={`pill ${state.power}`}>{state.power ?? "?"}</span>
-      <button onClick={() => run(post("/api/power", { on: !on }))}>{on ? "Gleisspannung aus" : "Gleisspannung ein"}</button>
-      <button className="danger" onClick={() => run(post("/api/estop"))}>NOT-HALT</button>
+      <span className={`pill ${state.power}`}>{POWER[state.power ?? ""] ?? "Zustand unbekannt"}</span>
+      <button onClick={() => run(post("/api/power", { on: !on }))}>{on ? "Ausschalten" : "Einschalten"}</button>
+      <button className="estop" onClick={() => run(post("/api/estop"))}>Nothalt</button>
     </div>
   );
 }

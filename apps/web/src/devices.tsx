@@ -121,7 +121,7 @@ export function ClockTab({ state, run }: { state: StationState; run: Run }) {
       {t ? (
         <div className="clock">
           <span className="time">{pad(t.hour)}:{pad(t.minute)}:{pad(t.second)}</span>
-          <span>{DAYS[t.weekday]} · Faktor {t.rate}×</span>
+          <span>{DAYS[t.weekday]}, Faktor {t.rate}×</span>
           <span className={`pill ${t.halted ? "shortCircuit" : t.stopped ? "off" : "on"}`}>{t.halted ? "angehalten (Not-Halt/Kurzschluss)" : t.stopped ? "gestoppt" : "läuft"}</span>
         </div>
       ) : <p>Noch keine Uhrzeit empfangen.</p>}
@@ -261,9 +261,9 @@ function DecoderPanel({ s, run }: { s: DecoderState; run: Run }) {
   return (
     <>
       <p>
-        {s.kind === "switch" ? "Weichendecoder 10836" : "Signaldecoder 10837"} · Decoderadresse {s.address}
-        {s.kind === "switch" && s.address2 ? ` / ${s.address2}` : ""} · {(s.voltage / 1000).toFixed(1)} V
-        {s.trackVoltageOff ? " · Gleisspannung aus" : ""}{s.shortCircuit ? " · Kurzschluss" : ""}{s.configMode ? " · Konfigurationsmodus" : ""}
+        {s.kind === "switch" ? "Weichendecoder 10836" : "Signaldecoder 10837"}, Decoderadresse {s.address}
+        {s.kind === "switch" && s.address2 ? ` / ${s.address2}` : ""}, {(s.voltage / 1000).toFixed(1)} V
+        {s.trackVoltageOff ? ", Gleisspannung aus" : ""}{s.shortCircuit ? ", Kurzschluss" : ""}{s.configMode ? ", Konfigurationsmodus" : ""}
       </p>
       {s.kind === "switch" ? (
         <table className="grid">
@@ -307,7 +307,7 @@ export function DeviceTab({ state, run }: { state: StationState; run: Run }) {
       <div className="row">
         <strong>{state.hw?.hwName}</strong>
         <span>Firmware {state.hw?.fwVersion}</span>
-        {d?.link && <span>Adapter: {d.link.name || "Z21 pro LINK"} · FW {d.link.fwVersion} · {d.link.mac}</span>}
+        {d?.link && <span>Adapter: {d.link.name || "Z21 pro LINK"}, FW {d.link.fwVersion}, {d.link.mac}</span>}
         <button onClick={() => run(post("/api/device/refresh"))}>Aktualisieren</button>
       </div>
       <p className="hint">Gerät hinter einem 10838 Z21 pro LINK (zLink). Statusänderungen kommen automatisch; „Aktualisieren“ fragt Name und Status neu ab (Signaldecoder melden sich nur bei Änderungen).</p>

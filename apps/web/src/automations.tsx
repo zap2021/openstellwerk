@@ -118,7 +118,7 @@ export function Automations({ addr, names, run }: { addr: number; names: Record<
   return (
     <div className="panel">
       <div className="head">
-        <h2>Automatik – Lok {addr}</h2>
+        <h2>Automatik<small>Lok {addr}</small></h2>
         <button type="button" onClick={() => change([...list, blank()])}>+ Automatismus</button>
         <button type="button" className={dirty ? "active" : ""} disabled={!dirty} onClick={save}>Speichern</button>
       </div>

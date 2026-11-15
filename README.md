@@ -127,6 +127,12 @@ sudo systemctl start z21-web && sudo journalctl -u z21-web -n 20 --no-pager
 
 Die Seite bringt ein App-Icon und ein Web-Manifest mit. Auf **iOS/iPadOS** in Safari „Teilen → Zum Home-Bildschirm“: Die Oberfläche startet dann ohne Browserleisten, auch ohne HTTPS. Unter **Android** legt Chrome ohne HTTPS nur ein Lesezeichen mit Icon an; als eigenständige App lässt sie sich erst mit HTTPS und einem gültigen Zertifikat installieren (siehe „HTTPS“ oben, am einfachsten mit Caddy). In jedem Browser schaltet der Knopf ⤢ oben rechts auf **Vollbild**.
 
+## Gestaltung
+
+Die Oberfläche ist einem Stelltisch nachempfunden: ein dunkles Pult trägt die Tischfelder mit den Inhalten. Zustände leuchten wie am Gleisbildstellwerk: **gelb** = gestellt oder gewählt, gelb blinkend = wird gestellt, **rot** = belegt oder Störung, **grün** nur für Signal „Fahrt“ und Gleisspannung. Gewählte Tasten sind dunkel mit gelbem Leuchtstreifen, die Fahrstufe erscheint als Leuchtband.
+
+Der Knopf **Nacht** in der Kopfzeile schaltet die Nachtschaltung (dunkle Felder, Standard) aus und ein; ohne sie sind die Felder hell. Die Wahl bleibt je Browser gespeichert. Schrift ist Barlow (SIL Open Font License), sie wird mit der App ausgeliefert und braucht kein Internet. Auf schmalen Bildschirmen bleibt der Nothalt am unteren Rand stehen. Farben und Maße stehen als Variablen am Anfang von `apps/web/src/styles.css`.
+
 ## Tests
 
 ```bash

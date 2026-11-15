@@ -90,7 +90,7 @@ export function TimetableAdmin({ state, run }: { state: StationState; run: Run }
               <button className={`loco-item ${draft.id === r.id ? "active" : ""}`} onClick={() => { const t = data?.trips.find((x) => x.id === r.id); if (t) setDraft(toDraft(t)); }}>
                 <span className="addr">{r.time}</span>
                 <span className="meta">
-                  <strong>{r.trainName} · {r.routeName}</strong>
+                  <strong>{r.trainName}, {r.routeName}</strong>
                   {r.repeatText && <small>{r.repeatText}</small>}
                   {r.invalid && <small className="warn">Zug oder Fahrstraße fehlt</small>}
                 </span>
@@ -289,7 +289,7 @@ export function TimetableOperate({ state, run }: { state: StationState; run: Run
             <li key={r.key} className="departure">
               <span className="addr">{r.time}</span>
               <span className="meta">
-                <strong>{r.number} · {r.destination || "–"}{r.platform ? ` · ${r.platform}` : ""}</strong>
+                <strong>{r.number}, {r.destination || "–"}{r.platform ? `, ${r.platform}` : ""}</strong>
                 <small><span className={`st ${r.status}`}>{r.label}</span>{r.reason ? ` – ${r.reason}` : ""}</small>
               </span>
               {(r.status === "planned" || r.status === "waiting") && (
