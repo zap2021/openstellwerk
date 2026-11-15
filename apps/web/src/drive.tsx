@@ -81,6 +81,10 @@ function status(c: Candidate) {
   return { text: "gespeichert, aktuell nicht gemeldet", cls: "" };
 }
 
+/** Whether the function area shows only labelled functions; kept per browser. */
+const onlyNamedStored = () => { try { return localStorage.getItem("z21.fnOnlyNamed") !== "0"; } catch { return true; } };
+const storeOnlyNamed = (on: boolean) => { try { localStorage.setItem("z21.fnOnlyNamed", on ? "1" : "0"); } catch { /* private mode */ } };
+
 const remembered = () => { try { return Number(localStorage.getItem("z21.loco")) || 0; } catch { return 0; } };
 const remember = (a: number) => { try { localStorage.setItem("z21.loco", String(a)); } catch { /* private mode */ } };
 
@@ -271,7 +275,14 @@ function Throttle({ addr, state, run, garage }: { addr: number; state: StationSt
 function LocoSettings({ addr, state, run, garage }: { addr: number; state: StationState; run: Run; garage?: GarageLoco }) {
   const [binary, setBinary] = useState(29);
   const [name, setName] = useState(garage?.name ?? "");
+  const [onlyNamed, setOnlyNamed] = useState(onlyNamedStored);
   useEffect(() => { setName(garage?.name ?? ""); }, [garage?.name]);
+  const loco = state.locos.find((l) => l.address === addr);
+  const maxFn = loco && loco.functions.length > 29 ? 31 : 28;
+  const saveFnName = (n: number, text: string) => {
+    if ((garage?.functionNames?.[n] ?? "") === text) return;
+    void run(put(`/api/garage/${addr}`, { functionNames: { ...(garage?.functionNames ?? {}), [n]: text } }));
+  };
 
   return (
     <div className="panel">
@@ -290,7 +301,19 @@ function LocoSettings({ addr, state, run, garage }: { addr: number; state: Stati
         </label>
       </div>
       <LocoPicture address={addr} version={garage?.imageVersion} run={run} />
-      <p className="hint">Die Funktionen beschriftest du unter „Fahren“ mit „Beschriften“.</p>
+      <h3>Funktionen beschriften</h3>
+      <div className="fn-grid editing">
+        {Array.from({ length: maxFn + 1 }, (_, n) => n).map((n) => (
+          <label key={n} className="fn-edit">
+            <span>F{n}</span>
+            <input defaultValue={garage?.functionNames?.[n] ?? (DEFAULT_FN_NAMES[n] ?? "")} placeholder="Name" maxLength={24} onBlur={(e) => saveFnName(n, e.target.value)} />
+          </label>
+        ))}
+      </div>
+      <label className="check">
+        <input type="checkbox" checked={onlyNamed} onChange={(e) => { setOnlyNamed(e.target.checked); storeOnlyNamed(e.target.checked); }} />
+        Unter „Fahren“ nur beschriftete Funktionen zeigen (gilt für alle Loks in diesem Browser)
+      </label>
       <h3>Zentrale</h3>
       <div className="row">
         <label>Format <ModeSelect value={addr >= 256 ? "dcc" : state.modes.loco[addr]} onChange={(m) => run(put(`/api/loco/${addr}/mode`, { mode: m }))} /></label>
@@ -313,33 +336,17 @@ function LocoSettings({ addr, state, run, garage }: { addr: number; state: Stati
 
 function Functions({ addr, state, run, garage }: { addr: number; state: StationState; run: Run; garage?: GarageLoco }) {
   const loco = state.locos.find((l) => l.address === addr);
-  const [edit, setEdit] = useState(false);
-  const [onlyNamed, setOnlyNamed] = useState(true);
+  const [onlyNamed] = useState(onlyNamedStored);
   const names = { ...DEFAULT_FN_NAMES, ...(garage?.functionNames ?? {}) };
   const maxFn = loco && loco.functions.length > 29 ? 31 : 28;
-  const hiddenCount = Array.from({ length: maxFn + 1 }, (_, n) => n).filter((n) => !names[n]).length;
-  const saveName = (n: number, text: string) => {
-    if ((garage?.functionNames?.[n] ?? "") === text) return;
-    void run(put(`/api/garage/${addr}`, { functionNames: { ...(garage?.functionNames ?? {}), [n]: text } }));
-  };
+  const all = Array.from({ length: maxFn + 1 }, (_, n) => n);
+  const hiddenCount = onlyNamed ? all.filter((n) => !names[n]).length : 0;
 
   return (
     <div className="panel">
-      <div className="head">
-        <h2>Funktionen</h2>
-        <label className="check"><input type="checkbox" checked={onlyNamed} onChange={(e) => setOnlyNamed(e.target.checked)} /> nur beschriftete</label>
-        <button className={edit ? "active" : ""} onClick={() => setEdit(!edit)}>{edit ? "Fertig" : "Beschriften"}</button>
-      </div>
-      {onlyNamed && !edit && hiddenCount > 0 && (
-        <p className="hint">{hiddenCount} unbeschriftete Funktionen ausgeblendet – „Beschriften“ wählen oder den Haken „nur beschriftete“ entfernen.</p>
-      )}
-      <div className={`fn-grid${edit ? " editing" : ""}`}>
-        {Array.from({ length: maxFn + 1 }, (_, n) => n).filter((n) => edit || !onlyNamed || names[n]).map((n) => edit ? (
-          <label key={n} className="fn-edit">
-            <span>F{n}</span>
-            <input defaultValue={garage?.functionNames?.[n] ?? (DEFAULT_FN_NAMES[n] ?? "")} placeholder="Name" maxLength={24} onBlur={(e) => saveName(n, e.target.value)} />
-          </label>
-        ) : (
+      <div className="head"><h2>Funktionen</h2></div>
+      <div className="fn-grid">
+        {all.filter((n) => !onlyNamed || names[n]).map((n) => (
           <button
             key={n}
             className={`fn ${loco?.functions[n] ? "active" : ""}`}
@@ -351,6 +358,7 @@ function Functions({ addr, state, run, garage }: { addr: number; state: StationS
           </button>
         ))}
       </div>
+      {hiddenCount > 0 && <p className="hint">{hiddenCount} unbeschriftete Funktionen ausgeblendet – beschriften oder einblenden unter „Einstellungen“.</p>}
     </div>
   );
 }
