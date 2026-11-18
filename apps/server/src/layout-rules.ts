@@ -231,7 +231,11 @@ export class LayoutRuleEngine {
     const layout = this.layout();
     const changes: [string, boolean][] = [];
     for (const [id, v] of blockStates(layout, live)) {
-      if (v === undefined) continue; // unbekannt ist weder belegt noch frei
+      if (v === undefined) {
+        // unbekannt ist weder belegt noch frei: der letzte Wert gilt nicht weiter, und eine laufende Haltezeit ist hinfällig
+        if (this.known.delete(id)) this.gen.set(id, (this.gen.get(id) ?? 0) + 1);
+        continue;
+      }
       const was = this.known.get(id);
       this.known.set(id, v);
       if (was === undefined || was === v) continue; // erstes Lesen löst nichts aus

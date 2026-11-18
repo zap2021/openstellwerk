@@ -131,6 +131,23 @@ describe("LayoutRuleEngine", () => {
     expect(calls).toEqual(["tile s1 0"]);
   });
 
+  it("gives up the hold time when the detector drops out, and does not count the return as a change", () => {
+    const { calls, engine, tick } = setup([rule({ trigger: { type: "block", blockId: "b1", occupied: true, holdMs: 1000 } })]);
+    engine.onState(live(false, false));
+    engine.onState(live(true, false));
+    tick(500);
+    engine.onState(live(undefined, false)); // the detector stops reporting during the hold time
+    tick(600);
+    expect(calls).toEqual([]); // nothing known about the block any more: not "held for 1 s"
+    engine.onState(live(true, false)); // reports again: that is a first reading, not a new change
+    tick(2000);
+    expect(calls).toEqual([]);
+    engine.onState(live(false, false));
+    engine.onState(live(true, false)); // a real change after that works as before
+    tick(1000);
+    expect(calls).toEqual(["tile s1 0"]);
+  });
+
   it("keeps a minimum distance per rule", () => {
     const { calls, engine, tick } = setup([rule()]);
     engine.onState(live(false, false));
