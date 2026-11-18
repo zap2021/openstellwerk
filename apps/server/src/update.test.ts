@@ -11,7 +11,7 @@ afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 /** A fake platform and fake commands: `tar` writes the package.json of the "release" into the staging folder. */
-function setup(o: { release?: unknown; status?: number; archiveVersion?: string; fail?: string; token?: string; blocked?: () => string | undefined; smoke?: () => Promise<void> } = {}) {
+function setup(o: { release?: unknown; status?: number; archiveVersion?: string; fail?: string; token?: string; blocked?: () => string | undefined; smoke?: () => Promise<void>; failSwitch?: boolean; failRestore?: boolean } = {}) {
   const calls: string[] = [];
   const requests: { url: string; auth?: string }[] = [];
   const logged: string[] = [];
@@ -24,6 +24,8 @@ function setup(o: { release?: unknown; status?: number; archiveVersion?: string;
     }) as unknown as typeof fetch,
     run: async (cmd, args, opts) => {
       calls.push(`${cmd} ${args.filter((a) => !a.includes(dir)).join(" ")}`.trim());
+      if (cmd === "rsync" && o.failSwitch && args.includes("--exclude=.smoke-data")) throw new Error("rsync endete mit Code 11 (Platz?)");
+      if (cmd === "rsync" && o.failRestore && args.some((a) => a.endsWith("previous/"))  && calls.filter((c) => c.startsWith("rsync")).length > 2) throw new Error("rsync endete mit Code 12");
       if (o.fail === `${cmd} ${args[0]}`) throw new Error(`${cmd} ${args[0]} endete mit Code 1`);
       if (cmd === "tar") writeFileSync(path.join(args[3]!, "package.json"), JSON.stringify({ version: o.archiveVersion ?? "0.4.0" }));
       void opts;
@@ -86,6 +88,28 @@ describe("UpdateService", () => {
     expect(logged).toEqual(["Update von 0.3.0 auf 0.4.0 gestartet", "Version 0.4.0 eingespielt, Neustart"]);
     // after the restart the service knows what happened
     expect(setup().service.view().lastUpdate).toEqual({ from: "0.3.0", to: "0.4.0", at: 1000 });
+  });
+
+  it("puts the saved version back when copying the new one fails halfway", async () => {
+    const { service, calls, settle, restarted } = setup({ failSwitch: true });
+    await service.check();
+    service.install();
+    await settle();
+    const v = service.view();
+    expect(v.phase).toBe("failed");
+    expect(v.log.at(-1)).toMatch(/Platz\?.*bisherige Version wurde wiederhergestellt/);
+    const rsyncs = calls.filter((c) => c.startsWith("rsync"));
+    expect(rsyncs).toHaveLength(3); // save, switch (fails), restore
+    expect(rsyncs[2]).toBe("rsync -a --delete --exclude=/apps/server/data");
+    expect(restarted()).toBe(false); // no restart into a half-copied installation
+  });
+
+  it("says where the saved version is when even the restore fails", async () => {
+    const { service, settle } = setup({ failSwitch: true, failRestore: true });
+    await service.check();
+    service.install();
+    await settle();
+    expect(service.view().log.at(-1)).toMatch(/Wiederherstellung ebenfalls fehlgeschlagen.*previous/);
   });
 
   it("leaves the installation alone when a step before the switch fails", async () => {

@@ -263,7 +263,19 @@ export class UpdateService {
     // A data folder inside the installation (the default without DATA_DIR) is neither copied nor ever deleted.
     await this.run("rsync", ["-a", "--delete", "--exclude=/apps/server/data", `${installDir}/`, `${previous}/`], { timeoutMs: 20 * 60_000 });
     this.step("Spiele die neue Version ein …");
-    await this.run("rsync", ["-a", "--delete", "--exclude=/apps/server/data", "--exclude=.smoke-data", `${staging}/`, `${installDir}/`], { timeoutMs: 20 * 60_000 });
+    try {
+      await this.run("rsync", ["-a", "--delete", "--exclude=/apps/server/data", "--exclude=.smoke-data", `${staging}/`, `${installDir}/`], { timeoutMs: 20 * 60_000 });
+    } catch (e) {
+      // The copy stopped halfway (disk full, power, killed): server code, dependencies and web build could come from
+      // different versions. Put the saved version back before reporting the failure.
+      this.step("Einspielen fehlgeschlagen, stelle die bisherige Version wieder her …");
+      try {
+        await this.run("rsync", ["-a", "--delete", "--exclude=/apps/server/data", `${previous}/`, `${installDir}/`], { timeoutMs: 20 * 60_000 });
+      } catch (back) {
+        throw new Error(`${(e as Error).message}; Wiederherstellung ebenfalls fehlgeschlagen (${(back as Error).message}). Die bisherige Version liegt unter ${previous}`);
+      }
+      throw new Error(`${(e as Error).message}; die bisherige Version wurde wiederhergestellt`);
+    }
     writeFileSync(path.join(workDir, "last.json"), JSON.stringify({ from: this.cfg.current, to: target.version, at: this.now() }));
     rmSync(staging, { recursive: true, force: true });
     rmSync(archive, { force: true });
