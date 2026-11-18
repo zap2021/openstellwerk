@@ -40,11 +40,21 @@ export function hashPassword(password: string): string {
   return `scrypt$${salt.toString("base64url")}$${scryptSync(password, salt, 32).toString("base64url")}`;
 }
 
+const SALT_BYTES = 16, HASH_BYTES = 32;
+const B64URL = /^[A-Za-z0-9_-]+$/;
+
+/** Ein Hash genau in der Form von hashPassword(): ein beschädigter (z. B. leerer) Hash darf nie jedes Passwort annehmen. */
+export function isValidHash(stored: string): boolean {
+  const [kind, salt, hash, ...rest] = stored.split("$");
+  return kind === "scrypt" && rest.length === 0 && !!salt && !!hash && B64URL.test(salt) && B64URL.test(hash)
+    && Buffer.from(salt, "base64url").length === SALT_BYTES && Buffer.from(hash, "base64url").length === HASH_BYTES;
+}
+
 export function verifyPassword(password: string, stored: string): boolean {
-  const [kind, salt, hash] = stored.split("$");
-  if (kind !== "scrypt" || !salt || !hash) return false;
-  const want = Buffer.from(hash, "base64url");
-  const got = scryptSync(password, Buffer.from(salt, "base64url"), want.length);
+  if (!isValidHash(stored)) return false;
+  const [, salt, hash] = stored.split("$");
+  const want = Buffer.from(hash!, "base64url");
+  const got = scryptSync(password, Buffer.from(salt!, "base64url"), want.length);
   return want.length === got.length && timingSafeEqual(want, got);
 }
 
@@ -79,7 +89,7 @@ export function parseUsers(raw: unknown): User[] {
     if (ids.has(id)) fail(`Benutzer-id ${id} doppelt`);
     if (names.has(name.toLowerCase())) fail(`Anmeldename ${name} doppelt`);
     ids.add(id); names.add(name.toLowerCase());
-    const hash = typeof o.hash === "string" && o.hash.startsWith("scrypt$") ? o.hash : fail(`Benutzer ${name}: Passwort-Hash fehlt`);
+    const hash = typeof o.hash === "string" && isValidHash(o.hash) ? o.hash : fail(`Benutzer ${name}: Passwort-Hash fehlt oder ist ungültig`);
     return {
       id, name, displayName: parseDisplay(o.displayName, name), role: parseRole(o.role), hash,
       active: o.active !== false, createdAt: Number.isFinite(o.createdAt) ? (o.createdAt as number) : 0,

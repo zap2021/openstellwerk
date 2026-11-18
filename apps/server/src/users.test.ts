@@ -15,6 +15,23 @@ describe("passwords", () => {
     expect(verifyPassword("falsch", a)).toBe(false);
     expect(verifyPassword("x", "kaputt")).toBe(false);
   });
+
+  it("never accepts a damaged hash, in particular not one that decodes to nothing", () => {
+    const good = hashPassword("geheim-123");
+    const [, salt] = good.split("$");
+    for (const bad of ["scrypt$$", "scrypt$abc$", "scrypt$$abc", `scrypt$${salt}$`, `scrypt$${salt}$AAAA`, `${good}$extra`, `scrypt$${salt}$${"!".repeat(43)}`]) {
+      expect(verifyPassword("", bad), bad).toBe(false);
+      expect(verifyPassword("irgendwas", bad), bad).toBe(false);
+    }
+  });
+
+  it("refuses to import a user with a damaged hash (backup, users.json)", () => {
+    const user = (hash: string) => [{ id: "u1", name: "anna", role: "admin", hash }];
+    expect(parseUsers(user(hashPassword("geheim-123")))).toHaveLength(1);
+    expect(() => parseUsers(user("scrypt$"))).toThrow(/Hash/);
+    expect(() => parseUsers(user("scrypt$$"))).toThrow(/Hash/);
+    expect(() => parseUsers(user("scrypt$abcd$efgh"))).toThrow(/Hash/);
+  });
 });
 
 describe("UserStore", () => {
