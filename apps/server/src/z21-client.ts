@@ -17,6 +17,14 @@ export class Z21Client extends EventEmitter<{ message: [Message]; wire: [WireEve
   port = Z21_PORT;
   /** currently active broadcast subscription */
   flags = 0;
+  /** Keepalive interval; the Z21 answers GET_SYSTEM_STATE, so every ping also proves the way back is alive. */
+  keepaliveMs = 20_000;
+  /**
+   * No datagram for this long (two missed answers) = the way back is dead although our socket is fine.
+   * Then the connection counts as lost: detector states of the interlocking would be stale otherwise.
+   */
+  silenceLimitMs = 50_000;
+  private lastRx = 0;
 
   get connected() {
     return !!this.socket && !!this.host;
@@ -29,6 +37,7 @@ export class Z21Client extends EventEmitter<{ message: [Message]; wire: [WireEve
     const s = (this.socket = dgram.createSocket("udp4"));
     s.on("message", (buf, rinfo) => {
       if (rinfo.address !== this.host) return;
+      this.lastRx = Date.now();
       for (const f of decodeFrames(buf)) {
         const message = parseFrame(f);
         this.emit("wire", { dir: "rx", hex: buf.toString("hex"), message, ts: Date.now() });
@@ -48,7 +57,11 @@ export class Z21Client extends EventEmitter<{ message: [Message]; wire: [WireEve
     this.send(cmd.getHwInfo());
     this.send(cmd.getStatus());
     this.send(cmd.getSystemState());
-    this.keepalive = setInterval(() => this.send(cmd.getSystemState()), 20_000);
+    this.lastRx = Date.now();
+    this.keepalive = setInterval(() => {
+      if (Date.now() - this.lastRx > this.silenceLimitMs) { this.disconnect(); return; }
+      try { this.send(cmd.getSystemState()); } catch { /* socket gone, disconnect() handles it */ }
+    }, this.keepaliveMs);
   }
 
   setFlags(flags: number) {
