@@ -76,7 +76,8 @@ export interface LayoutLiveState {
   extAccessories: Record<number, number>;
   rmbus: { module: number; inputs: boolean[] }[];
   loconetDetectors: { feedbackAddress: number; occupied: boolean }[];
-  canDetectors: { nid: number; ports: { port: number; occupied: boolean }[] }[];
+  /** `occupancyKnown: false`: only a loco list arrived so far, `occupied` is a placeholder and not a report. */
+  canDetectors: { nid: number; ports: { port: number; occupied: boolean; occupancyKnown?: boolean }[] }[];
 }
 
 export type LayoutCommand = { type: "turnout"; address: number; output: 0 | 1 } | { type: "ext"; address: number; value: number };
@@ -172,7 +173,8 @@ export function tileOccupied(t: Tile, live: LayoutLiveState): boolean | undefine
   if (!f) return undefined;
   if (f.bus === "rbus") return live.rmbus.find((m) => m.module === f.module)?.inputs[f.input - 1];
   if (f.bus === "loconet") return live.loconetDetectors.find((d) => d.feedbackAddress === f.feedbackAddress)?.occupied;
-  return live.canDetectors.find((d) => d.nid === f.nid)?.ports.find((p) => p.port === f.port)?.occupied;
+  const port = live.canDetectors.find((d) => d.nid === f.nid)?.ports.find((p) => p.port === f.port);
+  return port?.occupancyKnown === false ? undefined : port?.occupied;
 }
 
 /**

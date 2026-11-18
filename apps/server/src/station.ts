@@ -81,7 +81,7 @@ export interface LocoNetDetectorState {
 export interface CanDetectorState {
   nid: number;
   moduleAddress: number;
-  ports: { port: number; occupied: boolean; voltage: boolean; overload: number; locos: { address: number; direction: string }[] }[];
+  ports: { port: number; occupied: boolean; occupancyKnown?: boolean; voltage: boolean; overload: number; locos: { address: number; direction: string }[] }[];
   ts: number;
 }
 
@@ -289,12 +289,14 @@ export class Station extends EventEmitter<{ state: [StationState]; loconet: [Loc
     mod.ts = ts;
     let port = mod.ports.find((p) => p.port === v.port);
     if (!port) {
-      port = { port: v.port, occupied: false, voltage: false, overload: 0, locos: [] };
+      // occupied is only a placeholder until an occupancy report arrives: a loco list alone must not make the block look free
+      port = { port: v.port, occupied: false, occupancyKnown: false, voltage: false, overload: 0, locos: [] };
       mod.ports.push(port);
       mod.ports.sort((a, b) => a.port - b.port);
     }
     if (v.occupancy) {
       Object.assign(port, v.occupancy);
+      port.occupancyKnown = true;
       if (!v.occupancy.occupied) port.locos = [];
     } else if (v.locos) {
       // a chunk is complete when it contains address 0; the list replaces the previous one

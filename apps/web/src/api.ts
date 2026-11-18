@@ -42,7 +42,7 @@ export interface StationState {
   canDetectors: {
     nid: number;
     moduleAddress: number;
-    ports: { port: number; occupied: boolean; voltage: boolean; overload: number; locos: { address: number; direction: string }[] }[];
+    ports: { port: number; occupied: boolean; occupancyKnown?: boolean; voltage: boolean; overload: number; locos: { address: number; direction: string }[] }[];
     ts: number;
   }[];
   rmbus: { module: number; inputs: boolean[] }[];

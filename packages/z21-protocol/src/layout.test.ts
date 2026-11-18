@@ -81,6 +81,8 @@ describe("occupancy", () => {
     expect(tileOccupied(tile({ feedback: { bus: "rbus", module: 2, input: 3 } }), live({ rmbus: [{ module: 2, inputs: [false, false, true] }] }))).toBe(true);
     expect(tileOccupied(tile({ feedback: { bus: "loconet", feedbackAddress: 7 } }), live({ loconetDetectors: [{ feedbackAddress: 7, occupied: false }] }))).toBe(false);
     expect(tileOccupied(tile({ feedback: { bus: "can", nid: 1, port: 4 } }), live({ canDetectors: [{ nid: 1, ports: [{ port: 4, occupied: true }] }] }))).toBe(true);
+    // a port known only from a loco list has no occupancy report yet: unknown, not free
+    expect(tileOccupied(tile({ feedback: { bus: "can", nid: 1, port: 4 } }), live({ canDetectors: [{ nid: 1, ports: [{ port: 4, occupied: false, occupancyKnown: false }] }] }))).toBeUndefined();
   });
 });
 

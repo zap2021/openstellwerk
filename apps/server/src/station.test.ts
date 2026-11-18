@@ -81,6 +81,7 @@ it("tracks LocoNet and CAN detectors, including polling", async () => {
   await until(() => !!station.snapshot().canDetectors[0]?.ports.find((p) => p.port === 2)?.locos.length);
   const port = station.snapshot().canDetectors[0]!.ports.find((p) => p.port === 2)!;
   expect(port.occupied).toBe(true);
+  expect(port.occupancyKnown).toBe(true);
   expect(port.locos).toEqual([
     { address: 3, direction: "forward" }, { address: 1000, direction: "backward" }, { address: 12, direction: "forward" },
   ]);
