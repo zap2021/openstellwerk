@@ -63,7 +63,7 @@ if (tlsFiles) watchTls(app.server as unknown as HttpsServer, tlsFiles, (err) => 
 const garageFile = process.env.GARAGE_FILE ?? path.join(dataDir, "garage.json");
 const station = new Station(new Garage(garageFile));
 await app.register(websocket);
-registerAuth(app, { password: users.count() > 0 ? undefined : PASSWORD, users, requireHttps: setting("REQUIRE_HTTPS") === "1" });
+const auth = registerAuth(app, { password: users.count() > 0 ? undefined : PASSWORD, users, requireHttps: setting("REQUIRE_HTTPS") === "1" });
 // Wer einer Lok zuletzt einen Fahrbefehl gegeben hat, bekommt die Erfolge für Anfahren und Halten.
 app.addHook("preHandler", async (req) => {
   if (!req.user || req.method !== "POST") return;
@@ -441,7 +441,8 @@ app.put<{ Body: { port: 1 | 2 | 3; on: boolean } }>("/api/device/booster-power",
   return { ok: true };
 });
 
-app.get("/ws", { websocket: true }, (socket) => {
+app.get("/ws", { websocket: true }, (socket, req) => {
+  auth.trackSocket(req, socket);
   const send = (o: unknown) => socket.readyState === 1 && socket.send(JSON.stringify(o, (_, v) => (v?.type === "Buffer" ? undefined : v)));
   send({ kind: "state", state: station.snapshot() });
   const onState = (state: unknown) => send({ kind: "state", state });

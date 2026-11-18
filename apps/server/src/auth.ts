@@ -15,6 +15,9 @@ export interface AuthOptions {
   users?: UserStore;
 }
 
+/** What the auth needs of a WebSocket: closing it when its session ends. */
+export interface LiveSocket { close(code?: number, reason?: string): void; on(event: "close", cb: () => void): unknown }
+
 const COOKIE = "openstellwerk_session";
 const OPEN_PATHS = new Set(["/api/login", "/api/logout", "/api/session"]);
 
@@ -50,27 +53,39 @@ function cookieOf(req: FastifyRequest): string | undefined {
  * One shared password, session cookie. A cookie (not a header) so that the WebSocket and <img> camera requests
  * are covered without any client changes; SameSite=Strict keeps other sites from riding on the session.
  */
-export function registerAuth(app: FastifyInstance, opts: AuthOptions) {
+export function registerAuth(app: FastifyInstance, opts: AuthOptions): { trackSocket(req: FastifyRequest, socket: LiveSocket): void } {
   const users = opts.users;
   /** Mit Benutzern ist die Anmeldung auch ohne gemeinsames Passwort Pflicht. */
   const enabled = () => !!opts.password || (users?.count() ?? 0) > 0;
   const ttl = opts.sessionTtlMs ?? 30 * 24 * 3600_000;
   const sessions = new Map<string, { exp: number; userId?: string }>();
+  /** Open WebSockets per session: the session is only checked at the handshake, so ending it has to close them. */
+  const sockets = new Map<string, Set<LiveSocket>>();
+  const revoke = (t: string) => {
+    sessions.delete(t);
+    for (const sock of sockets.get(t) ?? []) { try { sock.close(4401, "Sitzung beendet"); } catch { /* already closed */ } }
+    sockets.delete(t);
+  };
   const fails = new Map<string, { count: number; until: number }>();
   const want = opts.password ? digest(opts.password) : undefined;
 
   /** Gültige Sitzung → der Benutzer (mit Benutzerverwaltung) bzw. `true` (gemeinsames Passwort). Das Konto wird bei jeder Anfrage neu gelesen. */
-  const valid = (req: FastifyRequest): PublicUser | true | false => {
-    const t = cookieOf(req);
+  const validToken = (t: string | undefined): PublicUser | true | false => {
     const s = t ? sessions.get(t) : undefined;
     if (!t || !s) return false;
-    if (s.exp < Date.now()) { sessions.delete(t); return false; }
+    if (s.exp < Date.now()) { revoke(t); return false; }
     if (!users || !s.userId) return users ? false : true;
     const u = users.get(s.userId);
-    if (!u || !u.active) { sessions.delete(t); return false; }
+    if (!u || !u.active) { revoke(t); return false; }
     return toPublic(u);
   };
-  const dropSessionsOf = (userId: string, except?: string) => { for (const [t, s] of sessions) if (s.userId === userId && t !== except) sessions.delete(t); };
+  const valid = (req: FastifyRequest) => validToken(cookieOf(req));
+
+  /** Ends WebSockets whose session has meanwhile expired, been dropped or lost its account (also by a restore of the users). */
+  const sweep = setInterval(() => { for (const t of [...sockets.keys()]) if (!validToken(t)) revoke(t); }, 30_000);
+  sweep.unref();
+  app.addHook("onClose", async () => clearInterval(sweep));
+  const dropSessionsOf = (userId: string, except?: string) => { for (const [t, s] of sessions) if (s.userId === userId && t !== except) revoke(t); };
   const cookie = (req: FastifyRequest, value: string, maxAgeS: number) =>
     `${COOKIE}=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAgeS}${req.protocol === "https" ? "; Secure" : ""}`;
 
@@ -113,8 +128,8 @@ export function registerAuth(app: FastifyInstance, opts: AuthOptions) {
       return reply.code(401).send({ statusCode: 401, error: "Unauthorized", message: users ? "Name oder Passwort falsch" : "Falsches Passwort" });
     }
     fails.delete(req.ip);
-    for (const [t, v] of sessions) if (v.exp < now) sessions.delete(t);
-    if (sessions.size > 500) sessions.delete(sessions.keys().next().value!);
+    for (const [t, v] of sessions) if (v.exp < now) revoke(t);
+    if (sessions.size > 500) revoke(sessions.keys().next().value!);
     const token = randomBytes(32).toString("base64url");
     sessions.set(token, { exp: now + ttl, userId: user?.id });
     reply.header("set-cookie", cookie(req, token, Math.floor(ttl / 1000)));
@@ -123,7 +138,7 @@ export function registerAuth(app: FastifyInstance, opts: AuthOptions) {
 
   app.post("/api/logout", async (req, reply) => {
     const t = cookieOf(req);
-    if (t) sessions.delete(t);
+    if (t) revoke(t);
     reply.header("set-cookie", cookie(req, "", 0));
     return { ok: true };
   });
@@ -159,4 +174,16 @@ export function registerAuth(app: FastifyInstance, opts: AuthOptions) {
       return { removed };
     });
   }
+
+  return {
+    /** Remember an open WebSocket so that ending its session closes it. */
+    trackSocket(req, socket) {
+      const t = cookieOf(req);
+      if (!t || !enabled()) return;
+      let set = sockets.get(t);
+      if (!set) sockets.set(t, (set = new Set()));
+      set.add(socket);
+      socket.on("close", () => { set.delete(socket); if (!set.size && sockets.get(t) === set) sockets.delete(t); });
+    },
+  };
 }

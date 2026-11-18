@@ -5,6 +5,8 @@ import https from "node:https";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
+// @ts-expect-error ws ships no types and @types/ws is not a dependency; only the test uses it
+import { WebSocket } from "ws";
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from "fastify";
 import websocket from "@fastify/websocket";
 import { afterAll, describe, expect, it } from "vitest";
@@ -81,6 +83,22 @@ describe("with a password", () => {
     });
     expect(await raw("/api/state")).toMatch(/ 401 /);
     for (const t of ["http://x/api/state", "http://x/api/state?x=1", "HTTP://x/api/state"]) expect(await raw(t), t).not.toMatch(/ 200 /);
+    await a.close();
+  });
+
+  it("closes an open WebSocket when its session ends (logout), not only at the handshake", async () => {
+    const a = Fastify();
+    await a.register(websocket);
+    const auth = registerAuth(a, { password: "geheim" });
+    a.get("/ws", { websocket: true }, (socket, req) => { auth.trackSocket(req, socket); });
+    await a.listen({ port: 0, host: "127.0.0.1" });
+    const port = (a.server.address() as AddressInfo).port;
+    const cookie = cookieFrom(await a.inject({ method: "POST", url: "/api/login", payload: { password: "geheim" } }));
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, { headers: { cookie } });
+    await new Promise<void>((resolve, reject) => { ws.on("open", () => resolve()); ws.on("error", reject); });
+    const closed = new Promise<number>((resolve) => ws.on("close", (code: number) => resolve(code)));
+    await a.inject({ method: "POST", url: "/api/logout", headers: { cookie } });
+    expect(await closed).toBe(4401);
     await a.close();
   });
 
