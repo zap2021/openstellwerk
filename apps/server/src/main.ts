@@ -20,7 +20,8 @@ import { LayoutRuleEngine, LayoutRuleStore, locosInBlock, registerLayoutRuleRout
 import { CameraStore, registerCameraRoutes } from "./cameras.js";
 import { discover } from "./z21-client.js";
 import { setting } from "./env.js";
-import { exposureProblem, registerAuth } from "./auth.js";
+import { exposureProblem, registerAuth, requestPath } from "./auth.js";
+import { bool } from "./validate.js";
 import { UserStore } from "./users.js";
 import { registerLayoutRoutes, SignalBox } from "./layout.js";
 import { Demo, registerDemoRoutes } from "./demo.js";
@@ -66,7 +67,7 @@ registerAuth(app, { password: users.count() > 0 ? undefined : PASSWORD, users, r
 // Wer einer Lok zuletzt einen Fahrbefehl gegeben hat, bekommt die Erfolge für Anfahren und Halten.
 app.addHook("preHandler", async (req) => {
   if (!req.user || req.method !== "POST") return;
-  const m = /^\/api\/loco\/(\d+)\/(?:drive|stop|estop|function\/\d+|function-group)$/.exec(req.url.split("?")[0]!);
+  const m = /^\/api\/loco\/(\d+)\/(?:drive|stop|estop|function\/\d+|function-group)$/.exec(requestPath(req.url) ?? "");
   if (m) achievements.touch(Number(m[1]), req.user.id);
 });
 
@@ -95,12 +96,12 @@ app.post<{ Body: { host: string; port?: number } }>("/api/connect", async (req) 
 });
 app.post("/api/disconnect", async () => { await demo.stop(); station.client.disconnect(); return station.snapshot(); });
 
-app.post<{ Body: { on: boolean } }>("/api/power", async (req) => { station.setPower(!!req.body.on); return { ok: true }; });
+app.post<{ Body: { on: boolean } }>("/api/power", async (req) => { station.setPower(bool(req.body?.on, "Leistung")); return { ok: true }; });
 app.post("/api/estop", async () => { station.emergencyStop(); return { ok: true }; });
 
 app.get<{ Params: { addr: string } }>("/api/loco/:addr", async (req) => station.getLoco(int(req.params.addr, 1, 9999, "address")));
 app.post<{ Params: { addr: string }; Body: { speed: number; forward: boolean } }>("/api/loco/:addr/drive", async (req) => {
-  station.drive(int(req.params.addr, 1, 9999, "address"), int(req.body.speed, 0, 126, "speed"), !!req.body.forward);
+  station.drive(int(req.params.addr, 1, 9999, "address"), int(req.body.speed, 0, 126, "speed"), bool(req.body.forward, "Fahrtrichtung"));
   return { ok: true };
 });
 app.post<{ Params: { addr: string }; Body: { forward: boolean } }>("/api/loco/:addr/stop", async (req) => {
@@ -339,7 +340,7 @@ app.post<{ Params: { addr: string }; Body: { group: number; bits: number } }>("/
   return { ok: true };
 });
 app.post<{ Params: { addr: string }; Body: { state: number; on: boolean } }>("/api/loco/:addr/binary-state", async (req) => {
-  station.setBinaryState(int(req.params.addr, 1, 9999, "address"), int(req.body?.state, 29, 32767, "state"), !!req.body?.on);
+  station.setBinaryState(int(req.params.addr, 1, 9999, "address"), int(req.body?.state, 29, 32767, "state"), bool(req.body?.on, "Zustand"));
   return { ok: true };
 });
 
@@ -435,7 +436,7 @@ app.put<{ Body: { name: string } }>("/api/device/name", async (req) => {
   return { ok: true };
 });
 app.put<{ Body: { port: 1 | 2 | 3; on: boolean } }>("/api/device/booster-power", async (req) => {
-  station.setBoosterPower(int(req.body?.port, 1, 3, "port") as 1 | 2 | 3, !!req.body?.on);
+  station.setBoosterPower(int(req.body?.port, 1, 3, "port") as 1 | 2 | 3, bool(req.body?.on, "Leistung"));
   return { ok: true };
 });
 

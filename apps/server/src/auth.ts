@@ -26,6 +26,16 @@ export function exposureProblem(o: { host: string; password?: string; allowOpen?
   return `Der Server soll an ${o.host} binden, aber es ist kein Passwort gesetzt. OPENSTELLWERK_PASSWORD setzen, oder bewusst ohne Schutz mit OPENSTELLWERK_ALLOW_OPEN=1 starten.`;
 }
 
+/**
+ * Pfad einer Anfrage ohne Query. Ein HTTP-Client darf auch ein absolutes Ziel senden („GET http://host/api/x“);
+ * Fastify ordnet es dem Pfad zu, `req.url` enthält aber das ganze Ziel. Ohne Normalisierung würde die Prüfung
+ * „beginnt mit /api/“ ins Leere laufen. Nicht lesbare Ziele liefern `undefined` und werden abgewiesen.
+ */
+export function requestPath(url: string): string | undefined {
+  if (url.startsWith("/")) return url.split(/[?#]/)[0]!;
+  try { return new URL(url).pathname; } catch { return undefined; }
+}
+
 const digest = (s: string) => createHash("sha256").update(s).digest();
 
 function cookieOf(req: FastifyRequest): string | undefined {
@@ -66,7 +76,8 @@ export function registerAuth(app: FastifyInstance, opts: AuthOptions) {
 
   app.addHook("onRequest", async (req, reply) => {
     if (!enabled()) return;
-    const url = req.url.split("?")[0]!;
+    const url = requestPath(req.url);
+    if (url === undefined) return reply.code(400).send({ statusCode: 400, error: "Bad Request", message: "Ungültiges Anfrageziel" });
     if (!(url.startsWith("/api/") || url === "/ws") || OPEN_PATHS.has(url)) return;
     const who = valid(req);
     if (!who) return reply.code(401).send({ statusCode: 401, error: "Unauthorized", message: "Anmeldung erforderlich" });

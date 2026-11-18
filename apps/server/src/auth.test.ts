@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
+import net from "node:net";
 import https from "node:https";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -66,6 +67,21 @@ describe("with a password", () => {
     expect((await app.inject({ url: "/api/state", headers: { cookie: "openstellwerk_session=erfunden" } })).statusCode).toBe(401);
     await app.inject({ method: "POST", url: "/api/logout", headers: { cookie } });
     expect((await app.inject({ url: "/api/state", headers: { cookie } })).statusCode).toBe(401);
+  });
+
+  it("does not let an absolute request target around the check", async () => {
+    const a = await build({ password: "geheim" });
+    await a.listen({ port: 0, host: "127.0.0.1" });
+    const port = (a.server.address() as AddressInfo).port;
+    const raw = (target: string) => new Promise<string>((resolve) => {
+      const s = net.connect(port, "127.0.0.1", () => s.write(`GET ${target} HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n`));
+      let d = "";
+      s.on("data", (c) => (d += c));
+      s.on("close", () => resolve(d.split("\r\n")[0]!));
+    });
+    expect(await raw("/api/state")).toMatch(/ 401 /);
+    for (const t of ["http://x/api/state", "http://x/api/state?x=1", "HTTP://x/api/state"]) expect(await raw(t), t).not.toMatch(/ 200 /);
+    await a.close();
   });
 
   it("slows down guessing", async () => {
