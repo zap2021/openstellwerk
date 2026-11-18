@@ -23,6 +23,7 @@ const layout: Layout = {
     { id: "g1", x: 2, y: 0, kind: "straight", rot: 0, feedback: fb(1) },
     { id: "g2", x: 3, y: 0, kind: "straight", rot: 0, feedback: fb(2) },
     { id: "g3", x: 4, y: 0, kind: "straight", rot: 0, feedback: fb(3) },
+    { id: "w1b", x: 5, y: 0, kind: "turnoutRight", rot: 0, address: 11 }, // same hardware turnout as w1, drawn a second time
   ],
   blocks: [{ id: "b1", name: "Gleis 1", tileIds: ["g1"] }, { id: "b2", name: "Gleis 2", tileIds: ["g2"] }, { id: "b3", name: "Gleis 3", tileIds: ["g3"] }],
   routes: [
@@ -58,6 +59,11 @@ it("sets a route: turnouts first, signal last, then locks everything", async () 
   const manual = await post("/api/layout/tile/w1/set", { state: 0 });
   expect(manual.statusCode).toBe(409);
   expect(manual.json().message).toMatch(/verriegelt/);
+  // the same turnout drawn as another tile is locked just the same (it is the address that is locked)
+  const twin = await post("/api/layout/tile/w1b/set", { state: 0 });
+  expect(twin.statusCode).toBe(409);
+  expect(twin.json().message).toMatch(/verriegelt/);
+  expect(sim.turnouts.get(11)).toBe(2);
   expect((await post("/api/layout/route/r2/run")).statusCode).toBe(409);
   const conflict = await post("/api/interlocking/r2/request");
   expect(conflict.statusCode).toBe(409);

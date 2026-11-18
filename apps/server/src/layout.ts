@@ -146,6 +146,8 @@ export class SignalBox {
     let commands: LayoutCommand[];
     try { commands = tileCommands(tile, state); } catch (e) { throw httpError(400, (e as Error).message); }
     if (commands.length === 0) throw httpError(409, "Dieses Feld ist noch mit keiner Adresse verknüpft");
+    // The lock is on the hardware address: another tile may show the same turnout.
+    for (const c of commands) this.assertAddressFree(c.type, c.address);
     if (!this.station.client.connected) throw httpError(409, "Keine Verbindung zur Zentrale");
     await this.enqueue(commands);
     return { ok: true, commands: commands.length };
