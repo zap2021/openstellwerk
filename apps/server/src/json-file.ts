@@ -6,7 +6,10 @@ import path from "node:path";
  * Without a path nothing is stored (tests). A failing disk must never take the server down.
  */
 export class JsonFile<T> {
+  /** Files with a write still waiting; flushPending() writes them now and reports failures (restore must not claim success before). */
+  private static waiting = new Set<JsonFile<unknown>>();
   private timer?: NodeJS.Timeout;
+  private pending?: () => T;
 
   constructor(private file: string | undefined, private opts: { mode?: number; delayMs?: number } = {}) {}
 
@@ -39,18 +42,34 @@ export class JsonFile<T> {
   /** Schedule a write; `get` is called when it happens, so several changes in a row cost one write. */
   write(get: () => T) {
     if (!this.file) return;
-    const file = this.file;
+    this.pending = get;
+    JsonFile.waiting.add(this as JsonFile<unknown>);
     clearTimeout(this.timer);
     this.timer = setTimeout(() => {
-      try {
-        mkdirSync(path.dirname(file), { recursive: true });
-        // write next to the file and rename: a power cut (Pi!) then leaves the old file instead of half a new one
-        writeFileSync(`${file}.tmp`, JSON.stringify(get(), null, 2), { mode: this.opts.mode });
-        renameSync(`${file}.tmp`, file);
-      } catch (e) {
-        console.error(`could not save ${path.basename(file)}:`, (e as Error).message);
-      }
+      try { this.flush(); } catch (e) { console.error(`could not save ${path.basename(this.file!)}:`, (e as Error).message); }
     }, this.opts.delayMs ?? 250);
     this.timer.unref();
+  }
+
+  /** Write the scheduled content now. Throws when the disk refuses; the write then stays scheduled for the next attempt. */
+  flush() {
+    const get = this.pending;
+    if (!this.file || !get) return;
+    clearTimeout(this.timer);
+    const file = this.file;
+    mkdirSync(path.dirname(file), { recursive: true });
+    // write next to the file and rename: a power cut (Pi!) then leaves the old file instead of half a new one
+    writeFileSync(`${file}.tmp`, JSON.stringify(get(), null, 2), { mode: this.opts.mode });
+    renameSync(`${file}.tmp`, file);
+    if (this.pending === get) { this.pending = undefined; JsonFile.waiting.delete(this as JsonFile<unknown>); }
+  }
+
+  /** Flush every file with a waiting write. Throws one error naming all files that could not be written. */
+  static flushPending() {
+    const failed: string[] = [];
+    for (const f of [...JsonFile.waiting]) {
+      try { f.flush(); } catch (e) { failed.push(`${path.basename(f.file!)} (${(e as Error).message})`); }
+    }
+    if (failed.length) throw new Error(`Nicht gespeichert: ${failed.join(", ")}`);
   }
 }

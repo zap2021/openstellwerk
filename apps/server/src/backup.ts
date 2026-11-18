@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { validateLayout, type Layout } from "@openstellwerk/protocol";
 import { validateSettings, validateTrains, validateTrips, type Train, type Trip } from "@openstellwerk/timetable";
 import type { Camera, CameraStore } from "./cameras.js";
+import { JsonFile } from "./json-file.js";
 import { parseGarage, type Garage, type GarageLoco } from "./garage.js";
 import { checkJpeg, parseAddress, syncGarageImages, type LocoImageStore } from "./loco-images.js";
 import type { SignalBox } from "./layout.js";
@@ -158,6 +159,9 @@ export class BackupService {
     if (calibration) { this.extras.calibration!.replaceAll(calibration); restored.calibration = calibration.size; }
     if (achievements) { this.extras.achievements!.replace(achievements); restored.achievements = Object.keys(achievements.anlage.unlocked).length + Object.keys(achievements.users).length; }
     if (users) { this.extras.users!.replaceAll(users); restored.users = users.length; }
+    // The stores write with a delay and only log a failing disk: without this the restore would report success
+    // although after a restart the old data comes back.
+    try { JsonFile.flushPending(); } catch (e) { throw httpError(500, `Wiederherstellung angewendet, aber nicht gespeichert: ${(e as Error).message}`); }
     this.changed(); // browsers get the new state right away
     return { restored };
   }
