@@ -136,6 +136,27 @@ it("lets signal Halt overtake a long switching job", async () => {
   expect(sent.filter((a) => a >= 100)).toEqual([101, 900, 102, 103, 104, 105, 106]); // one at a time, Halt right after the one in flight
 });
 
+it("drops a queued, older command for the same address when an urgent one arrives (no Fahrt after Halt)", async () => {
+  await until(() => !(box as unknown as { draining: boolean }).draining);
+  const sent: { address: number; value: number }[] = [];
+  const orig = station.setExtAccessory.bind(station);
+  const origT = station.setTurnout.bind(station);
+  station.setExtAccessory = (address: number, value: number) => { sent.push({ address, value }); orig(address, value); };
+  station.setTurnout = (addr: number, out: 0 | 1) => { origT(addr, out); };
+  type Cmd = { type: "turnout"; address: number; output: 0 | 1 } | { type: "ext"; address: number; value: number };
+  const q = box as unknown as { enqueue(c: Cmd[], onStep?: (n: number) => void, urgent?: boolean): Promise<void> };
+  const turnout = (address: number): Cmd => ({ type: "turnout", address, output: 1 });
+  const ext = (address: number, value: number): Cmd => ({ type: "ext", address, value });
+  // busy queue: a turnout is in flight, the signal's Fahrt (value 16) waits behind a second one
+  const busy = q.enqueue([turnout(201), turnout(202), ext(777, 16)]);
+  await until(() => (box as unknown as { pending: unknown[] }).pending.length === 2 || (box as unknown as { pending: unknown[] }).pending.length === 3);
+  const halt = q.enqueue([ext(777, 0)], undefined, true);
+  await Promise.all([busy, halt]); // the dropped Fahrt must not leave its job hanging
+  station.setExtAccessory = orig;
+  station.setTurnout = origT;
+  expect(sent.filter((c) => c.address === 777)).toEqual([{ address: 777, value: 0 }]);
+});
+
 it("tryRequestRoute reports instead of throwing", async () => {
   await until(() => !(box as unknown as { draining: boolean }).draining);
   expect(box.tryRequestRoute("r1")).toEqual({ ok: true });

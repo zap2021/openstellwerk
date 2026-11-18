@@ -95,9 +95,27 @@ export class SignalBox {
     return new Promise<void>((resolve, reject) => {
       const job: Job = { total: commands.length, sent: 0, resolve, reject, onStep };
       const items = commands.map((c) => ({ c, job }));
-      if (urgent) this.pending.unshift(...items); else this.pending.push(...items);
+      if (urgent) { this.supersede(commands); this.pending.unshift(...items); } else this.pending.push(...items);
       void this.drain();
     });
+  }
+
+  /**
+   * An urgent command (Halt, release) replaces everything still queued for the same address. Otherwise the older
+   * Fahrt of a route that was released meanwhile would go out after the Halt, with the locking already gone.
+   * The dropped commands count as done for their jobs, so nobody waits for them.
+   */
+  private supersede(urgent: LayoutCommand[]) {
+    const key = (c: LayoutCommand) => `${c.type}:${c.address}`;
+    const keys = new Set(urgent.map(key));
+    const dropped = this.pending.filter((i) => keys.has(key(i.c)));
+    if (!dropped.length) return;
+    this.pending = this.pending.filter((i) => !keys.has(key(i.c)));
+    for (const { job } of dropped) job.total--;
+    for (const job of new Set(dropped.map((i) => i.job))) {
+      // nothing left to send for this job; a job that is already complete was resolved by drain()
+      if (job.sent >= job.total && !this.pending.some((i) => i.job === job)) job.resolve();
+    }
   }
 
   private async drain() {
