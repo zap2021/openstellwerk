@@ -224,7 +224,7 @@ const runner = new TimetableRunner(station, box, trains, path.join(dataDir, "tim
   onDeparture: (trip, train) => driver.assign(driveOrder(train, trip.routeId, trip.drive === "forward")),
   trainBusy: (id) => journeys.isActive(id),
 });
-const journeys = new JourneyRunner({
+const journeys: JourneyRunner = new JourneyRunner({
   layout: () => box.get(),
   trains: () => trains.list(),
   connected: () => station.client.connected,

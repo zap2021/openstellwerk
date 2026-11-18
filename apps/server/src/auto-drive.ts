@@ -143,9 +143,11 @@ export class AutoDriver {
   onLoco(_prev: LocoInfo | undefined, next: LocoInfo) {
     for (const job of [...this.jobs.values()]) {
       if (job.order.address !== next.address || job.phase === "waiting") continue;
+      // An emergency stop is never the echo of our own drive command, so it counts at once; speed and direction
+      // right after a command are probably just that echo.
+      if (next.emergencyStop) { this.end(job, false, "Lok-Nothalt", false); continue; }
       if (this.now() - job.commandedAt < this.echoMs) continue;
-      if (next.emergencyStop) this.end(job, false, "Lok-Nothalt", false);
-      else if (next.forward !== job.order.forward) this.end(job, false, "Von Hand übernommen (Richtung gewechselt)", false);
+      if (next.forward !== job.order.forward) this.end(job, false, "Von Hand übernommen (Richtung gewechselt)", false);
       else if (next.speed === 0) this.end(job, false, "Von Hand angehalten", false);
     }
   }

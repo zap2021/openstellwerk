@@ -105,6 +105,18 @@ describe("AutoDriver", () => {
     expect(driver.view().results[0]!.text).toMatch(/nicht rechtzeitig/);
   });
 
+  it("an emergency stop right after our own command still counts (it is no echo of a drive command)", () => {
+    const { driver, sent, route, onState } = (() => { const x = setup(); return { ...x, onState: x.driver.onState.bind(x.driver) }; })();
+    driver.assign(order());
+    route("set");
+    onState(live(true, false)); // command out, echo window open
+    driver.onLoco(undefined, loco({ emergencyStop: true }));
+    expect(driver.has("t")).toBe(false);
+    expect(driver.view().results[0]!.text).toMatch(/Nothalt/);
+    onState(live(true, true)); // the target block is occupied later: no new creep command
+    expect(sent).toEqual(["3 60 v"]);
+  });
+
   it("lets go when the operator stops the loco, reverses it or hits the emergency stop; a changed speed keeps the stop", () => {
     for (const [info, text] of [[loco({ speed: 0 }), /angehalten/], [loco({ forward: false }), /Richtung/], [loco({ emergencyStop: true }), /Nothalt/]] as const) {
       const { driver, sent, route, tick } = setup();
