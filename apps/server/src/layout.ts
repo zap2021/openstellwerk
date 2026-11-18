@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import {
-  EMPTY_LAYOUT, feedbackBuses, routeCommands, stateCount, tileCommands, turnoutAddresses, validateLayout,
+  EMPTY_LAYOUT, feedbackBuses, isSafeRoute, routeCommands, stateCount, tileCommands, turnoutAddresses, validateLayout,
   type Layout, type LayoutCommand,
 } from "@openstellwerk/protocol";
 import { Interlocking, type EndedRoute, type RouteState } from "@openstellwerk/interlocking";
@@ -250,6 +250,8 @@ export class SignalBox {
   /** Starts a route; switching continues in the background, progress is part of the state. */
   runRoute(id: string) {
     const route = this.layout.routes.find((r) => r.id === id) ?? (() => { throw httpError(404, "Fahrstraße nicht gefunden"); })();
+    // A secured route goes through the interlocking (occupancy, locking, signal last); as a plain list it would skip all of that.
+    if (isSafeRoute(this.layout, route)) throw httpError(409, "Gesicherte Fahrstraße: bitte über die Sicherung anfordern, nicht als Schaltliste");
     const locked = route.steps.find((s) => this.il.lockedBy(s.tileId));
     if (locked) throw httpError(409, "Ein Feld der Fahrstraße ist durch eine gesicherte Fahrstraße verriegelt");
     if (this.routeRun?.running) throw httpError(409, "Es wird gerade eine Fahrstraße gestellt");

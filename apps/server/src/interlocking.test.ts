@@ -226,3 +226,10 @@ it("puts the signals of the real station to Halt after a demo session (demo, the
     await until(() => simB.extras.extAccessories.get(5) === 0);
   } finally { st.client.disconnect(); simA.close(); simB.close(); }
 });
+
+it("refuses to run a secured route as a plain switch list (it would skip the occupancy check)", async () => {
+  const res = await post("/api/layout/route/r1/run");
+  expect(res.statusCode).toBe(409);
+  expect(res.json().message).toMatch(/Gesicherte Fahrstraße/);
+  expect(station.snapshot().routeRun).toBeUndefined();
+});

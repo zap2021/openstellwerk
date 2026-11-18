@@ -200,6 +200,12 @@ export function routeCommands(layout: Layout, route: Route): LayoutCommand[] {
   return route.steps.flatMap((s) => { const t = byId.get(s.tileId); return t ? tileCommands(t, s.state) : []; });
 }
 
+/**
+ * A route with a start or target block (in a diagram that has blocks) is interlocked; the others are plain switch lists.
+ * The server uses this to refuse running an interlocked route as a plain list, which would skip its occupancy checks.
+ */
+export const isSafeRoute = (layout: Layout, route: Route): boolean => !!layout.blocks?.length && !!(route.from || route.to);
+
 /** A route counts as set when every step's tile reports the wanted position. */
 export function routeIsSet(layout: Layout, route: Route, live: LayoutLiveState): boolean {
   const byId = new Map(layout.tiles.map((t) => [t.id, t]));

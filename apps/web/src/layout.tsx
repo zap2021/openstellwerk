@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  activePaths, blockOccupied, CENTER, EMPTY_LAYOUT, hasTrack, isSwitchable, needsSecondAddress, routeIsSet, signalAspects, stateCount, stateName,
+  activePaths, blockOccupied, CENTER, EMPTY_LAYOUT, hasTrack, isSafeRoute, isSwitchable, needsSecondAddress, routeIsSet, signalAspects, stateCount, stateName,
   tileCommands, tileOccupied, tilePaths, tileState, validateLayout,
   type Block, type FeedbackRef, type Layout, type Route, type Tile, type TileKind,
 } from "@openstellwerk/protocol/layout";
@@ -129,8 +129,6 @@ export function LayoutEditorPage({ state, run, done }: { state: StationState; ru
 
 const STATUS: Record<string, string> = { setting: "wird gestellt …", set: "Fahrt frei", running: "befahren", fault: "Störung" };
 
-/** A route with start or target block is interlocked; the others are plain switch lists. */
-export const isSafeRoute = (l: Layout, r: Route) => !!l.blocks?.length && !!(r.from || r.to);
 
 function Operate({ layout, state, run }: { layout: Layout; state: StationState; run: Run }) {
   const running = state.routeRun?.running ? state.routeRun : undefined;
