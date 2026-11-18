@@ -50,10 +50,13 @@ export class TimetableRunner {
   /** Instances whose departure has been announced (onDeparture), so each is announced once. */
   private announced = new Set<string>();
   private onDeparture?: (trip: Trip, train: Train) => void;
+  /** @param opts.trainBusy true while another dispatcher (a journey) is moving the train: no departure starts then */
+  private trainBusy?: (trainId: string) => boolean;
 
   /** @param opts.onDeparture called once when the route of a trip with `drive` is set: the caller lets the loco drive */
-  constructor(private station: Station, private box: SignalBox, private trains: TrainStore, file?: string, opts: { tickMs?: number; clockSaveMs?: number; onDeparture?: (trip: Trip, train: Train) => void } = {}) {
+  constructor(private station: Station, private box: SignalBox, private trains: TrainStore, file?: string, opts: { tickMs?: number; clockSaveMs?: number; onDeparture?: (trip: Trip, train: Train) => void; trainBusy?: (trainId: string) => boolean } = {}) {
     this.onDeparture = opts.onDeparture;
+    this.trainBusy = opts.trainBusy;
     this.tickMs = opts.tickMs ?? 1000;
     this.clockSaveMs = opts.clockSaveMs ?? 30_000;
     this.store = new JsonFile(file);
@@ -241,7 +244,8 @@ export class TimetableRunner {
     }
     if (this.clock.running && now - this.lastSave >= this.clockSaveMs) this.persist();
     const routes = new Map<string, RouteInfo>(layout.routes.map((r) => [r.id, { from: r.from, to: r.to }]));
-    const base = { now, clock: this.clock, lateLimit: this.lateLimit, trips: this.trips, routes, connected: true };
+    const busyTrains = new Set(this.trains.list().filter((t) => this.trainBusy?.(t.id)).map((t) => t.id));
+    const base = { now, clock: this.clock, lateLimit: this.lateLimit, trips: this.trips, routes, connected: true, busyTrains };
     const ended = this.box.drainEnded();
     const first = this.dispatcher.step({ ...base, trains: this.trains.list(), interlocking: this.box.routeStates(), ended, results: [] });
     const results = this.execute(first.actions);

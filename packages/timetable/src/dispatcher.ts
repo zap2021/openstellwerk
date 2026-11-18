@@ -37,6 +37,8 @@ export interface DispatchInput {
    * nor records any request, so nothing stays pending (and blocks a cancel) between ticks.
    */
   requests?: boolean;
+  /** Trains another dispatcher (a journey to a chosen block) is moving right now; no departure may start with them. */
+  busyTrains?: ReadonlySet<string>;
 }
 export type Action =
   | { type: "request"; instanceId: string; routeId: string }
@@ -158,7 +160,7 @@ export class Dispatcher {
         this.change(rec, "failed", "Zug nicht mehr vorhanden");
         continue;
       }
-      const reason = this.blocker(rec, train, route);
+      const reason = this.blocker(rec, train, route, input.busyTrains);
       if (reason) {
         inst.reason = reason;
         continue;
@@ -188,7 +190,8 @@ export class Dispatcher {
   }
 
   /** First unmet condition before a request may be sent, or undefined. */
-  private blocker(rec: Rec, train: Train, route: RouteInfo): string | undefined {
+  private blocker(rec: Rec, train: Train, route: RouteInfo, busyTrains?: ReadonlySet<string>): string | undefined {
+    if (busyTrains?.has(train.id)) return "Zug ist auf einer Zielfahrt";
     const busy = this.recs.some(
       (r) => r !== rec && r.trip.trainId === train.id && (this.isActive(r.inst.status) || this.requested.has(r)),
     );

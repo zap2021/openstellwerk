@@ -163,9 +163,14 @@ export class JourneyRunner {
       if (!this.deps.connected()) { this.finish(j, "failed", "Verbindung getrennt"); continue; }
       const train = this.deps.trains().find((x) => x.id === j.trainId);
       if (!train) { this.finish(j, "failed", "Zug gibt es nicht mehr"); continue; }
+      const routeId = j.routeIds[j.leg]!;
+      // The train may have been moved since the journey started (a departure of the timetable, a hand correction):
+      // a section is only requested from the block the train actually stands in.
+      const from = this.deps.layout().routes.find((r) => r.id === routeId)?.from;
+      if (from && (!train.location || train.location.blockId !== from)) { this.finish(j, "failed", "Der Zug steht nicht mehr im Startblock des Abschnitts"); continue; }
+      if (this.deps.busy(train.id)) { j.reason = "Der Zug hat eine aktive Abfahrt im Fahrplan"; continue; }
       if (t - (this.lastTry.get(j.id) ?? -Infinity) < this.retryMs) continue;
       this.lastTry.set(j.id, t);
-      const routeId = j.routeIds[j.leg]!;
       const r = this.deps.requestRoute(routeId);
       if (r.ok) {
         j.status = "set";

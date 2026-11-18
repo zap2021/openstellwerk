@@ -236,6 +236,16 @@ describe("Dispatcher", () => {
     expect(r.actions).toEqual([{ type: "request", instanceId: r.instances[0].id, routeId: expect.any(String) }]);
   });
 
+  it("(e3) a train that a journey is moving gets no departure", () => {
+    const d = new Dispatcher();
+    let r = d.step(input(T10, { busyTrains: new Set(["z1"]) }));
+    expect(r.instances[0].status).toBe("waiting");
+    expect(r.instances[0].reason).toContain("Zielfahrt");
+    expect(r.actions).toEqual([]);
+    r = d.step(input(T10 + M));
+    expect(r.actions).toHaveLength(1);
+  });
+
   it("(f) clock started only at 10:30 → cancelled „verpasst“", () => {
     const d = new Dispatcher();
     const r = d.step(input(T10 + 30 * M));

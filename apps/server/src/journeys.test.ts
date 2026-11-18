@@ -147,4 +147,21 @@ describe("JourneyRunner", () => {
     runner.start({ trainId: "t1", targetBlockId: "b" });
     expect(() => runner.start({ trainId: "t1", targetBlockId: "d" })).toThrow(/schon auf einer Zielfahrt/);
   });
+  it("does not request a section while the timetable has the train, nor from a block it no longer stands in", () => {
+    const { runner, trains, calls, tick, set } = setup({ refuse: new Set(["ab"]) });
+    runner.start({ trainId: "t1", targetBlockId: "c" });
+    const j = runner.list()[0]!;
+    expect(calls).toEqual(["request ab"]);
+    set({ busy: true }); // a timetable departure took the train over
+    tick(3000);
+    expect(calls).toEqual(["request ab"]);
+    expect(j.status).toBe("waiting");
+    expect(j.reason).toMatch(/Fahrplan/);
+    set({ busy: false });
+    trains[0]!.location = { blockId: "d", source: "manual", since: 0 }; // moved elsewhere meanwhile
+    tick(3000);
+    expect(calls).toEqual(["request ab"]);
+    expect(j.status).toBe("failed");
+    expect(j.reason).toMatch(/nicht mehr im Startblock/);
+  });
 });

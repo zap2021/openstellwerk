@@ -222,6 +222,7 @@ const driver = new AutoDriver({
 const driveOrder = (train: Train, routeId: string, forward: boolean) => orderFor(train, routeId, forward, calibrationStore.get(train.address));
 const runner = new TimetableRunner(station, box, trains, path.join(dataDir, "timetable.json"), {
   onDeparture: (trip, train) => driver.assign(driveOrder(train, trip.routeId, trip.drive === "forward")),
+  trainBusy: (id) => journeys.isActive(id),
 });
 const journeys = new JourneyRunner({
   layout: () => box.get(),
