@@ -181,7 +181,7 @@ Die Sicherung braucht Belegtmelder. Ohne sie lassen sich Fahrstraßen nicht eins
 
 ### Fahrplan und Abfahrtstafel
 
-- **Züge** (Verwaltung → Züge): Name, Nummer (z. B. „RE 1“) und Lokadresse. Den **Standort** (Block) setzt du von Hand; nach einem Neustart oder wenn die Automatik den Zug nicht sicher verfolgen kann, gilt er als **unsicher** und wird so angezeigt, bis du ihn bestätigst oder neu setzt.
+- **Züge** (Verwaltung → Züge): Name, Nummer (z. B. „RE 1“) und Lokadresse. Den **Standort** (Block) setzt du von Hand; nach einem Neustart oder wenn die Automatik den Zug nicht sicher verfolgen kann, gilt er als **unsicher** und wird so angezeigt, bis du ihn bestätigst oder neu setzt. Ein Zug mit unsicherem Standort startet keine Fahrplanfahrt.
 - **Fahrten** (Verwaltung → Fahrplan): ein Zug fährt auf einer gesicherten Fahrstraße zu einer Abfahrtszeit, mit Haltezeit und Zieltext. Mit **Takt** wiederholt sich die Fahrt alle N Minuten bis zu einer Endzeit.
 - **Fahrplanuhr** (Bedienen → Fahrplan): eigene Modellzeit, unabhängig von der Z21-Uhr. Start/Stopp, Faktor (1 bis 120) und „Uhr stellen“. Sie läuft nur bei bestehender Verbindung.
 - **Automatik (Stufe 1):** Zur Abfahrtszeit fordert der Server die gesicherte Fahrstraße an und stellt Weichen und Signal. Die Lok fährst du am Fahrregler, oder der Server fährt sie (Stufe 2, siehe unten). Lehnt die Sicherung die Fahrstraße ab (z. B. Block belegt), wartet die Abfahrt und versucht es erneut; ist die **Verspätungsgrenze** (Minuten, Standard 5) überschritten, geht sie in Störung. Erreicht der Zug den Zielblock, steht er dort als „mitgeführt“.

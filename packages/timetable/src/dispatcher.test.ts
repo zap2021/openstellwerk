@@ -226,6 +226,16 @@ describe("Dispatcher", () => {
     expect(r.actions).toEqual([]);
   });
 
+  it("(e2) an uncertain location blocks the request until it is confirmed", () => {
+    const d = new Dispatcher();
+    let r = d.step(input(T10, { trains: [train({ location: { blockId: "b1", source: "manual", since: 0, uncertain: true } })] }));
+    expect(r.instances[0].status).toBe("waiting");
+    expect(r.instances[0].reason).toContain("unsicher");
+    expect(r.actions).toEqual([]);
+    r = d.step(input(T10 + M, { trains: [train()] })); // the operator confirmed it
+    expect(r.actions).toEqual([{ type: "request", instanceId: r.instances[0].id, routeId: expect.any(String) }]);
+  });
+
   it("(f) clock started only at 10:30 → cancelled „verpasst“", () => {
     const d = new Dispatcher();
     const r = d.step(input(T10 + 30 * M));

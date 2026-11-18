@@ -199,6 +199,7 @@ export class Dispatcher {
     }
     if (route.from !== undefined) {
       if (!train.location) return "Zug hat keinen Standort";
+      if (train.location.uncertain) return `Standort des Zugs ist unsicher (bekannt: ${train.location.blockId}); zuerst bestätigen`;
       if (train.location.blockId !== route.from) return `Zug nicht im Startblock (bekannt: ${train.location.blockId})`;
     }
     return undefined;
