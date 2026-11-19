@@ -129,7 +129,8 @@ select { font: inherit; color: inherit; background: transparent; border: 1px sol
 .camside .head select { max-width: 150px; }
 @media (max-width: 1150px) {
   .shell { grid-template-columns: minmax(0, 1fr); padding-right: 0; }
-  .camside { position: static; order: -1; padding: 8px 16px 0; }
+  .camside { position: static; order: 1; padding: 8px 16px 16px; }
+  .camside.has-cam { order: -1; }
 }
 
 /* ---- Anmeldung ---- */
@@ -152,7 +153,7 @@ header .push { margin-left: auto; }
 .tile.wanted .trk { stroke: var(--lit); animation: melder 1s steps(1) infinite; }
 .mast { stroke: var(--muted); stroke-width: 2; }
 .lamp { stroke: var(--bg); stroke-width: 1.5; } .lamp.stop { fill: var(--lamp-red); } .lamp.go { fill: var(--lamp-green); } .lamp.unknown { fill: var(--muted); }
-.lbl { fill: var(--muted); font-size: 9px; text-anchor: middle; pointer-events: none; } .lbl.big { fill: var(--fg); font-size: 13px; }
+.lbl { fill: var(--muted); font-size: 9px; text-anchor: middle; pointer-events: none; } .lbl.big { fill: var(--fg); font-size: 13px; } .lbl.sig { text-anchor: start; }
 .adr { fill: var(--warn); font-size: 9px; pointer-events: none; } .fb { fill: var(--ok); }
 .sel { fill: color-mix(in srgb, var(--accent) 15%, transparent); stroke: var(--accent); stroke-width: 1.5; }
 .palette .pal { padding: 2px 4px; line-height: 0; } .palette .pal.active .trk { stroke: var(--slot-ink); } .palette .pal.active .lbl { fill: var(--slot-ink); }
@@ -188,7 +189,8 @@ li.open .form.wide { flex-basis: 100%; }
 
 /* ---- Demo-Modus ---- */
 .demo-badge { padding: 2px 10px; border-radius: var(--radius); background: var(--lit); color: var(--slot); font-weight: 600; font-size: 13px; }
-.demo-panel { display: block; padding: 6px 14px; border-style: dashed; } .demo-panel.on { border-color: var(--warn); border-style: solid; }
+.demo-panel { display: block; padding: 6px 14px; border-style: dashed; }
+@media (max-width: 600px) { .demo-panel .row { flex-direction: column; align-items: stretch; } .demo-panel .row .grow { flex: none; } } .demo-panel.on { border-color: var(--warn); border-style: solid; }
 
 a.button { display: inline-flex; align-items: center; min-height: var(--touch); padding: 6px 12px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--fg); text-decoration: none; background: var(--surface); }
 a.button:hover { background: var(--surface-2); }
@@ -259,6 +261,14 @@ header .version { color: var(--muted); font-size: 13px; }
 /* ---- Erfolge ---- */
 .achievement-banner { position: fixed; left: 50%; top: 24px; transform: translateX(-50%); z-index: 50; display: flex; gap: 16px; align-items: center; padding: 18px 28px; border-radius: var(--radius); background: var(--surface-2); border: 2px solid var(--lit); box-shadow: 0 8px 30px rgba(0,0,0,.35); animation: banner-in .4s ease-out; max-width: 90vw; }
 .achievement-banner .trophy { font-size: 40px; }
+.achievement-banner { cursor: pointer; }
+.achievement-banner .close { align-self: flex-start; margin: -8px -14px 0 4px; padding: 0 8px; font-size: 22px; line-height: 1.2; background: transparent; border: 0; color: var(--muted); cursor: pointer; }
+@media (max-width: 540px) {
+  .achievement-banner { top: 8px; width: calc(100vw - 24px); padding: 10px 14px; gap: 10px; }
+  .achievement-banner .trophy { font-size: 28px; }
+  .achievement-banner strong { font-size: 18px; }
+  .achievement-banner small { font-size: 13px; }
+}
 .achievement-banner strong { display: block; font-size: 24px; }
 .achievement-banner small { font-size: 15px; color: var(--muted); }
 @keyframes banner-in { from { opacity: 0; transform: translate(-50%, -20px); } }

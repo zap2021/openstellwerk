@@ -20,6 +20,12 @@ export function AchievementBanner({ view }: { view?: AchievementView }) {
   const seen = useRef<number>();
   const [shown, setShown] = useState<AchievementView["latest"]>();
   useEffect(() => {
+    if (!shown) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setShown(undefined); };
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [shown]);
+  useEffect(() => {
     const r = nextAnnouncement(seen.current, view);
     seen.current = r.seen;
     if (!r.show) return;
@@ -31,9 +37,10 @@ export function AchievementBanner({ view }: { view?: AchievementView }) {
   return (
     <>
       <Fireworks key={view?.seq} />
-      <div className="achievement-banner" role="status">
+      <div className="achievement-banner" role="status" onClick={() => setShown(undefined)} title="Klicken zum Schließen">
         <span className="trophy" aria-hidden="true">🏆</span>
         <div><strong>{shown.by ? `${shown.by}: ` : ""}Erfolg freigeschaltet: {shown.title}</strong><small>{shown.text} (+{shown.points} Punkte)</small></div>
+        <button type="button" className="close" aria-label="Schließen" onClick={() => setShown(undefined)}>×</button>
       </div>
     </>
   );

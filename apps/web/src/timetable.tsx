@@ -288,7 +288,7 @@ export function TimetableOperate({ state, run }: { state: StationState; run: Run
             <li key={r.key} className="departure">
               <span className="addr">{r.time}</span>
               <span className="meta">
-                <strong>{r.number}, {r.destination || "–"}{r.platform ? `, ${r.platform}` : ""}</strong>
+                <strong>{r.number}, {r.destination || "–"}{r.platform && !samePlace(r.destination, r.platform) ? `, ${r.platform}` : ""}</strong>
                 <small><span className={`st ${r.status}`}>{r.label}</span>{r.reason ? ` – ${r.reason}` : ""}</small>
               </span>
               {(r.status === "planned" || r.status === "waiting") && (
@@ -320,6 +320,12 @@ export function TimetableOperate({ state, run }: { state: StationState; run: Run
   );
 }
 
+/** Ziel und Gleis nennen oft denselben Ort („Bahnhof Gleis 1“, „Gleis 1“): dann nur einmal zeigen. */
+export function samePlace(destination: string, platform: string): boolean {
+  const d = destination.trim().toLowerCase(), p = platform.trim().toLowerCase();
+  return p === "" || d === p || d.includes(p);
+}
+
 /** Read-only departure board for the display page. */
 export function DepartureBoard({ state, trips }: { state: StationState; trips?: Trip[] }) {
   const tt = state.timetable;
@@ -337,7 +343,7 @@ export function DepartureBoard({ state, trips }: { state: StationState; trips?: 
         {rows.map((r) => (
           <tr key={r.key} className={FINISHED.includes(r.status) ? "past" : undefined}>
             <td className="time">{r.time}</td>
-            <td>{r.imageVersion ? <img className="board-pic" src={imageUrl(r.address, r.imageVersion)} alt="" /> : null}{r.number}</td><td>{r.destination}</td><td>{r.platform}</td>
+            <td>{r.imageVersion ? <img className="board-pic" src={imageUrl(r.address, r.imageVersion)} alt="" /> : null}{r.number}</td><td>{r.destination}</td><td>{samePlace(r.destination, r.platform) ? "" : r.platform}</td>
             <td><span className={`st ${r.status}`}>{r.label}</span>{r.reason && <small className="reason"> {r.reason}</small>}</td>
           </tr>
         ))}

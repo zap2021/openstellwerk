@@ -70,7 +70,9 @@ function TileView({ tile, state, occupied, selected, hint, wanted }: { tile: Til
           <circle className={`lamp ${state === undefined ? "unknown" : state === 0 ? "stop" : "go"}`} cx={cx - perp[0] * 13} cy={cy - perp[1] * 13} r={6} />
         </>
       )}
-      {tile.label && <text className={tile.kind === "text" ? "lbl big" : "lbl"} x={cx} y={tile.kind === "text" ? cy + 4 : tile.y * S + S - 3}>{tile.label}</text>}
+      {tile.label && (tile.kind === "signal"
+        ? <text className="lbl sig" x={cx - perp[0] * 13 + 9} y={cy - perp[1] * 13 + 3}>{tile.label}</text>
+        : <text className={tile.kind === "text" ? "lbl big" : "lbl"} x={cx} y={tile.kind === "text" ? cy + 4 : tile.y * S + S - 3}>{tile.label}</text>)}
       {hint && tile.address !== undefined && <text className="adr" x={tile.x * S + 3} y={tile.y * S + 10}>{tile.address}{tile.address2 !== undefined ? `/${tile.address2}` : ""}</text>}
       {hint && tile.feedback && <circle className="fb" cx={tile.x * S + S - 6} cy={tile.y * S + 6} r={3} />}
     </g>

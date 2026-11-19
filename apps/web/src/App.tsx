@@ -157,6 +157,9 @@ function PowerBar({ state, run }: { state: StationState; run: Run }) {
   );
 }
 
+/** Weichenstand, wie die Zentrale ihn meldet, auf Deutsch. */
+const TURNOUT_POS: Record<string, string> = { unknown: "unbekannt", p0: "Ausgang 1", p1: "Ausgang 2", invalid: "ungültig" };
+
 function TurnoutsTab({ state, run }: { state: StationState; run: Run }) {
   const [addr, setAddr] = useState(1);
   return (
@@ -168,7 +171,7 @@ function TurnoutsTab({ state, run }: { state: StationState; run: Run }) {
         <label>Format <ModeSelect value={addr >= 257 ? "dcc" : state.modes.turnout[addr]} onChange={(m) => run(put(`/api/turnout/${addr}/mode`, { mode: m }))} /></label>
         <button onClick={() => run(api("GET", `/api/turnout/${addr}/mode`))}>Format lesen</button>
       </div>
-      <p>Letzter bekannter Stand: {state.turnouts[addr] ?? "–"}</p>
+      <p>Letzter bekannter Stand: {TURNOUT_POS[state.turnouts[addr] ?? ""] ?? "–"}</p>
       <p className="hint">Welcher Ausgang „gerade“ oder „abzweigend“ ist, hängt von der Verdrahtung ab – die Zentrale weiß das nicht. Adressen ab 257 sind immer DCC.</p>
     </section>
   );
