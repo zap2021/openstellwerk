@@ -13,6 +13,7 @@ const json = (status: number, body: unknown) => new Response(JSON.stringify(body
 /** A fake platform and fake commands: `tar` writes the package.json of the "release" into the staging folder. */
 function setup(o: { release?: unknown; status?: number; archiveVersion?: string; fail?: string; token?: string; blocked?: () => string | undefined; smoke?: () => Promise<void>; failSwitch?: boolean; failRestore?: boolean } = {}) {
   const calls: string[] = [];
+  const npmEnvs: (NodeJS.ProcessEnv | undefined)[] = [];
   const requests: { url: string; auth?: string }[] = [];
   const logged: string[] = [];
   let restarted = false;
@@ -24,6 +25,7 @@ function setup(o: { release?: unknown; status?: number; archiveVersion?: string;
     }) as unknown as typeof fetch,
     run: async (cmd, args, opts) => {
       calls.push(`${cmd} ${args.filter((a) => !a.includes(dir)).join(" ")}`.trim());
+      if (cmd === "npm") npmEnvs.push(opts.env);
       if (cmd === "rsync" && o.failSwitch && args.includes("--exclude=.smoke-data")) throw new Error("rsync endete mit Code 11 (Platz?)");
       if (cmd === "rsync" && o.failRestore && args.some((a) => a.endsWith("previous/"))  && calls.filter((c) => c.startsWith("rsync")).length > 2) throw new Error("rsync endete mit Code 12");
       if (o.fail === `${cmd} ${args[0]}`) throw new Error(`${cmd} ${args[0]} endete mit Code 1`);
@@ -38,7 +40,7 @@ function setup(o: { release?: unknown; status?: number; archiveVersion?: string;
   };
   const service = new UpdateService({ baseUrl: "https://git.example/", repo: "me/openstellwerk", token: o.token, installDir: path.join(dir, "install"), workDir: path.join(dir, "work"), current: "0.3.0" }, deps);
   const settle = async () => { for (let i = 0; i < 200 && !["idle", "failed", "restarting"].includes(service.view().phase); i++) await new Promise((r) => setTimeout(r, 5)); };
-  return { service, calls, requests, logged, settle, restarted: () => restarted };
+  return { service, calls, npmEnvs, requests, logged, settle, restarted: () => restarted };
 }
 
 describe("compareVersions", () => {
@@ -70,6 +72,27 @@ describe("UpdateService", () => {
     const same = setup({ release: { tag_name: "v0.3.0" } });
     expect((await same.service.check()).available).toBe(false);
     expect(() => same.service.install()).toThrow(/keine neuere Version/);
+  });
+
+  it("installiert auch die Entwicklungsabhängigkeiten, obwohl der Dienst mit NODE_ENV=production läuft", async () => {
+    const before = { NODE_ENV: process.env.NODE_ENV, omit: process.env.NPM_CONFIG_OMIT };
+    process.env.NODE_ENV = "production"; process.env.NPM_CONFIG_OMIT = "dev";
+    try {
+      const { service, npmEnvs, settle } = setup();
+      writeFileSync(path.join(dir, "install", "package.json"), "{}");
+      await service.check();
+      service.install();
+      await settle();
+      expect(npmEnvs.length).toBe(2); // npm ci und npm run build
+      for (const env of npmEnvs) {
+        expect(env?.NODE_ENV).toBeUndefined();
+        expect(env?.NPM_CONFIG_OMIT).toBeUndefined();
+        expect(env?.npm_config_include).toBe("dev");
+      }
+    } finally {
+      if (before.NODE_ENV === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = before.NODE_ENV;
+      if (before.omit === undefined) delete process.env.NPM_CONFIG_OMIT; else process.env.NPM_CONFIG_OMIT = before.omit;
+    }
   });
 
   it("installs: download, npm ci, build, trial run, backup, switch, restart", async () => {

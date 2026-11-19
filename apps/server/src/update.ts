@@ -230,7 +230,9 @@ export class UpdateService {
     const archive = path.join(workDir, "release.tar.gz");
     const previous = path.join(workDir, "previous");
     const nodeDir = path.dirname(process.execPath);
-    const env = { ...process.env, PATH: `${nodeDir}:${process.env.PATH ?? "/usr/bin:/bin"}`, NODE_OPTIONS: "--max-old-space-size=384" };
+    // Der Dienst läuft mit NODE_ENV=production; dann ließe npm ci die devDependencies (vite, tsx) weg, und der Bau fände vite nicht (Code 127).
+    const env: NodeJS.ProcessEnv = { ...process.env, PATH: `${nodeDir}:${process.env.PATH ?? "/usr/bin:/bin"}`, NODE_OPTIONS: "--max-old-space-size=384", npm_config_include: "dev" };
+    delete env.NODE_ENV; delete env.npm_config_production; delete env.NPM_CONFIG_PRODUCTION; delete env.npm_config_omit; delete env.NPM_CONFIG_OMIT; delete env.NPM_CONFIG_INCLUDE;
     this.deps.log?.(`Update von ${this.cfg.current} auf ${target.version} gestartet`, true);
 
     this.step(`Lade Version ${target.version} …`);
