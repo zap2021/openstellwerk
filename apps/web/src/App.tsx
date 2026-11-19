@@ -7,7 +7,7 @@ import { DriveTab, ModeSelect } from "./drive";
 import { Login, useSession } from "./login";
 import { AchievementBanner } from "./achievements";
 import { DisplayView, LayoutTab } from "./layout";
-import { CameraSidebar, useCameras } from "./camera";
+import { CameraSidebar, useCameraColumn, useCameras } from "./camera";
 import { TimetableOperate } from "./timetable";
 import { useRoute, type Route } from "./route";
 import { FullscreenButton, MacroBar, NightButton } from "./system";
@@ -32,7 +32,8 @@ function operatePages(state?: StationState): [OperatePage, string][] {
 function Main({ logout, user, refresh }: { logout?: () => void; user?: SessionUser; refresh: () => void }) {
   const { state, wire, loconet, online, clearWire, clearLoconet } = useStation();
   const [route, go] = useRoute();
-  const { cameras, reload: reloadCameras } = useCameras();
+  const { cameras, loaded: camerasLoaded, reload: reloadCameras } = useCameras();
+  const camColumn = useCameraColumn(cameras, camerasLoaded, state?.demo);
   const [error, setError] = useState<string>();
   const [version, setVersion] = useState<string>();
   useEffect(() => { if (online) api<{ version: string }>("GET", "/api/version").then((v) => setVersion(v.version), () => {}); }, [online]);
@@ -45,7 +46,7 @@ function Main({ logout, user, refresh }: { logout?: () => void; user?: SessionUs
   const profile = route.area === "profile" && !!user;
 
   return (
-    <div className={`shell${admin ? " wide" : ""}`}>
+    <div className={`shell${admin ? " wide" : ""}${camColumn ? "" : " nocam"}`}>
       <AchievementBanner view={state?.achievements} />
       <div className="app">
         <header>
@@ -77,7 +78,7 @@ function Main({ logout, user, refresh }: { logout?: () => void; user?: SessionUs
           <Operate state={state} online={online} run={run} go={go} canAdmin={isAdmin} />
         )}
       </div>
-      {!admin && !profile && <CameraSidebar cameras={cameras} demo={state?.demo} onConfigure={() => go({ area: "admin", page: "cameras" })} />}
+      {!admin && !profile && camColumn && <CameraSidebar cameras={cameras} demo={state?.demo} onConfigure={() => go({ area: "admin", page: "cameras" })} />}
     </div>
   );
 }

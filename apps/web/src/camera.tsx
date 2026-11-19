@@ -11,9 +11,21 @@ const store = {
 
 export function useCameras() {
   const [cameras, setCameras] = useState<Camera[]>([]);
-  const reload = useCallback(() => api<Camera[]>("GET", "/api/cameras").then(setCameras).catch(() => undefined), []);
+  const [loaded, setLoaded] = useState(false);
+  const reload = useCallback(() => api<Camera[]>("GET", "/api/cameras").then((c) => { setCameras(c); setLoaded(true); }).catch(() => undefined), []);
   useEffect(() => { void reload(); }, [reload]);
-  return { cameras, reload };
+  return { cameras, loaded, reload };
+}
+
+/**
+ * Bekommt die rechte Spalte die Kamera? Nur, wenn eine eingerichtet ist (oder die Demo ihr Beispiel zeigt);
+ * sonst gehört der Platz den Bedienfeldern. Bis die Kameraliste geladen ist, gilt der Stand vom letzten Mal,
+ * damit die Seite beim Laden nicht springt.
+ */
+export function useCameraColumn(cameras: Camera[], loaded: boolean, demo?: boolean): boolean {
+  useEffect(() => { if (loaded) store.set("openstellwerk.hadCam", cameras.length > 0 ? "1" : "0"); }, [loaded, cameras.length]);
+  if (demo || cameras.length > 0) return true;
+  return loaded ? false : store.get("openstellwerk.hadCam") === "1";
 }
 
 /** Shows one camera. The server proxies the image so credentials never reach the browser. */
