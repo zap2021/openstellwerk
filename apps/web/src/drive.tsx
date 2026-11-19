@@ -89,10 +89,51 @@ const storeOnlyNamed = (on: boolean) => { try { localStorage.setItem("openstellw
 const remembered = () => { try { return Number(localStorage.getItem("openstellwerk.loco")) || 0; } catch { return 0; } };
 const remember = (a: number) => { try { localStorage.setItem("openstellwerk.loco", String(a)); } catch { /* private mode */ } };
 
-export function DriveTab({ state, run }: { state: StationState; run: Run }) {
+/** Verwaltung → Anlage → Loks suchen: belegte Adressen suchen, Lok am Programmiergleis lesen, RailCom-Erkennung. */
+export function LocoSearch({ state, run }: { state: StationState; run: Run }) {
+  const [range, setRange] = useState(SCAN_DEFAULT);
+  const scan = state.scan;
+  const progress = scan ? Math.round(((scan.current - scan.from + (scan.running ? 0 : 1)) / (scan.to - scan.from + 1)) * 100) : 0;
+  return (
+    <div className="panel locosearch">
+      <p className="hint">Gefundene Loks erscheinen unter Bedienen → Fahren. Beim Verbinden sucht OpenStellwerk die üblichen Adressen (1 bis 50) von selbst.</p>
+      <div className="row tight">
+        <label>Adressen <input type="number" min={1} max={9999} value={range.from} onChange={(e) => setRange({ ...range, from: Number(e.target.value) })} /></label>
+        <label>bis <input type="number" min={1} max={9999} value={range.to} onChange={(e) => setRange({ ...range, to: Number(e.target.value) })} /></label>
+      </div>
+      <div className="row tight">
+        {scan?.running
+          ? <button onClick={() => run(api("DELETE", "/api/garage/scan"))}>Suche abbrechen</button>
+          : <button onClick={() => run(post("/api/railcom/poll", { addr: 0 }).then(() => post("/api/garage/scan", range)))}>Belegte Adressen suchen</button>}
+        <button
+          title="Eine Lok auf das Programmiergleis stellen und ihre Adresse aus den CVs lesen"
+          onClick={() => sure("Lok auf dem Programmiergleis auslesen (CV29, CV1 bzw. CV17/18)? Das kann einige Sekunden dauern.") && run(post("/api/garage/read-prog"))}
+        >Programmiergleis lesen</button>
+      </div>
+      {scan && (
+        <div className="scan">
+          <progress max={100} value={scan.running ? progress : 100} />
+          <small>
+            {scan.running ? `Suche ${scan.current}/${scan.to} …` : scan.error ? scan.error : `Suche beendet (${scan.from}–${scan.to})`}
+            {" "}– {scan.found.length} gefunden
+          </small>
+        </div>
+      )}
+      <label className="check">
+        <input type="checkbox" checked={state.monitors.railcom} onChange={(e) => run(put("/api/monitors", { railcom: e.target.checked }))} />
+        RailCom-Erkennung (dauerhaft)
+      </label>
+      <details>
+        <summary>Wie funktioniert die Lok-Erkennung?</summary>
+        <p className="hint">Gefunden wird, was die Zentrale kennt (Handregler, Apps, Lichter an) und was per RailCom oder Melder auf dem Gleis gemeldet wird. Eine stehende, unbenutzte Lok ohne RailCom lässt sich nicht erkennen – dann Adresse unten eintragen oder vom Programmiergleis lesen.</p>
+      </details>
+    </div>
+  );
+}
+
+export function DriveTab({ state, run, toAdmin }: { state: StationState; run: Run; toAdmin?: (page: string) => void }) {
   const candidates = useCandidates(state);
   const [selected, setSelected] = useState<number>(remembered);
-  const [range, setRange] = useState(SCAN_DEFAULT);
   const [manual, setManual] = useState("");
   /** What the right-hand side shows for the selected loco: the throttle with its functions, the loco's automations, or its settings. */
   const [view, setView] = useState<"drive" | "automation" | "settings">("drive");
@@ -103,7 +144,7 @@ export function DriveTab({ state, run }: { state: StationState; run: Run }) {
   useEffect(() => {
     if (!sessionKey || state.hw?.kind !== "z21" || autoScanned.current === sessionKey) return;
     autoScanned.current = sessionKey;
-    void run(post("/api/railcom/poll", { addr: 0 }).then(() => post("/api/garage/scan", range)));
+    void run(post("/api/railcom/poll", { addr: 0 }).then(() => post("/api/garage/scan", SCAN_DEFAULT)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionKey, state.hw?.kind]);
 
@@ -114,57 +155,25 @@ export function DriveTab({ state, run }: { state: StationState; run: Run }) {
     if (first && !selected) setSelected(first.address);
   }, [candidates, selected]);
 
-  /** Auf dem Handy: Suche eingeklappt, sobald Loks da sind; nach dem Antippen einer Lok zum Fahrpult springen. */
+  /** Auf dem Handy: nach dem Antippen einer Lok zum Fahrpult springen. */
   const narrow = useNarrow();
-  const [scanToggled, setScanOpen] = useState<boolean>();
-  const scanOpen = scanToggled ?? (candidates.length === 0 || !narrow);
   const select = (a: number) => {
     setSelected(a); remember(a);
     if (narrow) setTimeout(() => document.querySelector(".controls")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
   };
-  const scan = state.scan;
-  const progress = scan ? Math.round(((scan.current - scan.from + (scan.running ? 0 : 1)) / (scan.to - scan.from + 1)) * 100) : 0;
 
   return (
     <section className="drive">
       <aside className="panel locos">
         <h2>Loks</h2>
-        <details className="locoscan" open={scanOpen} onToggle={(e) => setScanOpen((e.target as HTMLDetailsElement).open)}>
-          <summary>Suche und Erkennung</summary>
-        <div className="row tight">
-          <label>Adressen <input type="number" min={1} max={9999} value={range.from} onChange={(e) => setRange({ ...range, from: Number(e.target.value) })} /></label>
-          <label>bis <input type="number" min={1} max={9999} value={range.to} onChange={(e) => setRange({ ...range, to: Number(e.target.value) })} /></label>
-        </div>
-        <div className="row tight">
-          {scan?.running
-            ? <button onClick={() => run(api("DELETE", "/api/garage/scan"))}>Suche abbrechen</button>
-            : <button onClick={() => run(post("/api/railcom/poll", { addr: 0 }).then(() => post("/api/garage/scan", range)))}>Belegte Adressen suchen</button>}
-          <button
-            title="Eine Lok auf das Programmiergleis stellen und ihre Adresse aus den CVs lesen"
-            onClick={() => sure("Lok auf dem Programmiergleis auslesen (CV29, CV1 bzw. CV17/18)? Das kann einige Sekunden dauern.") && run(post("/api/garage/read-prog"))}
-          >Programmiergleis lesen</button>
-        </div>
-        {scan && (
-          <div className="scan">
-            <progress max={100} value={scan.running ? progress : 100} />
-            <small>
-              {scan.running ? `Suche ${scan.current}/${scan.to} …` : scan.error ? scan.error : `Suche beendet (${scan.from}–${scan.to})`}
-              {" "}– {scan.found.length} gefunden
-            </small>
-          </div>
-        )}
-        <label className="check">
-          <input type="checkbox" checked={state.monitors.railcom} onChange={(e) => run(put("/api/monitors", { railcom: e.target.checked }))} />
-          RailCom-Erkennung (dauerhaft)
-        </label>
-        <details>
-          <summary>Wie funktioniert die Lok-Erkennung?</summary>
-          <p className="hint">Gefunden wird, was die Zentrale kennt (Handregler, Apps, Lichter an) und was per RailCom oder Melder auf dem Gleis gemeldet wird. Eine stehende, unbenutzte Lok ohne RailCom lässt sich nicht erkennen – dann Adresse unten eintragen oder vom Programmiergleis lesen.</p>
-        </details>
-        </details>
 
         <ul className="loco-list">
-          {candidates.length === 0 && <li className="empty">Noch keine Lok erkannt.</li>}
+          {candidates.length === 0 && (
+            <li className="empty">
+              Noch keine Lok erkannt.{" "}
+              {toAdmin ? <button type="button" className="linkish" onClick={() => toAdmin("locos")}>Loks suchen</button> : "Trage unten eine Adresse ein."}
+            </li>
+          )}
           {candidates.map((c) => {
             const st = status(c);
             const live = state.locos.find((l) => l.address === c.address);

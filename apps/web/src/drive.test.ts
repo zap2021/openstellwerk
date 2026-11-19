@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { StationState } from "./api";
-import { DriveTab } from "./drive";
+import { DriveTab, LocoSearch } from "./drive";
 
 describe("Fahren", () => {
   it("zeigt die Erkennungshilfe zunächst eingeklappt", () => {
@@ -11,11 +11,16 @@ describe("Fahren", () => {
       rmbus: [], canBoosters: [], extAccessories: {}, modes: { loco: {}, turnout: {} },
       monitors: { railcom: false, loconet: false, detectors: false, rmbus: false, boosters: false, clock: false },
     };
-    const html = renderToStaticMarkup(createElement(DriveTab, { state, run: async () => {} }));
+    const drive = renderToStaticMarkup(createElement(DriveTab, { state, run: async () => {} }));
+    const search = renderToStaticMarkup(createElement(LocoSearch, { state, run: async () => {} }));
 
-    expect(html).toContain("<details><summary>Wie funktioniert die Lok-Erkennung?</summary>");
-    // ohne Loks ist die Suche selbst offen, damit man sofort starten kann
-    expect(html).toContain("<details class=\"locoscan\" open=\"\">");
-    expect(html).toContain("Eine stehende, unbenutzte Lok ohne RailCom lässt sich nicht erkennen");
+    // die Suche ist nicht mehr im Fahrbereich, sondern eine eigene Verwaltungsseite
+    expect(drive).not.toContain("Belegte Adressen suchen");
+    expect(drive).toContain("Noch keine Lok erkannt.");
+    expect(search).toContain("Belegte Adressen suchen");
+    expect(search).toContain("<details><summary>Wie funktioniert die Lok-Erkennung?</summary>");
+    expect(search).toContain("Eine stehende, unbenutzte Lok ohne RailCom lässt sich nicht erkennen");
+    // Admins bekommen im leeren Fahrbereich den Sprung zur Suche
+    expect(renderToStaticMarkup(createElement(DriveTab, { state, run: async () => {}, toAdmin: () => {} }))).toContain("Loks suchen");
   });
 });

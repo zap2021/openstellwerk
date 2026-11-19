@@ -98,7 +98,7 @@ function Operate({ state, online, run, go, canAdmin }: { state?: StationState; o
       </nav>
       <MacroBar state={state} run={run} />
       <main>
-        {current === "drive" && <DriveTab state={state} run={run} />}
+        {current === "drive" && <DriveTab state={state} run={run} toAdmin={toAdmin} />}
         {current === "layout" && <LayoutTab state={state} run={run} toAdmin={toAdmin} />}
         {current === "timetable" && <TimetableOperate state={state} run={run} toAdmin={toAdmin} />}
         {current === "turnouts" && <TurnoutsTab state={state} run={run} toStellwerk={toStellwerk} />}

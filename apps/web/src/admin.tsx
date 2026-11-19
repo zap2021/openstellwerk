@@ -13,6 +13,7 @@ import { HistoryPage, UpdatePage } from "./system";
 import { DetectorsTab, LocoNetTab, RailComTab } from "./monitors";
 import { NetworkTab } from "./network";
 import { TimetableAdmin } from "./timetable";
+import { LocoSearch } from "./drive";
 import { TrainsPage } from "./trains";
 import type { Route } from "./route";
 
@@ -21,13 +22,13 @@ const post = (url: string, body?: unknown) => api("POST", url, body);
 const put = (url: string, body?: unknown) => api("PUT", url, body);
 
 export type AdminPage =
-  | "station" | "network" | "update" | "history" | "layout" | "rules" | "trains" | "timetable" | "cameras" | "users" | "achievements" | "backup" | "cv" | "calibration" | "rmbus" | "clock" | "boosters" | "device"
+  | "station" | "network" | "update" | "history" | "layout" | "rules" | "trains" | "locos" | "timetable" | "cameras" | "users" | "achievements" | "backup" | "cv" | "calibration" | "rmbus" | "clock" | "boosters" | "device"
   | "railcom" | "loconet" | "detectors" | "monitor";
 
 /** The administration area, grouped; the order here is the order in the navigation. */
 export const ADMIN_GROUPS: { title: string; pages: [AdminPage, string][] }[] = [
   { title: "Verbindung", pages: [["station", "Zentrale und Demo"], ["network", "Netzwerk"], ["update", "Update"]] },
-  { title: "Anlage", pages: [["layout", "Gleisbild bearbeiten"], ["rules", "Regeln"], ["trains", "Züge"], ["timetable", "Fahrplan"], ["cameras", "Kameras einrichten"], ["users", "Benutzer"], ["achievements", "Erfolge"], ["backup", "Datensicherung"]] },
+  { title: "Anlage", pages: [["layout", "Gleisbild bearbeiten"], ["rules", "Regeln"], ["trains", "Züge"], ["locos", "Loks suchen"], ["timetable", "Fahrplan"], ["cameras", "Kameras einrichten"], ["users", "Benutzer"], ["achievements", "Erfolge"], ["backup", "Datensicherung"]] },
   { title: "Programmieren", pages: [["cv", "CV-Programmierung"], ["calibration", "Einmessen"]] },
   { title: "Hardware", pages: [["rmbus", "R-BUS"], ["clock", "Modellbahn-Uhr"], ["boosters", "Booster"], ["device", "Gerät"]] },
   { title: "Diagnose", pages: [["history", "Verlauf"], ["railcom", "RailCom"], ["loconet", "LocoNet"], ["detectors", "Melder"], ["monitor", "Rohdaten"]] },
@@ -46,7 +47,7 @@ export function adminPages(state?: StationState): AdminPage[] {
   if (!state?.connected) return [...always, ...(state ? (["layout", "rules", "trains", "timetable"] as AdminPage[]) : [])];
   if (kind === "booster") return [...always, "device"];
   if (kind === "decoder") return [...always, "device", "cv"];
-  return [...always, "layout", "rules", "trains", "timetable", "network", "cv", "calibration", "rmbus", "clock", "boosters", "railcom", "loconet", "detectors"];
+  return [...always, "layout", "rules", "trains", "locos", "timetable", "network", "cv", "calibration", "rmbus", "clock", "boosters", "railcom", "loconet", "detectors"];
 }
 
 function StationTab({ state, run }: { state?: StationState; run: Run }) {
@@ -284,6 +285,7 @@ export function AdminView({ me, state, wire, loconet, clearWire, clearLoconet, c
         {current === "rules" && state && <LayoutRulesPage layout={state.layout} run={run} />}
         {current === "calibration" && state && <CalibrationPage state={state} run={run} />}
         {current === "trains" && state && <TrainsPage state={state} run={run} />}
+        {current === "locos" && state && <LocoSearch state={state} run={run} />}
         {current === "timetable" && state && <TimetableAdmin state={state} run={run} />}
         {connected && state && (
           <>
