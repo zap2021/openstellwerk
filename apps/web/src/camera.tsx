@@ -145,8 +145,18 @@ export function CamerasTab({ cameras, reload, run }: { cameras: Camera[]; reload
   );
 }
 
+/** Beispiel-Kamera im Demo-Modus: eine kurze Schleife (gezeichnete Draufsicht auf den Rundkurs), damit man die Kamera-Seitenleiste sieht. */
+export function DemoCamera() {
+  return (
+    <>
+      <video className="demo-cam" src="/demo-camera.webm" autoPlay muted loop playsInline preload="auto" aria-label="Beispiel-Kamera: gezeichnete Draufsicht auf einen Rundkurs mit zwei fahrenden Zügen" />
+      <p className="hint">Beispiel im Demo-Modus: eine gezeichnete Draufsicht, keine echte Kamera. Mit ⚙ richtest du deine eigene ein.</p>
+    </>
+  );
+}
+
 /** Camera sidebar: always visible next to every tab. */
-export function CameraSidebar({ cameras, onConfigure }: { cameras: Camera[]; onConfigure: () => void }) {
+export function CameraSidebar({ cameras, onConfigure, demo }: { cameras: Camera[]; onConfigure: () => void; demo?: boolean }) {
   const [id, setId] = useState(store.get("openstellwerk.dockCam"));
   const cam = cameras.find((c) => c.id === id) ?? cameras[0];
   return (
@@ -163,7 +173,9 @@ export function CameraSidebar({ cameras, onConfigure }: { cameras: Camera[]; onC
         </div>
         {cam
           ? <CameraView key={`${cam.id}${cam.url}${cam.kind}${cam.refreshMs}`} cam={cam} />
-          : <p className="hint">Noch keine Kamera eingerichtet. Mit ⚙ geht es zur Einrichtung.</p>}
+          : demo
+            ? <DemoCamera />
+            : <p className="hint">Noch keine Kamera eingerichtet. Mit ⚙ geht es zur Einrichtung.</p>}
       </div>
     </aside>
   );

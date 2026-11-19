@@ -77,7 +77,7 @@ function Main({ logout, user, refresh }: { logout?: () => void; user?: SessionUs
           <Operate state={state} online={online} run={run} go={go} canAdmin={isAdmin} />
         )}
       </div>
-      {!admin && !profile && <CameraSidebar cameras={cameras} onConfigure={() => go({ area: "admin", page: "cameras" })} />}
+      {!admin && !profile && <CameraSidebar cameras={cameras} demo={state?.demo} onConfigure={() => go({ area: "admin", page: "cameras" })} />}
     </div>
   );
 }

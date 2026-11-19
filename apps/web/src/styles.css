@@ -334,3 +334,5 @@ button.danger, .big-stop { font-weight: 600; }
 .adminnav details.group:not([open]) { display: block; }
 .adminnav details.group[open] { display: flex; flex-direction: column; }
 @media (max-width: 800px) { .adminnav details.group[open] { flex-direction: row; flex-wrap: wrap; align-items: center; } .adminnav details.group > summary { width: 100%; } }
+.demo-cam { display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: var(--radius); background: #1d2a1a; border: 1px solid var(--line); }
+@media (prefers-reduced-motion: reduce) { .demo-cam { animation: none; } }
