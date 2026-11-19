@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type AchievementView } from "./api";
 import { ifSure } from "./confirm";
+import { Fireworks } from "./fireworks";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
 
@@ -14,10 +15,16 @@ export function nextAnnouncement(seen: number | undefined, view?: Pick<Achieveme
   return { seen };
 }
 
-/** Prominent eingeblendeter neuer Erfolg, verschwindet nach einigen Sekunden. */
+/** Prominent eingeblendeter neuer Erfolg mit Feuerwerk, verschwindet nach einigen Sekunden. Einmal je Seitenaufruf und Erfolg, auf jeder Seite der Anwendung (auch der Abfahrtstafel). */
 export function AchievementBanner({ view }: { view?: AchievementView }) {
   const seen = useRef<number>();
   const [shown, setShown] = useState<AchievementView["latest"]>();
+  useEffect(() => {
+    if (!shown) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setShown(undefined); };
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [shown]);
   useEffect(() => {
     const r = nextAnnouncement(seen.current, view);
     seen.current = r.seen;
@@ -28,10 +35,14 @@ export function AchievementBanner({ view }: { view?: AchievementView }) {
   }, [view?.seq]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!shown) return null;
   return (
-    <div className="achievement-banner" role="status">
-      <span className="trophy" aria-hidden="true">🏆</span>
-      <div><strong>{shown.by ? `${shown.by}: ` : ""}Erfolg freigeschaltet: {shown.title}</strong><small>{shown.text} (+{shown.points} Punkte)</small></div>
-    </div>
+    <>
+      <Fireworks key={view?.seq} />
+      <div className="achievement-banner" role="status" onClick={() => setShown(undefined)} title="Klicken zum Schließen">
+        <span className="trophy" aria-hidden="true">🏆</span>
+        <div><strong>{shown.by ? `${shown.by}: ` : ""}Erfolg freigeschaltet: {shown.title}</strong><small>{shown.text} (+{shown.points} Punkte)</small></div>
+        <button type="button" className="close" aria-label="Schließen" onClick={() => setShown(undefined)}>×</button>
+      </div>
+    </>
   );
 }
 

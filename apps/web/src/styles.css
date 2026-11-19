@@ -15,8 +15,9 @@
   color-scheme: dark;
 }
 :root[data-theme="day"] {
-  --bg: #2f3835; --line: #4a5651; --surface: #3b4642; --surface-2: #46524d;
-  --field: #ccd1c6; --field-2: #bdc3b6; --field-fg: #151816; --field-muted: #4b554f; --field-line: #a5ac9f; --field-key: #dfe3d9;
+  --bg: #e4e7de; --fg: #151816; --muted: #46514b; --line: #b4bbaf; --surface: #f3f5ee; --surface-2: #d9ddd1;
+  --accent: #6d4e00; --danger: #b3141b; --ok: #1b6f33; --warn: #8f4700; --focus: #151816;
+  --field: #f8f9f4; --field-2: #e9ece2; --field-fg: #151816; --field-muted: #46514b; --field-line: #b4bbaf; --field-key: #eceee6;
   --field-accent: #6d4e00; --field-danger: #b3141b; --field-ok: #1b6f33; --field-warn: #8f4700; --track: #151816;
 }
 /* Alles, was ein Tischfeld ist, bringt seine eigenen Farben mit; Inhalte darin nutzen dieselben Variablennamen wie auf dem Pult. */
@@ -129,7 +130,8 @@ select { font: inherit; color: inherit; background: transparent; border: 1px sol
 .camside .head select { max-width: 150px; }
 @media (max-width: 1150px) {
   .shell { grid-template-columns: minmax(0, 1fr); padding-right: 0; }
-  .camside { position: static; order: -1; padding: 8px 16px 0; }
+  .camside { position: static; order: 1; padding: 8px 16px 16px; }
+  .camside.has-cam { order: -1; }
 }
 
 /* ---- Anmeldung ---- */
@@ -152,7 +154,7 @@ header .push { margin-left: auto; }
 .tile.wanted .trk { stroke: var(--lit); animation: melder 1s steps(1) infinite; }
 .mast { stroke: var(--muted); stroke-width: 2; }
 .lamp { stroke: var(--bg); stroke-width: 1.5; } .lamp.stop { fill: var(--lamp-red); } .lamp.go { fill: var(--lamp-green); } .lamp.unknown { fill: var(--muted); }
-.lbl { fill: var(--muted); font-size: 9px; text-anchor: middle; pointer-events: none; } .lbl.big { fill: var(--fg); font-size: 13px; }
+.lbl { fill: var(--muted); font-size: 9px; text-anchor: middle; pointer-events: none; } .lbl.big { fill: var(--fg); font-size: 13px; } .lbl.sig { text-anchor: start; }
 .adr { fill: var(--warn); font-size: 9px; pointer-events: none; } .fb { fill: var(--ok); }
 .sel { fill: color-mix(in srgb, var(--accent) 15%, transparent); stroke: var(--accent); stroke-width: 1.5; }
 .palette .pal { padding: 2px 4px; line-height: 0; } .palette .pal.active .trk { stroke: var(--slot-ink); } .palette .pal.active .lbl { fill: var(--slot-ink); }
@@ -188,7 +190,8 @@ li.open .form.wide { flex-basis: 100%; }
 
 /* ---- Demo-Modus ---- */
 .demo-badge { padding: 2px 10px; border-radius: var(--radius); background: var(--lit); color: var(--slot); font-weight: 600; font-size: 13px; }
-.demo-panel { display: block; padding: 6px 14px; border-style: dashed; } .demo-panel.on { border-color: var(--warn); border-style: solid; }
+.demo-panel { display: block; padding: 6px 14px; border-style: dashed; }
+@media (max-width: 600px) { .demo-panel .row { flex-direction: column; align-items: stretch; } .demo-panel .row .grow { flex: none; } } .demo-panel.on { border-color: var(--warn); border-style: solid; }
 
 a.button { display: inline-flex; align-items: center; min-height: var(--touch); padding: 6px 12px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--fg); text-decoration: none; background: var(--surface); }
 a.button:hover { background: var(--surface-2); }
@@ -245,6 +248,9 @@ header .version { color: var(--muted); font-size: 13px; }
 .loco-item .thumb { width: 40px; height: 40px; object-fit: cover; border-radius: var(--radius); flex: none; background: var(--surface-2); }
 .loco-picture { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .loco-pic { width: 72px; height: 72px; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface-2); }
+.loco-hero { display: block; width: 100%; aspect-ratio: 21 / 9; max-height: min(26vh, 230px); object-fit: cover; object-position: center 60%; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface-2); margin-bottom: 12px; }
+.fireworks { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 49; }
+.loco-picture .loco-pic { width: 128px; height: 72px; }
 .loco-pic.empty { display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; text-align: center; }
 
 /* ---- Automatik ---- */
@@ -256,6 +262,14 @@ header .version { color: var(--muted); font-size: 13px; }
 /* ---- Erfolge ---- */
 .achievement-banner { position: fixed; left: 50%; top: 24px; transform: translateX(-50%); z-index: 50; display: flex; gap: 16px; align-items: center; padding: 18px 28px; border-radius: var(--radius); background: var(--surface-2); border: 2px solid var(--lit); box-shadow: 0 8px 30px rgba(0,0,0,.35); animation: banner-in .4s ease-out; max-width: 90vw; }
 .achievement-banner .trophy { font-size: 40px; }
+.achievement-banner { cursor: pointer; }
+.achievement-banner .close { align-self: flex-start; margin: -8px -14px 0 4px; padding: 0 8px; font-size: 22px; line-height: 1.2; background: transparent; border: 0; color: var(--muted); cursor: pointer; }
+@media (max-width: 540px) {
+  .achievement-banner { top: 8px; width: calc(100vw - 24px); padding: 10px 14px; gap: 10px; }
+  .achievement-banner .trophy { font-size: 28px; }
+  .achievement-banner strong { font-size: 18px; }
+  .achievement-banner small { font-size: 13px; }
+}
 .achievement-banner strong { display: block; font-size: 24px; }
 .achievement-banner small { font-size: 15px; color: var(--muted); }
 @keyframes banner-in { from { opacity: 0; transform: translate(-50%, -20px); } }
@@ -302,3 +316,21 @@ button.danger, .big-stop { font-weight: 600; }
   .route.setting, .chip.setting, .tile.wanted .trk, .achievement-banner { animation: none; }
   .route.setting { border-left-style: dashed; } .tile.wanted .trk { stroke-dasharray: 6 5; }
 }
+
+/* UX-Review (Issues #15 bis #20) */
+.locoscan > summary { cursor: pointer; padding: 6px 0; color: var(--muted); font-size: 13px; }
+@media (min-width: 801px) { .locoscan > summary { display: none; } }
+.empty-state { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 8px 0; }
+.empty-state p { margin: 0; }
+.linkish { min-height: 0; padding: 0 2px; border: 0; background: transparent; color: var(--accent); text-decoration: underline; cursor: pointer; font: inherit; }
+.departures .departure { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 2px 10px; align-items: start; }
+.departures .departure .meta strong { overflow-wrap: anywhere; }
+.departures .departure button { min-height: 30px; padding: 2px 8px; font-size: 13px; align-self: center; white-space: nowrap; }
+.adminnav details.group { gap: 4px; }
+.adminnav details.group > summary { cursor: pointer; list-style: none; }
+.adminnav details.group > summary::-webkit-details-marker { display: none; }
+.adminnav details.group > summary h3::before { content: "▸ "; }
+.adminnav details.group[open] > summary h3::before { content: "▾ "; }
+.adminnav details.group:not([open]) { display: block; }
+.adminnav details.group[open] { display: flex; flex-direction: column; }
+@media (max-width: 800px) { .adminnav details.group[open] { flex-direction: row; flex-wrap: wrap; align-items: center; } .adminnav details.group > summary { width: 100%; } }

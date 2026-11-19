@@ -5,6 +5,7 @@ import {
   type Block, type FeedbackRef, type Layout, type Route, type Tile, type TileKind,
 } from "@openstellwerk/protocol/layout";
 import { api, type StationState } from "./api";
+import { AchievementBanner } from "./achievements";
 import { DepartureBoard, formatHMS, useModelTime } from "./timetable";
 import { sure } from "./confirm";
 
@@ -69,7 +70,9 @@ function TileView({ tile, state, occupied, selected, hint, wanted }: { tile: Til
           <circle className={`lamp ${state === undefined ? "unknown" : state === 0 ? "stop" : "go"}`} cx={cx - perp[0] * 13} cy={cy - perp[1] * 13} r={6} />
         </>
       )}
-      {tile.label && <text className={tile.kind === "text" ? "lbl big" : "lbl"} x={cx} y={tile.kind === "text" ? cy + 4 : tile.y * S + S - 3}>{tile.label}</text>}
+      {tile.label && (tile.kind === "signal"
+        ? <text className="lbl sig" x={cx - perp[0] * 13 + 9} y={cy - perp[1] * 13 + 3}>{tile.label}</text>
+        : <text className={tile.kind === "text" ? "lbl big" : "lbl"} x={cx} y={tile.kind === "text" ? cy + 4 : tile.y * S + S - 3}>{tile.label}</text>)}
       {hint && tile.address !== undefined && <text className="adr" x={tile.x * S + 3} y={tile.y * S + 10}>{tile.address}{tile.address2 !== undefined ? `/${tile.address2}` : ""}</text>}
       {hint && tile.feedback && <circle className="fb" cx={tile.x * S + S - 6} cy={tile.y * S + 6} r={3} />}
     </g>
@@ -118,8 +121,8 @@ function Diagram({ layout, live, grid, selected, hint, routeSteps, marked, onCel
 }
 
 /** Signal box for everyday use: set routes, switch, look at the diagram. Editing lives in the administration. */
-export function LayoutTab({ state, run }: { state: StationState; run: Run }) {
-  return <Operate layout={state.layout ?? EMPTY_LAYOUT} state={state} run={run} />;
+export function LayoutTab({ state, run, toAdmin }: { state: StationState; run: Run; toAdmin?: (page: string) => void }) {
+  return <Operate layout={state.layout ?? EMPTY_LAYOUT} state={state} run={run} toAdmin={toAdmin} />;
 }
 
 /** Administration page: edit the track diagram, its blocks and routes. `done` leaves the page. */
@@ -130,7 +133,7 @@ export function LayoutEditorPage({ state, run, done }: { state: StationState; ru
 const STATUS: Record<string, string> = { setting: "wird gestellt …", set: "Fahrt frei", running: "befahren", fault: "Störung" };
 
 
-function Operate({ layout, state, run }: { layout: Layout; state: StationState; run: Run }) {
+function Operate({ layout, state, run, toAdmin }: { layout: Layout; state: StationState; run: Run; toAdmin?: (page: string) => void }) {
   const running = state.routeRun?.running ? state.routeRun : undefined;
   const il = new Map((state.interlocking ?? []).map((r) => [r.routeId, r]));
   const click = (_x: number, _y: number, tile?: Tile) => {
@@ -178,7 +181,12 @@ function Operate({ layout, state, run }: { layout: Layout; state: StationState; 
       )}
       {state.routeRun?.error && <div className="error">Fahrstraße abgebrochen: {state.routeRun.error}</div>}
       {layout.tiles.length === 0
-        ? <p>Noch kein Gleisbild vorhanden. Unter Verwaltung → Gleisbild bearbeiten legst du eines an.</p>
+        ? (
+          <div className="empty-state">
+            <p>Noch kein Gleisbild vorhanden. Unter Verwaltung → Gleisbild bearbeiten legst du eines an.</p>
+            {toAdmin && <button className="active" onClick={() => toAdmin("layout")}>Gleisbild bearbeiten</button>}
+          </div>
+        )
         : <Diagram layout={layout} live={state} onCell={click} />}
       <p className="hint">
         Klick auf eine Weiche oder ein Signal schaltet um; Felder in einer eingestellten Fahrstraße sind verriegelt.
@@ -201,6 +209,7 @@ export function DisplayView({ state }: { state?: StationState }) {
   const active = (layout?.routes ?? []).filter((r) => il.has(r.id));
   return (
     <div className="display">
+      <AchievementBanner view={state?.achievements} />
       <header className="display-head">
         {tt ? <ModelClock clock={tt.clock} serverNow={tt.serverNow} /> : <div className="display-clock" title={z ? "Modellbahn-Uhr der Z21" : "Uhrzeit dieses Geräts (keine Modellbahn-Uhr gemeldet)"}>{time}{z && z.rate > 1 ? <small>×{z.rate}</small> : null}</div>}
         <div className="display-routes">

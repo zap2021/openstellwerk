@@ -12,7 +12,13 @@ const pad = (n: number) => String(n).padStart(2, "0");
 
 /* ------------------------------------------------------------------ signals / accessories (DCCext) */
 
-export function SignalsTab({ state, run }: { state: StationState; run: Run }) {
+/** Hinweis über den Handeingabe-Reitern: Schalten nach Adresse ist die Ausnahme, das Gleisbild die Regel. */
+export function ToStellwerkHint({ go }: { go?: () => void }) {
+  if (!go) return null;
+  return <p className="hint">Handeingabe nach Adresse. Bequemer schaltest du Weichen und Signale im Gleisbild unter <button type="button" className="linkish" onClick={go}>Stellwerk</button>.</p>;
+}
+
+export function SignalsTab({ state, run, toStellwerk }: { state: StationState; run: Run; toStellwerk?: () => void }) {
   const [addr, setAddr] = useState(1);
   const [value, setValue] = useState(0);
   const [time, setTime] = useState(5);
@@ -20,6 +26,7 @@ export function SignalsTab({ state, run }: { state: StationState; run: Run }) {
   const known = state.extAccessories[addr];
   return (
     <section>
+      <ToStellwerkHint go={toStellwerk} />
       <p className="hint">
         Erweiterte Zubehördecoder nach RCN-213 (DCCext), Z21 ab Firmware 1.40: Signaldecoder 10837 (Signalbild) und Weichendecoder 10836 (Schaltzeit).
         Die Adresse ist die angezeigte Adresse (ab 1).

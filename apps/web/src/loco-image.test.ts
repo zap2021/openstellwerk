@@ -3,17 +3,17 @@ import { fitSize, imageUrl } from "./loco-image";
 
 describe("fitSize", () => {
   it("scales the longest side down to the maximum and keeps the aspect ratio", () => {
-    expect(fitSize(4000, 3000)).toEqual({ width: 256, height: 192 });
-    expect(fitSize(3000, 4000)).toEqual({ width: 192, height: 256 });
-    expect(fitSize(1000, 1000)).toEqual({ width: 256, height: 256 });
+    expect(fitSize(4000, 3000)).toEqual({ width: 640, height: 480 });
+    expect(fitSize(3000, 4000)).toEqual({ width: 480, height: 640 });
+    expect(fitSize(1000, 1000)).toEqual({ width: 640, height: 640 });
   });
   it("never enlarges a picture that is already small", () => {
     expect(fitSize(100, 80)).toEqual({ width: 100, height: 80 });
     expect(fitSize(256, 256)).toEqual({ width: 256, height: 256 });
   });
   it("never produces a side smaller than one pixel, even for extreme ratios", () => {
-    expect(fitSize(10000, 5)).toEqual({ width: 256, height: 1 });
-    expect(fitSize(5, 10000)).toEqual({ width: 1, height: 256 });
+    expect(fitSize(10000, 5)).toEqual({ width: 640, height: 1 });
+    expect(fitSize(5, 10000)).toEqual({ width: 1, height: 640 });
   });
   it("honours another maximum and refuses sizes that are not positive numbers", () => {
     expect(fitSize(800, 400, 100)).toEqual({ width: 100, height: 50 });

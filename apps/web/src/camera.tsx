@@ -150,7 +150,7 @@ export function CameraSidebar({ cameras, onConfigure }: { cameras: Camera[]; onC
   const [id, setId] = useState(store.get("openstellwerk.dockCam"));
   const cam = cameras.find((c) => c.id === id) ?? cameras[0];
   return (
-    <aside className="camside">
+    <aside className={`camside${cameras.length > 0 ? " has-cam" : ""}`}>
       <div className="panel">
         <div className="head">
           <h2>Kamera</h2>

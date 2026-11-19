@@ -14,6 +14,8 @@ describe("Fahren", () => {
     const html = renderToStaticMarkup(createElement(DriveTab, { state, run: async () => {} }));
 
     expect(html).toContain("<details><summary>Wie funktioniert die Lok-Erkennung?</summary>");
+    // ohne Loks ist die Suche selbst offen, damit man sofort starten kann
+    expect(html).toContain("<details class=\"locoscan\" open=\"\">");
     expect(html).toContain("Eine stehende, unbenutzte Lok ohne RailCom lässt sich nicht erkennen");
   });
 });

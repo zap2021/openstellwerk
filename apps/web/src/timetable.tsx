@@ -5,7 +5,6 @@ import { api, type StationState } from "./api";
 import { ifSure } from "./confirm";
 import { imageUrl } from "./loco-image";
 import { JourneyPanel } from "./journeys";
-import { AchievementBanner } from "./achievements";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
 
@@ -239,7 +238,7 @@ export function useTrips(everyMs?: number): Trip[] {
 }
 
 /** Operation: model clock, the next departures with "cancel", and where the trains stand. */
-export function TimetableOperate({ state, run }: { state: StationState; run: Run }) {
+export function TimetableOperate({ state, run, toAdmin }: { state: StationState; run: Run; toAdmin?: (page: string) => void }) {
   const tt = state.timetable;
   const clock = tt?.clock ?? { running: false, factor: 1, baseModel: 0, baseReal: 0 };
   const model = useModelTime(clock, tt?.serverNow);
@@ -283,13 +282,18 @@ export function TimetableOperate({ state, run }: { state: StationState; run: Run
         </div>
         {error && <p className="hint warn">{error}</p>}
         <h2>Nächste Abfahrten</h2>
-        {rows.length === 0 && <p className="hint">Keine Abfahrten geplant.</p>}
-        <ul className="loco-list">
+        {rows.length === 0 && (
+          <div className="empty-state">
+            <p className="hint">Keine Abfahrten geplant.</p>
+            {toAdmin && <button onClick={() => toAdmin("timetable")}>Fahrplan anlegen</button>}
+          </div>
+        )}
+        <ul className="loco-list departures">
           {rows.map((r) => (
             <li key={r.key} className="departure">
               <span className="addr">{r.time}</span>
               <span className="meta">
-                <strong>{r.number}, {r.destination || "–"}{r.platform ? `, ${r.platform}` : ""}</strong>
+                <strong>{r.number}, {r.destination || "–"}{r.platform && !samePlace(r.destination, r.platform) ? `, ${r.platform}` : ""}</strong>
                 <small><span className={`st ${r.status}`}>{r.label}</span>{r.reason ? ` – ${r.reason}` : ""}</small>
               </span>
               {(r.status === "planned" || r.status === "waiting") && (
@@ -302,7 +306,12 @@ export function TimetableOperate({ state, run }: { state: StationState; run: Run
       <JourneyPanel state={state} run={run} />
       <div className="panel">
         <h2>Standorte der Züge</h2>
-        {tt.trains.length === 0 && <p className="hint">Noch keine Züge angelegt.</p>}
+        {tt.trains.length === 0 && (
+          <div className="empty-state">
+            <p className="hint">Noch keine Züge angelegt.</p>
+            {toAdmin && <button onClick={() => toAdmin("trains")}>Züge anlegen</button>}
+          </div>
+        )}
         <ul className="loco-list">
           {tt.trains.map((t) => (
             <li key={t.id} className="departure">
@@ -321,6 +330,12 @@ export function TimetableOperate({ state, run }: { state: StationState; run: Run
   );
 }
 
+/** Ziel und Gleis nennen oft denselben Ort („Bahnhof Gleis 1“, „Gleis 1“): dann nur einmal zeigen. */
+export function samePlace(destination: string, platform: string): boolean {
+  const d = destination.trim().toLowerCase(), p = platform.trim().toLowerCase();
+  return p === "" || d === p || d.includes(p);
+}
+
 /** Read-only departure board for the display page. */
 export function DepartureBoard({ state, trips }: { state: StationState; trips?: Trip[] }) {
   const tt = state.timetable;
@@ -331,7 +346,6 @@ export function DepartureBoard({ state, trips }: { state: StationState; trips?: 
   const rows = boardRows(tt.instances, all, tt.trains, state.layout, 8, images);
   return (
     <>
-    <AchievementBanner view={state.achievements} />
     <table className="board">
       <thead><tr><th>Zeit</th><th>Zug</th><th>Ziel</th><th>Gleis</th><th>Status</th></tr></thead>
       <tbody>
@@ -339,7 +353,7 @@ export function DepartureBoard({ state, trips }: { state: StationState; trips?: 
         {rows.map((r) => (
           <tr key={r.key} className={FINISHED.includes(r.status) ? "past" : undefined}>
             <td className="time">{r.time}</td>
-            <td>{r.imageVersion ? <img className="board-pic" src={imageUrl(r.address, r.imageVersion)} alt="" /> : null}{r.number}</td><td>{r.destination}</td><td>{r.platform}</td>
+            <td>{r.imageVersion ? <img className="board-pic" src={imageUrl(r.address, r.imageVersion)} alt="" /> : null}{r.number}</td><td>{r.destination}</td><td>{samePlace(r.destination, r.platform) ? "" : r.platform}</td>
             <td><span className={`st ${r.status}`}>{r.label}</span>{r.reason && <small className="reason"> {r.reason}</small>}</td>
           </tr>
         ))}

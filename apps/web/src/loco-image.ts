@@ -1,7 +1,7 @@
 import { request } from "./api";
-/** Pictures of locos: shrunk in the browser to a small JPEG, then uploaded. The server only stores them. */
+/** Pictures of locos: shrunk in the browser to a JPEG (longest side 640 px, enough for the wide picture above the throttle), then uploaded. The server only stores them. */
 
-export const MAX_SIDE = 256;
+export const MAX_SIDE = 640;
 /** The server refuses anything above this; the browser stays below it. */
 const MAX_BYTES = 200 * 1024;
 
