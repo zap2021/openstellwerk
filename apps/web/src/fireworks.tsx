@@ -33,7 +33,7 @@ export function Fireworks() {
       for (let i = 0; i < n; i++) {
         const a = (i / n) * Math.PI * 2 + Math.random() * 0.2;
         const v = 1.5 + Math.random() * 4.2;
-        sparks.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0, ttl: 60 + Math.random() * 40, hue: hue + Math.random() * 25 - 12, size: 1.6 + Math.random() * 1.8 });
+        sparks.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0, ttl: 60 + Math.random() * 40, hue: hue + Math.random() * 25 - 12, size: 2.2 + Math.random() * 2.2 });
       }
     };
 
@@ -51,7 +51,7 @@ export function Fireworks() {
         s.vx *= 0.985; s.vy = s.vy * 0.985 + 0.07;
         s.x += s.vx; s.y += s.vy;
         const a = 1 - s.life / s.ttl;
-        ctx.fillStyle = `hsla(${s.hue}, 95%, 62%, ${a.toFixed(2)})`;
+        ctx.fillStyle = `hsla(${s.hue}, 100%, 66%, ${a.toFixed(2)})`;
         ctx.beginPath();
         ctx.arc(s.x, s.y, s.size * (0.4 + a * 0.6), 0, Math.PI * 2);
         ctx.fill();
