@@ -11,9 +11,21 @@ const store = {
 
 export function useCameras() {
   const [cameras, setCameras] = useState<Camera[]>([]);
-  const reload = useCallback(() => api<Camera[]>("GET", "/api/cameras").then(setCameras).catch(() => undefined), []);
+  const [loaded, setLoaded] = useState(false);
+  const reload = useCallback(() => api<Camera[]>("GET", "/api/cameras").then((c) => { setCameras(c); setLoaded(true); }).catch(() => undefined), []);
   useEffect(() => { void reload(); }, [reload]);
-  return { cameras, reload };
+  return { cameras, loaded, reload };
+}
+
+/**
+ * Bekommt die rechte Spalte die Kamera? Nur, wenn eine eingerichtet ist (oder die Demo ihr Beispiel zeigt);
+ * sonst gehört der Platz den Bedienfeldern. Bis die Kameraliste geladen ist, gilt der Stand vom letzten Mal,
+ * damit die Seite beim Laden nicht springt.
+ */
+export function useCameraColumn(cameras: Camera[], loaded: boolean, demo?: boolean): boolean {
+  useEffect(() => { if (loaded) store.set("openstellwerk.hadCam", cameras.length > 0 ? "1" : "0"); }, [loaded, cameras.length]);
+  if (demo || cameras.length > 0) return true;
+  return loaded ? false : store.get("openstellwerk.hadCam") === "1";
 }
 
 /** Shows one camera. The server proxies the image so credentials never reach the browser. */
@@ -145,8 +157,18 @@ export function CamerasTab({ cameras, reload, run }: { cameras: Camera[]; reload
   );
 }
 
+/** Beispiel-Kamera im Demo-Modus: eine kurze Schleife (gezeichnete Draufsicht auf den Rundkurs), damit man die Kamera-Seitenleiste sieht. */
+export function DemoCamera() {
+  return (
+    <>
+      <video className="demo-cam" src="/demo-camera.webm" autoPlay muted loop playsInline preload="auto" aria-label="Beispiel-Kamera: gezeichnete Draufsicht auf einen Rundkurs mit zwei fahrenden Zügen" />
+      <p className="hint">Beispiel im Demo-Modus: eine gezeichnete Draufsicht, keine echte Kamera. Mit ⚙ richtest du deine eigene ein.</p>
+    </>
+  );
+}
+
 /** Camera sidebar: always visible next to every tab. */
-export function CameraSidebar({ cameras, onConfigure }: { cameras: Camera[]; onConfigure: () => void }) {
+export function CameraSidebar({ cameras, onConfigure, demo }: { cameras: Camera[]; onConfigure: () => void; demo?: boolean }) {
   const [id, setId] = useState(store.get("openstellwerk.dockCam"));
   const cam = cameras.find((c) => c.id === id) ?? cameras[0];
   return (
@@ -163,7 +185,9 @@ export function CameraSidebar({ cameras, onConfigure }: { cameras: Camera[]; onC
         </div>
         {cam
           ? <CameraView key={`${cam.id}${cam.url}${cam.kind}${cam.refreshMs}`} cam={cam} />
-          : <p className="hint">Noch keine Kamera eingerichtet. Mit ⚙ geht es zur Einrichtung.</p>}
+          : demo
+            ? <DemoCamera />
+            : <p className="hint">Noch keine Kamera eingerichtet. Mit ⚙ geht es zur Einrichtung.</p>}
       </div>
     </aside>
   );
