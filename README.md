@@ -99,8 +99,8 @@ Einstellungen in `/etc/openstellwerk.env` (danach `sudo systemctl restart openst
 
 | Variable | Bedeutung |
 |---|---|
-| `OPENSTELLWERK_UPDATE_TOKEN` | Zugriffstoken der Git-Plattform. Nötig, wenn das Repository nicht öffentlich ist (auf `git.wuelfi.ng` unter Einstellungen → Anwendungen ein Token nur mit Leserecht auf Repositories erzeugen). |
-| `OPENSTELLWERK_UPDATE_URL`, `OPENSTELLWERK_UPDATE_REPO` | Git-Plattform (Forgejo/Gitea) und Repository, Standard `https://git.wuelfi.ng` und `sebastian/openstellwerk` |
+| `OPENSTELLWERK_UPDATE_TOKEN` | Zugriffstoken der Git-Plattform. Nötig, wenn das Repository nicht öffentlich ist. Auf `git.wuelfi.ng` immer, denn die Instanz verlangt auch für öffentliche Repositories eine Anmeldung (dort unter Einstellungen → Anwendungen ein Token nur mit Leserecht auf Repositories erzeugen). |
+| `OPENSTELLWERK_UPDATE_URL`, `OPENSTELLWERK_UPDATE_REPO` | Git-Plattform (Forgejo/Gitea) und Repository, Standard `https://git.wuelfi.ng` und `sebastian/z21-web` (so heißt das Repository dort noch) |
 | `OPENSTELLWERK_UPDATE_CHECK=0` | keine regelmäßige Prüfung (die Seite kann weiter von Hand prüfen) |
 
 **Zurück zur vorherigen Version**, falls die neue nach dem Neustart Ärger macht (über SSH):

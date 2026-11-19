@@ -293,7 +293,7 @@ registerBackupRoutes(app, new BackupService(station.garage, box, cameraStore, tr
 /* ---------- update: new versions from the git platform (issue #1) ---------- */
 const updates = new UpdateService({
   baseUrl: setting("UPDATE_URL") || "https://git.wuelfi.ng",
-  repo: setting("UPDATE_REPO") || "sebastian/openstellwerk",
+  repo: setting("UPDATE_REPO") || "sebastian/z21-web",
   token: setting("UPDATE_TOKEN") || undefined,
   installDir: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.."),
   workDir: path.join(dataDir, "update"),
