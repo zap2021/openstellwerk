@@ -245,6 +245,9 @@ header .version { color: var(--muted); font-size: 13px; }
 .loco-item .thumb { width: 40px; height: 40px; object-fit: cover; border-radius: var(--radius); flex: none; background: var(--surface-2); }
 .loco-picture { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .loco-pic { width: 72px; height: 72px; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface-2); }
+.loco-hero { display: block; width: 100%; aspect-ratio: 16 / 9; max-height: min(36vh, 320px); object-fit: cover; object-position: center 60%; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface-2); margin-bottom: 12px; }
+.fireworks { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 49; }
+.loco-picture .loco-pic { width: 128px; height: 72px; }
 .loco-pic.empty { display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; text-align: center; }
 
 /* ---- Automatik ---- */

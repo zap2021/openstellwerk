@@ -5,6 +5,7 @@ import { AdminView } from "./admin";
 import { SignalsTab } from "./devices";
 import { DriveTab, ModeSelect } from "./drive";
 import { Login, useSession } from "./login";
+import { AchievementBanner } from "./achievements";
 import { DisplayView, LayoutTab } from "./layout";
 import { CameraSidebar, useCameras } from "./camera";
 import { TimetableOperate } from "./timetable";
@@ -45,6 +46,7 @@ function Main({ logout, user, refresh }: { logout?: () => void; user?: SessionUs
 
   return (
     <div className={`shell${admin ? " wide" : ""}`}>
+      <AchievementBanner view={state?.achievements} />
       <div className="app">
         <header>
           <h1>OpenStellwerk</h1>

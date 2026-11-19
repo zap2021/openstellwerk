@@ -236,8 +236,8 @@ function Throttle({ addr, state, run, garage }: { addr: number; state: StationSt
 
   return (
     <div className="panel">
+      {garage?.imageVersion ? <img className="loco-hero" src={imageUrl(addr, garage.imageVersion)} alt={garage.name || `Lok ${addr}`} /> : null}
       <div className="head">
-        {garage?.imageVersion ? <img className="loco-pic" src={imageUrl(addr, garage.imageVersion)} alt="" /> : null}
         <h2>{garage?.name || `Lok ${addr}`}{garage?.name ? <small>Lok {addr}</small> : null}</h2>
       </div>
       <div className="speedo">

@@ -5,6 +5,7 @@ import {
   type Block, type FeedbackRef, type Layout, type Route, type Tile, type TileKind,
 } from "@openstellwerk/protocol/layout";
 import { api, type StationState } from "./api";
+import { AchievementBanner } from "./achievements";
 import { DepartureBoard, formatHMS, useModelTime } from "./timetable";
 import { sure } from "./confirm";
 
@@ -201,6 +202,7 @@ export function DisplayView({ state }: { state?: StationState }) {
   const active = (layout?.routes ?? []).filter((r) => il.has(r.id));
   return (
     <div className="display">
+      <AchievementBanner view={state?.achievements} />
       <header className="display-head">
         {tt ? <ModelClock clock={tt.clock} serverNow={tt.serverNow} /> : <div className="display-clock" title={z ? "Modellbahn-Uhr der Z21" : "Uhrzeit dieses Geräts (keine Modellbahn-Uhr gemeldet)"}>{time}{z && z.rate > 1 ? <small>×{z.rate}</small> : null}</div>}
         <div className="display-routes">
