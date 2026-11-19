@@ -33,6 +33,9 @@ export const ADMIN_GROUPS: { title: string; pages: [AdminPage, string][] }[] = [
   { title: "Diagnose", pages: [["history", "Verlauf"], ["railcom", "RailCom"], ["loconet", "LocoNet"], ["detectors", "Melder"], ["monitor", "Rohdaten"]] },
 ];
 
+/** Selten gebrauchte Gruppen: eingeklappt, solange keine ihrer Seiten offen ist. */
+const COLLAPSIBLE = ["Hardware", "Diagnose"];
+
 /** Pages that start with a heading of their own; the others get the page title from the navigation. */
 const HAS_OWN_HEADING: AdminPage[] = ["station", "update", "history", "layout", "rules", "calibration", "trains", "timetable", "cameras", "backup"];
 
@@ -247,12 +250,23 @@ export function AdminView({ me, state, wire, loconet, clearWire, clearLoconet, c
         {ADMIN_GROUPS.map((g) => {
           const pages = g.pages.filter(([id]) => allowed.includes(id));
           return pages.length === 0 ? null : (
-            <div key={g.title} className="group">
-              <h3>{g.title}</h3>
-              {pages.map(([id, text]) => (
-                <button key={id} className={current === id ? "active" : ""} onClick={() => go({ area: "admin", page: id })}>{text}</button>
-              ))}
-            </div>
+            COLLAPSIBLE.includes(g.title)
+              ? (
+                <details key={g.title} className="group" open={pages.some(([id]) => id === current)}>
+                  <summary><h3>{g.title}</h3></summary>
+                  {pages.map(([id, text]) => (
+                    <button key={id} className={current === id ? "active" : ""} onClick={() => go({ area: "admin", page: id })}>{text}</button>
+                  ))}
+                </details>
+              )
+              : (
+                <div key={g.title} className="group">
+                  <h3>{g.title}</h3>
+                  {pages.map(([id, text]) => (
+                    <button key={id} className={current === id ? "active" : ""} onClick={() => go({ area: "admin", page: id })}>{text}</button>
+                  ))}
+                </div>
+              )
           );
         })}
       </nav>

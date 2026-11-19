@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api, useStation, type LocoNetLine, type SessionUser, type StationState } from "./api";
 import { ProfilePage } from "./profile";
 import { AdminView } from "./admin";
-import { SignalsTab } from "./devices";
+import { SignalsTab, ToStellwerkHint } from "./devices";
 import { DriveTab, ModeSelect } from "./drive";
 import { Login, useSession } from "./login";
 import { AchievementBanner } from "./achievements";
@@ -18,7 +18,7 @@ const put = (url: string, body?: unknown) => api("PUT", url, body);
 
 /** Everyday operation. Everything else is in the administration (admin.tsx). */
 type OperatePage = "drive" | "layout" | "timetable" | "turnouts" | "signals";
-const OPERATE: [OperatePage, string][] = [["drive", "Fahren"], ["layout", "Stellwerk"], ["timetable", "Fahrplan"], ["turnouts", "Weichen"], ["signals", "Signale"]];
+const OPERATE: [OperatePage, string][] = [["drive", "Fahren"], ["layout", "Stellwerk"], ["timetable", "Fahrplan"], ["turnouts", "Weichen (Adresse)"], ["signals", "Signale (Adresse)"]];
 
 /** A Z21 offers everything; a zLink decoder only its signals, a booster nothing to operate. */
 function operatePages(state?: StationState): [OperatePage, string][] {
@@ -74,7 +74,7 @@ function Main({ logout, user, refresh }: { logout?: () => void; user?: SessionUs
             cameras={cameras} reloadCameras={reloadCameras} run={run} page={route.area === "admin" ? route.page : undefined} go={go}
           />
         ) : (
-          <Operate state={state} online={online} run={run} go={go} />
+          <Operate state={state} online={online} run={run} go={go} canAdmin={isAdmin} />
         )}
       </div>
       {!admin && !profile && <CameraSidebar cameras={cameras} onConfigure={() => go({ area: "admin", page: "cameras" })} />}
@@ -82,11 +82,14 @@ function Main({ logout, user, refresh }: { logout?: () => void; user?: SessionUs
   );
 }
 
-function Operate({ state, online, run, go }: { state?: StationState; online: boolean; run: Run; go: (r: Route) => void }) {
+function Operate({ state, online, run, go, canAdmin }: { state?: StationState; online: boolean; run: Run; go: (r: Route) => void; canAdmin: boolean }) {
   const pages = operatePages(state);
   const [tab, setTab] = useState<OperatePage>("drive");
   const current: OperatePage | undefined = pages.some(([id]) => id === tab) ? tab : pages[0]?.[0];
   if (!state || !current) return <NotReady state={state} online={online} run={run} go={go} />;
+  /** Sprung in die Verwaltung; nur für Admins, sonst bleibt der Hinweis reiner Text. */
+  const toAdmin = canAdmin ? (page: string) => go({ area: "admin", page }) : undefined;
+  const toStellwerk = (state.layout?.tiles.length ?? 0) > 0 ? () => setTab("layout") : undefined;
   return (
     <>
       <nav className="operatenav">
@@ -95,10 +98,10 @@ function Operate({ state, online, run, go }: { state?: StationState; online: boo
       <MacroBar state={state} run={run} />
       <main>
         {current === "drive" && <DriveTab state={state} run={run} />}
-        {current === "layout" && <LayoutTab state={state} run={run} />}
-        {current === "timetable" && <TimetableOperate state={state} run={run} />}
-        {current === "turnouts" && <TurnoutsTab state={state} run={run} />}
-        {current === "signals" && <SignalsTab state={state} run={run} />}
+        {current === "layout" && <LayoutTab state={state} run={run} toAdmin={toAdmin} />}
+        {current === "timetable" && <TimetableOperate state={state} run={run} toAdmin={toAdmin} />}
+        {current === "turnouts" && <TurnoutsTab state={state} run={run} toStellwerk={toStellwerk} />}
+        {current === "signals" && <SignalsTab state={state} run={run} toStellwerk={toStellwerk} />}
       </main>
     </>
   );
@@ -160,10 +163,11 @@ function PowerBar({ state, run }: { state: StationState; run: Run }) {
 /** Weichenstand, wie die Zentrale ihn meldet, auf Deutsch. */
 const TURNOUT_POS: Record<string, string> = { unknown: "unbekannt", p0: "Ausgang 1", p1: "Ausgang 2", invalid: "ungültig" };
 
-function TurnoutsTab({ state, run }: { state: StationState; run: Run }) {
+function TurnoutsTab({ state, run, toStellwerk }: { state: StationState; run: Run; toStellwerk?: () => void }) {
   const [addr, setAddr] = useState(1);
   return (
     <section>
+      <ToStellwerkHint go={toStellwerk} />
       <div className="row">
         <label>Weichenadresse <input type="number" min={1} value={addr} onChange={(e) => setAddr(Number(e.target.value))} /></label>
         <button onClick={() => run(post(`/api/turnout/${addr}`, { output: 0 }))}>Ausgang 1 (0)</button>

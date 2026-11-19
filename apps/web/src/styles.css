@@ -15,8 +15,9 @@
   color-scheme: dark;
 }
 :root[data-theme="day"] {
-  --bg: #2f3835; --line: #4a5651; --surface: #3b4642; --surface-2: #46524d;
-  --field: #ccd1c6; --field-2: #bdc3b6; --field-fg: #151816; --field-muted: #4b554f; --field-line: #a5ac9f; --field-key: #dfe3d9;
+  --bg: #e4e7de; --fg: #151816; --muted: #46514b; --line: #b4bbaf; --surface: #f3f5ee; --surface-2: #d9ddd1;
+  --accent: #6d4e00; --danger: #b3141b; --ok: #1b6f33; --warn: #8f4700; --focus: #151816;
+  --field: #f8f9f4; --field-2: #e9ece2; --field-fg: #151816; --field-muted: #46514b; --field-line: #b4bbaf; --field-key: #eceee6;
   --field-accent: #6d4e00; --field-danger: #b3141b; --field-ok: #1b6f33; --field-warn: #8f4700; --track: #151816;
 }
 /* Alles, was ein Tischfeld ist, bringt seine eigenen Farben mit; Inhalte darin nutzen dieselben Variablennamen wie auf dem Pult. */
@@ -315,3 +316,21 @@ button.danger, .big-stop { font-weight: 600; }
   .route.setting, .chip.setting, .tile.wanted .trk, .achievement-banner { animation: none; }
   .route.setting { border-left-style: dashed; } .tile.wanted .trk { stroke-dasharray: 6 5; }
 }
+
+/* UX-Review (Issues #15 bis #20) */
+.locoscan > summary { cursor: pointer; padding: 6px 0; color: var(--muted); font-size: 13px; }
+@media (min-width: 801px) { .locoscan > summary { display: none; } }
+.empty-state { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 8px 0; }
+.empty-state p { margin: 0; }
+.linkish { min-height: 0; padding: 0 2px; border: 0; background: transparent; color: var(--accent); text-decoration: underline; cursor: pointer; font: inherit; }
+.departures .departure { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 2px 10px; align-items: start; }
+.departures .departure .meta strong { overflow-wrap: anywhere; }
+.departures .departure button { min-height: 30px; padding: 2px 8px; font-size: 13px; align-self: center; white-space: nowrap; }
+.adminnav details.group { gap: 4px; }
+.adminnav details.group > summary { cursor: pointer; list-style: none; }
+.adminnav details.group > summary::-webkit-details-marker { display: none; }
+.adminnav details.group > summary h3::before { content: "▸ "; }
+.adminnav details.group[open] > summary h3::before { content: "▾ "; }
+.adminnav details.group:not([open]) { display: block; }
+.adminnav details.group[open] { display: flex; flex-direction: column; }
+@media (max-width: 800px) { .adminnav details.group[open] { flex-direction: row; flex-wrap: wrap; align-items: center; } .adminnav details.group > summary { width: 100%; } }

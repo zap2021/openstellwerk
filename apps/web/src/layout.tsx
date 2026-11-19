@@ -121,8 +121,8 @@ function Diagram({ layout, live, grid, selected, hint, routeSteps, marked, onCel
 }
 
 /** Signal box for everyday use: set routes, switch, look at the diagram. Editing lives in the administration. */
-export function LayoutTab({ state, run }: { state: StationState; run: Run }) {
-  return <Operate layout={state.layout ?? EMPTY_LAYOUT} state={state} run={run} />;
+export function LayoutTab({ state, run, toAdmin }: { state: StationState; run: Run; toAdmin?: (page: string) => void }) {
+  return <Operate layout={state.layout ?? EMPTY_LAYOUT} state={state} run={run} toAdmin={toAdmin} />;
 }
 
 /** Administration page: edit the track diagram, its blocks and routes. `done` leaves the page. */
@@ -133,7 +133,7 @@ export function LayoutEditorPage({ state, run, done }: { state: StationState; ru
 const STATUS: Record<string, string> = { setting: "wird gestellt …", set: "Fahrt frei", running: "befahren", fault: "Störung" };
 
 
-function Operate({ layout, state, run }: { layout: Layout; state: StationState; run: Run }) {
+function Operate({ layout, state, run, toAdmin }: { layout: Layout; state: StationState; run: Run; toAdmin?: (page: string) => void }) {
   const running = state.routeRun?.running ? state.routeRun : undefined;
   const il = new Map((state.interlocking ?? []).map((r) => [r.routeId, r]));
   const click = (_x: number, _y: number, tile?: Tile) => {
@@ -181,7 +181,12 @@ function Operate({ layout, state, run }: { layout: Layout; state: StationState; 
       )}
       {state.routeRun?.error && <div className="error">Fahrstraße abgebrochen: {state.routeRun.error}</div>}
       {layout.tiles.length === 0
-        ? <p>Noch kein Gleisbild vorhanden. Unter Verwaltung → Gleisbild bearbeiten legst du eines an.</p>
+        ? (
+          <div className="empty-state">
+            <p>Noch kein Gleisbild vorhanden. Unter Verwaltung → Gleisbild bearbeiten legst du eines an.</p>
+            {toAdmin && <button className="active" onClick={() => toAdmin("layout")}>Gleisbild bearbeiten</button>}
+          </div>
+        )
         : <Diagram layout={layout} live={state} onCell={click} />}
       <p className="hint">
         Klick auf eine Weiche oder ein Signal schaltet um; Felder in einer eingestellten Fahrstraße sind verriegelt.

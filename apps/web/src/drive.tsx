@@ -114,7 +114,14 @@ export function DriveTab({ state, run }: { state: StationState; run: Run }) {
     if (first && !selected) setSelected(first.address);
   }, [candidates, selected]);
 
-  const select = (a: number) => { setSelected(a); remember(a); };
+  /** Auf dem Handy: Suche eingeklappt, sobald Loks da sind; nach dem Antippen einer Lok zum Fahrpult springen. */
+  const narrow = useNarrow();
+  const [scanToggled, setScanOpen] = useState<boolean>();
+  const scanOpen = scanToggled ?? (candidates.length === 0 || !narrow);
+  const select = (a: number) => {
+    setSelected(a); remember(a);
+    if (narrow) setTimeout(() => document.querySelector(".controls")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  };
   const scan = state.scan;
   const progress = scan ? Math.round(((scan.current - scan.from + (scan.running ? 0 : 1)) / (scan.to - scan.from + 1)) * 100) : 0;
 
@@ -122,6 +129,8 @@ export function DriveTab({ state, run }: { state: StationState; run: Run }) {
     <section className="drive">
       <aside className="panel locos">
         <h2>Loks</h2>
+        <details className="locoscan" open={scanOpen} onToggle={(e) => setScanOpen((e.target as HTMLDetailsElement).open)}>
+          <summary>Suche und Erkennung</summary>
         <div className="row tight">
           <label>Adressen <input type="number" min={1} max={9999} value={range.from} onChange={(e) => setRange({ ...range, from: Number(e.target.value) })} /></label>
           <label>bis <input type="number" min={1} max={9999} value={range.to} onChange={(e) => setRange({ ...range, to: Number(e.target.value) })} /></label>
@@ -151,6 +160,7 @@ export function DriveTab({ state, run }: { state: StationState; run: Run }) {
         <details>
           <summary>Wie funktioniert die Lok-Erkennung?</summary>
           <p className="hint">Gefunden wird, was die Zentrale kennt (Handregler, Apps, Lichter an) und was per RailCom oder Melder auf dem Gleis gemeldet wird. Eine stehende, unbenutzte Lok ohne RailCom lässt sich nicht erkennen – dann Adresse unten eintragen oder vom Programmiergleis lesen.</p>
+        </details>
         </details>
 
         <ul className="loco-list">
@@ -213,6 +223,19 @@ export function DriveTab({ state, run }: { state: StationState; run: Run }) {
       )}
     </section>
   );
+}
+
+/** Schmaler Bildschirm (Handy, kleines Tablet hochkant)? */
+function useNarrow(query = "(max-width: 800px)"): boolean {
+  const [narrow, setNarrow] = useState(() => (typeof window !== "undefined" && window.matchMedia?.(query).matches) || false);
+  useEffect(() => {
+    const mq = window.matchMedia?.(query);
+    if (!mq) return;
+    const on = () => setNarrow(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, [query]);
+  return narrow;
 }
 
 function Throttle({ addr, state, run, garage }: { addr: number; state: StationState; run: Run; garage?: GarageLoco }) {

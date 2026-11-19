@@ -238,7 +238,7 @@ export function useTrips(everyMs?: number): Trip[] {
 }
 
 /** Operation: model clock, the next departures with "cancel", and where the trains stand. */
-export function TimetableOperate({ state, run }: { state: StationState; run: Run }) {
+export function TimetableOperate({ state, run, toAdmin }: { state: StationState; run: Run; toAdmin?: (page: string) => void }) {
   const tt = state.timetable;
   const clock = tt?.clock ?? { running: false, factor: 1, baseModel: 0, baseReal: 0 };
   const model = useModelTime(clock, tt?.serverNow);
@@ -282,8 +282,13 @@ export function TimetableOperate({ state, run }: { state: StationState; run: Run
         </div>
         {error && <p className="hint warn">{error}</p>}
         <h2>Nächste Abfahrten</h2>
-        {rows.length === 0 && <p className="hint">Keine Abfahrten geplant.</p>}
-        <ul className="loco-list">
+        {rows.length === 0 && (
+          <div className="empty-state">
+            <p className="hint">Keine Abfahrten geplant.</p>
+            {toAdmin && <button onClick={() => toAdmin("timetable")}>Fahrplan anlegen</button>}
+          </div>
+        )}
+        <ul className="loco-list departures">
           {rows.map((r) => (
             <li key={r.key} className="departure">
               <span className="addr">{r.time}</span>
@@ -301,7 +306,12 @@ export function TimetableOperate({ state, run }: { state: StationState; run: Run
       <JourneyPanel state={state} run={run} />
       <div className="panel">
         <h2>Standorte der Züge</h2>
-        {tt.trains.length === 0 && <p className="hint">Noch keine Züge angelegt.</p>}
+        {tt.trains.length === 0 && (
+          <div className="empty-state">
+            <p className="hint">Noch keine Züge angelegt.</p>
+            {toAdmin && <button onClick={() => toAdmin("trains")}>Züge anlegen</button>}
+          </div>
+        )}
         <ul className="loco-list">
           {tt.trains.map((t) => (
             <li key={t.id} className="departure">
