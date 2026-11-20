@@ -12,7 +12,6 @@ import { TimetableOperate } from "./timetable";
 import { useRoute, type Route } from "./route";
 import { FullscreenButton, MacroBar, NightButton } from "./system";
 import { ReportButton } from "./feedback";
-import { logUsage, startUsageLog } from "./usage-log";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
 const post = (url: string, body?: unknown) => api("POST", url, body);
@@ -39,8 +38,7 @@ function Main({ logout, user, refresh }: { logout?: () => void; user?: SessionUs
   const [error, setError] = useState<string>();
   const [version, setVersion] = useState<string>();
   useEffect(() => { if (online) api<{ version: string }>("GET", "/api/version").then((v) => setVersion(v.version), () => {}); }, [online]);
-  const run: Run = async (p) => { try { setError(undefined); await p; } catch (e) { logUsage("fehler", (e as Error).message); setError((e as Error).message); } };
-  useEffect(() => startUsageLog(), []);
+  const run: Run = async (p) => { try { setError(undefined); await p; } catch (e) { setError((e as Error).message); } };
 
   const connected = !!state?.connected;
   const kind = state?.hw?.kind;
@@ -64,8 +62,8 @@ function Main({ logout, user, refresh }: { logout?: () => void; user?: SessionUs
             {isAdmin && <button role="tab" aria-selected={admin} className={admin ? "active" : ""} onClick={() => go({ area: "admin" })}>Verwaltung</button>}
           </div>
           {connected && kind !== "decoder" && state && <PowerBar state={state} run={run} />}
-          {user && <button className={profile ? "active" : ""} onClick={() => go({ area: "profile" })} title="Profil und Erfolge" data-private>{user.displayName}{user.role === "admin" ? " (Admin)" : ""}</button>}
-          <ReportButton state={state} version={version} by={user?.displayName} />
+          {user && <button className={profile ? "active" : ""} onClick={() => go({ area: "profile" })} title="Profil und Erfolge">{user.displayName}{user.role === "admin" ? " (Admin)" : ""}</button>}
+          <ReportButton by={user?.displayName} />
           <NightButton />
           <FullscreenButton />
           {logout && <button onClick={logout} title="Abmelden">Abmelden</button>}
