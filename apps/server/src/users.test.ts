@@ -100,7 +100,7 @@ describe("UserStore", () => {
 describe("requiredRole", () => {
   it("lets users drive and look, keeps administration for admins, and defaults to admin", () => {
     for (const [m, u] of [["GET", "/api/state"], ["POST", "/api/loco/3/drive"], ["POST", "/api/loco/3/function/2"], ["POST", "/api/estop"],
-      ["POST", "/api/turnout/5"], ["POST", "/api/interlocking/r1/request"], ["PUT", "/api/garage/3/image"], ["GET", "/ws"], ["GET", "/api/achievements/me"], ["POST", "/api/me/password"]] as const) {
+      ["POST", "/api/turnout/5"], ["POST", "/api/interlocking/r1/request"], ["PUT", "/api/garage/3/image"], ["GET", "/ws"], ["GET", "/api/achievements/me"], ["POST", "/api/me/password"], ["POST", "/api/feedback"], ["GET", "/api/feedback"]] as const) {
       expect(requiredRole(m, u), `${m} ${u}`).toBe("user");
     }
     for (const [m, u] of [["PUT", "/api/layout"], ["GET", "/api/backup"], ["POST", "/api/backup/restore"], ["GET", "/api/users"], ["PUT", "/api/pom/3/5"],

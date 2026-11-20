@@ -6,7 +6,7 @@ import type { Role } from "./users.js";
  * Fahren, Schalten, Fahrstraßen, Nothalt, Ansehen und das eigene Profil dürfen alle Angemeldeten.
  */
 const USER_ROUTES: [method: string, pattern: RegExp][] = [
-  ["GET", /^\/api\/(state|version|me|loco\/\d+|loco\/\d+\/mode|turnout\/\d+|turnout\/\d+\/mode|accessory\/\d+|layout|interlocking|timetable|trains|cameras|camera\/[^/]+\/feed|achievements|achievements\/me|garage\/\d+\/image|locos\/\d+\/automations|journeys|history)$/],
+  ["GET", /^\/api\/(state|version|feedback|me|loco\/\d+|loco\/\d+\/mode|turnout\/\d+|turnout\/\d+\/mode|accessory\/\d+|layout|interlocking|timetable|trains|cameras|camera\/[^/]+\/feed|achievements|achievements\/me|garage\/\d+\/image|locos\/\d+\/automations|journeys|history)$/],
   ["GET", /^\/ws$/],
   ["POST", /^\/api\/(estop|accessory-estop|power|turnout\/\d+|accessory\/\d+)$/],
   ["POST", /^\/api\/loco\/\d+\/(drive|stop|estop|function\/\d+|function-group|binary-state)$/],
@@ -19,6 +19,7 @@ const USER_ROUTES: [method: string, pattern: RegExp][] = [
   ["DELETE", /^\/api\/garage\/\d+\/image$/],
   ["PUT", /^\/api\/me$/],
   ["POST", /^\/api\/me\/password$/],
+  ["POST", /^\/api\/feedback$/],
 ];
 
 export function requiredRole(method: string, url: string): Role {

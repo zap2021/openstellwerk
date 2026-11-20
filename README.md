@@ -99,7 +99,7 @@ Einstellungen in `/etc/openstellwerk.env` (danach `sudo systemctl restart openst
 
 | Variable | Bedeutung |
 |---|---|
-| `OPENSTELLWERK_UPDATE_TOKEN` | Zugriffstoken der Git-Plattform. Nötig, wenn das Repository nicht öffentlich ist. Auf `git.wuelfi.ng` immer, denn die Instanz verlangt auch für öffentliche Repositories eine Anmeldung (dort unter Einstellungen → Anwendungen ein Token nur mit Leserecht auf Repositories erzeugen). |
+| `OPENSTELLWERK_UPDATE_TOKEN` | Zugriffstoken der Git-Plattform. Nötig, wenn das Repository nicht öffentlich ist. Auf `git.wuelfi.ng` immer, denn die Instanz verlangt auch für öffentliche Repositories eine Anmeldung (dort unter Einstellungen → Anwendungen ein Token erzeugen: Repository „Lesen“ reicht für das Update; für den Knopf „Problem melden“ zusätzlich Issue „Lesen und Schreiben“). |
 | `OPENSTELLWERK_UPDATE_URL`, `OPENSTELLWERK_UPDATE_REPO` | Git-Plattform (Forgejo/Gitea) und Repository, Standard `https://git.wuelfi.ng` und `sebastian/z21-web` (so heißt das Repository dort noch) |
 | `OPENSTELLWERK_UPDATE_CHECK=0` | keine regelmäßige Prüfung (die Seite kann weiter von Hand prüfen) |
 
@@ -194,6 +194,8 @@ Die Sicherung braucht Belegtmelder. Ohne sie lassen sich Fahrstraßen nicht eins
 
   Gibt es schon ein anderes Gleisbild, fragt die Oberfläche, ob das Beispiel es ersetzen soll. Züge und Fahrplan des Beispiels kommen nur in einen leeren Fahrplan.
 - **Automatik (Stufe 2), Lok fährt selbst:** Bei einer Fahrt stellst du unter „Lok fahren“ ein, ob der Server die Lok vorwärts oder rückwärts fährt. Er fährt erst an, wenn die Sicherung die Fahrstraße gestellt hat, bremst beim Einfahren in den Zielblock auf Kriechfahrt und hält dort an. Ein Pendelzug sind zwei Fahrten im Takt mit entgegengesetzter Richtung.
+
+**Problem melden.** In der Kopfzeile jeder Seite öffnet „Problem melden“ einen Dialog: Fehler oder Wunsch, Titel, Beschreibung. Dazu kommen auf Wunsch Nutzungsinformationen: Seite und Version, Browser und Bildschirm, Zentralentyp und Firmware (ohne Adresse) und ein Verlauf der letzten Schritte (Seitenwechsel, Beschriftungen angeklickter Knöpfe, Fehlermeldungen). Der Verlauf liegt nur im Browser (sessionStorage); Eingaben und Passwörter werden nie erfasst, IP-Adressen und lange Nummern unkenntlich gemacht. Die Vorschau zeigt genau den Text, der gesendet wird; jede Angabe lässt sich abwählen. „Senden“ legt über den Server ein Issue im Update-Repository an (gleiches Token, höchstens eine Meldung je 20 s und Person; Label `bug` oder `enhancement`, wenn es existiert). Ohne Token oder ohne Schreibrecht erklärt der Dialog das, und „Text kopieren“ bleibt möglich.
 
 ### Selbst fahren: Fahrautomat, Zielfahrt, Einmessen
 
