@@ -343,3 +343,14 @@ button.danger, .big-stop { font-weight: 600; }
   .shell.nocam .controls:has(> .panel ~ .panel) > .subnav { grid-column: 1 / -1; }
   .shell.nocam .controls:has(> .panel ~ .panel) > .panel { margin-top: 0; }
 }
+
+/* iOS/iPadOS 26: Home-Screen-Web-Apps blenden unter der Statusleiste einen Liquid-Glass-Blur über den Seitenanfang.
+   WebKit nimmt den Blur zurück, wenn am oberen Rand ein fester, deckender Streifen über (mindestens) 90 % der Breite
+   und mehr als 10 px Höhe liegt; seine Farbe wird dann für die Statusleiste übernommen. Der Streifen ist unsichtbar
+   (background-clip: text ohne Text), nur im Standalone-Modus und nur unter iOS. */
+.ios-status-bar-band { display: none; }
+@media (display-mode: standalone) {
+  @supports (-webkit-touch-callout: none) {
+    .ios-status-bar-band { display: block; position: fixed; inset: 0 0 auto; height: 12px; background-color: var(--bg); background-clip: text; -webkit-background-clip: text; z-index: 2147483647; pointer-events: none; }
+  }
+}
