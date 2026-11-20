@@ -88,6 +88,9 @@ export interface CanDetectorState {
 export interface StationState {
   connected: boolean;
   host?: string;
+  /** zuletzt erfolgreich verbundene Zentrale; bleibt über einen Neustart erhalten */
+  lastHost?: string;
+  lastPort?: number;
   hw?: { hwName: string; fwVersion: string; hwType: number; kind: DeviceKind };
   serial?: number;
   /** from LAN_X_GET_FIRMWARE_VERSION */

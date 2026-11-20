@@ -28,6 +28,9 @@ export type DecoderState =
 export interface StationState {
   connected: boolean;
   host?: string;
+  /** zuletzt erfolgreich verbundene Zentrale; bleibt über einen Neustart erhalten */
+  lastHost?: string;
+  lastPort?: number;
   hw?: { hwName: string; fwVersion: string; hwType: number; kind: "z21" | "booster" | "decoder" };
   serial?: number;
   firmwareVersion?: string;
