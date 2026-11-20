@@ -2,23 +2,23 @@
    Zustände leuchten wie am Gleisbildstellwerk: gelb = gestellt/gewählt, rot = belegt/Störung, grün nur für Signal „Fahrt“ und Gleisspannung.
    Nachtschaltung ist der Standard (dunkle Felder für den abgedunkelten Anlagenraum); data-theme="day" am <html> schaltet helle Felder ein. */
 :root {
-  --lit: #ffc400; --lamp-red: #e3262d; --lamp-green: #2fa84f; --slot: #151816; --slot-ink: #f1f3ec;
+  --lit: #ffb81c; --lamp-red: #e3262d; --lamp-green: #2fa84f; --slot: #0a1016; --slot-ink: #f0f4f7;
   /* Pult */
-  --bg: #111514; --fg: #e4e8df; --muted: #96a199; --line: #343d39;
-  --surface: #252d2a; --surface-2: #2e3733;
+  --bg: #0d151c; --fg: #e3eaf0; --muted: #8fa1b0; --line: #2b3a47;
+  --surface: #25333f; --surface-2: #2c3b48;
   --accent: var(--lit); --danger: #ff5a52; --ok: #4cc77a; --warn: #ff9a1f; --focus: var(--lit);
   /* Tischfeld bei Nacht */
-  --field: #1e2522; --field-2: #283029; --field-fg: #e2e6dd; --field-muted: #8f9a92; --field-line: #353f3a; --field-key: #2b3430;
-  --field-accent: var(--lit); --field-danger: #ff5a52; --field-ok: #4cc77a; --field-warn: #ff9a1f; --track: #c9cfc5;
+  --field: #162330; --field-2: #1d2d3b; --field-fg: #e3eaf0; --field-muted: #8fa1b0; --field-line: #2b3a47; --field-key: #25333f;
+  --field-accent: var(--lit); --field-danger: #ff5a52; --field-ok: #4cc77a; --field-warn: #ff9a1f; --track: #c4d0da;
   --radius: 3px; --touch: 40px;
   --text: "Barlow", system-ui, sans-serif; --narrow: "Barlow Condensed", "Barlow", system-ui, sans-serif;
   color-scheme: dark;
 }
 :root[data-theme="day"] {
-  --bg: #e4e7de; --fg: #151816; --muted: #46514b; --line: #b4bbaf; --surface: #f3f5ee; --surface-2: #d9ddd1;
-  --accent: #6d4e00; --danger: #b3141b; --ok: #1b6f33; --warn: #8f4700; --focus: #151816;
-  --field: #f8f9f4; --field-2: #e9ece2; --field-fg: #151816; --field-muted: #46514b; --field-line: #b4bbaf; --field-key: #eceee6;
-  --field-accent: #6d4e00; --field-danger: #b3141b; --field-ok: #1b6f33; --field-warn: #8f4700; --track: #151816;
+  --bg: #dfe6ec; --fg: #0f1a24; --muted: #43566a; --line: #aab8c5; --surface: #e8eef3; --surface-2: #dbe4eb;
+  --accent: #6d4e00; --danger: #b3141b; --ok: #1b6f33; --warn: #8f4700; --focus: #0f1a24;
+  --field: #f5f8fa; --field-2: #dbe4eb; --field-fg: #0f1a24; --field-muted: #43566a; --field-line: #aab8c5; --field-key: #e8eef3;
+  --field-accent: #6d4e00; --field-danger: #b3141b; --field-ok: #1b6f33; --field-warn: #8f4700; --track: #0f1a24; --slot: #46596a;
 }
 /* Alles, was ein Tischfeld ist, bringt seine eigenen Farben mit; Inhalte darin nutzen dieselben Variablennamen wie auf dem Pult. */
 .panel, .card, .diagram, .route, .release-notes, .achievement-banner, .login {
@@ -71,6 +71,9 @@ input.invalid { border-color: var(--danger); }
 td .cell { flex-direction: row; padding: 1px 10px; }
 details { margin-top: 12px; } summary { cursor: pointer; }
 button:disabled { opacity: .5; cursor: not-allowed; }
+/* Hauptaktion: dunkle Taste mit Leuchtstreifen; ohne Eingaben flach, damit sie nicht wie eine gewählte Taste aussieht. */
+button.cta { background: var(--slot); border-color: var(--slot); color: var(--slot-ink); font-weight: 600; box-shadow: inset 0 -4px 0 var(--lit); }
+button.cta:disabled { background: var(--surface); border-color: var(--line); color: var(--muted); box-shadow: none; }
 .card { border-radius: var(--radius); padding: 8px 14px; margin: 6px 0; }
 .rmbus { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; margin-top: 8px; }
 .rmbus .module { margin: 0; border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 10px; }
@@ -143,7 +146,8 @@ header .push { margin-left: auto; }
 /* ---- Stellwerk ---- */
 .grow { flex: 1; margin: 0; }
 .diagram { overflow: auto; border-radius: var(--radius); padding: 6px; max-width: 100%; }
-.diagram svg { display: block; touch-action: manipulation; }
+/* Das Gleisbild füllt die Breite bis anderthalbfach, kleiner als seine Rastergröße wird es nicht (dann scrollt das Feld). */
+.diagram svg { display: block; touch-action: manipulation; width: 100%; height: auto; min-width: var(--natural, 0px); max-width: calc(var(--natural, 100%) * 1.5); }
 .gridline { fill: none; stroke: var(--line); stroke-width: 1; }
 .trk { fill: none; stroke: var(--track); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
 .trk.idle { stroke: var(--muted); stroke-width: 3; opacity: .45; }
@@ -155,8 +159,8 @@ header .push { margin-left: auto; }
 .tile.wanted .trk { stroke: var(--lit); animation: melder 1s steps(1) infinite; }
 .mast { stroke: var(--muted); stroke-width: 2; }
 .lamp { stroke: var(--bg); stroke-width: 1.5; } .lamp.stop { fill: var(--lamp-red); } .lamp.go { fill: var(--lamp-green); } .lamp.unknown { fill: var(--muted); }
-.lbl { fill: var(--muted); font-size: 9px; text-anchor: middle; pointer-events: none; } .lbl.big { fill: var(--fg); font-size: 13px; } .lbl.sig { text-anchor: start; }
-.adr { fill: var(--warn); font-size: 9px; pointer-events: none; } .fb { fill: var(--ok); }
+.lbl { fill: var(--muted); font-size: 12px; text-anchor: middle; pointer-events: none; } .lbl.big { fill: var(--fg); font-size: 16px; } .lbl.sig { text-anchor: start; }
+.adr { fill: var(--warn); font-size: 11px; pointer-events: none; } .fb { fill: var(--ok); }
 .sel { fill: color-mix(in srgb, var(--accent) 15%, transparent); stroke: var(--accent); stroke-width: 1.5; }
 .palette .pal { padding: 2px 4px; line-height: 0; } .palette .pal.active .trk { stroke: var(--slot-ink); } .palette .pal.active .lbl { fill: var(--slot-ink); }
 .editor { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; align-items: start; }
@@ -187,7 +191,7 @@ li.open .form.wide { flex-basis: 100%; }
 .chip.fault { box-shadow: inset 0 -4px 0 var(--lamp-red); } .chip.fault { color: var(--danger); border-color: var(--danger); }
 .muted { color: var(--muted); }
 .display .diagram { border: 0; background: var(--surface); padding: 14px; border-radius: var(--radius); }
-.display .diagram svg { width: 100%; height: auto; pointer-events: none; }
+.display .diagram svg { width: 100%; height: auto; max-width: none; min-width: 0; pointer-events: none; }
 
 /* ---- Demo-Modus ---- */
 .demo-badge { padding: 2px 10px; border-radius: var(--radius); background: var(--lit); color: var(--slot); font-weight: 600; font-size: 13px; }
@@ -203,7 +207,18 @@ fieldset.between { border: 1px solid var(--line); border-radius: var(--radius); 
 .areas { display: inline-flex; margin-left: 12px; padding: 3px; gap: 3px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 .areas button { border: 0; border-radius: var(--radius); padding: 4px 18px; background: transparent; }
 .areas button.active { background: var(--slot); color: var(--slot-ink); }
-header .power { margin-left: auto; }
+header .power { order: 2; margin-left: auto; }
+header .tools { display: flex; gap: 6px; }
+header .status { min-width: 0; }
+@media (max-width: 600px) {
+  /* Handy: Name und Zustand in einer Zeile, darunter Bereiche mit den Werkzeugen, zuletzt die Zentrale. Die Statusschrift entfällt, der Punkt zeigt den Zustand. */
+  header { gap: 8px; padding: 10px 0; }
+  header .status { display: none; }
+  header .areas { margin-left: 0; }
+  header .power { flex: 1 1 100%; margin-left: 0; }
+  header .power .pill { margin-right: auto; }
+  header .tools { margin-left: auto; }
+}
 header .status { color: var(--muted); }
 header .version { color: var(--muted); font-size: 13px; }
 .operatenav { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0; }
@@ -311,7 +326,7 @@ button.danger, .big-stop { font-weight: 600; }
 @media (max-width: 600px) {
   /* Nothalt bleibt in Daumenreichweite */
   .estop { position: fixed; left: 12px; right: 12px; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 40; min-height: 52px; font-size: 18px; box-shadow: 0 0 0 4px var(--bg); }
-  .app:has(.estop) { padding-bottom: 96px; }
+  .shell:has(.estop) { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
 }
 @media (prefers-reduced-motion: reduce) {
   .route.setting, .chip.setting, .tile.wanted .trk, .achievement-banner { animation: none; }

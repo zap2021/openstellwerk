@@ -97,7 +97,7 @@ function Diagram({ layout, live, grid, selected, hint, routeSteps, marked, onCel
   };
   return (
     <div className="diagram">
-      <svg ref={ref} width={layout.cols * S} height={layout.rows * S} viewBox={`0 0 ${layout.cols * S} ${layout.rows * S}`} onClick={click}>
+      <svg ref={ref} width={layout.cols * S} height={layout.rows * S} style={{ "--natural": `${layout.cols * S}px` } as React.CSSProperties} viewBox={`0 0 ${layout.cols * S} ${layout.rows * S}`} onClick={click}>
         {grid && (
           <>
             <defs><pattern id="grid" width={S} height={S} patternUnits="userSpaceOnUse"><path className="gridline" d={`M${S} 0 L0 0 0 ${S}`} /></pattern></defs>
