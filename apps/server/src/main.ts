@@ -21,6 +21,7 @@ import { CameraStore, registerCameraRoutes } from "./cameras.js";
 import { discover } from "./z21-client.js";
 import { setting } from "./env.js";
 import { exposureProblem, registerAuth, requestPath } from "./auth.js";
+import { ConnectionMemory } from "./connection-memory.js";
 import { bool } from "./validate.js";
 import { UserStore } from "./users.js";
 import { registerLayoutRoutes, SignalBox } from "./layout.js";
@@ -38,6 +39,7 @@ const HOST = process.env.HOST ?? "127.0.0.1"; // local unless explicitly opened 
 const PASSWORD = setting("PASSWORD") || undefined;
 
 const dataDir = process.env.DATA_DIR ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../data");
+const connectionMemory = new ConnectionMemory(path.join(dataDir, "connection.json"));
 
 /* Benutzer: ohne users.json und mit OPENSTELLWERK_PASSWORD entsteht beim ersten Start ein Admin "admin" mit diesem Passwort. */
 const users = new UserStore(path.join(dataDir, "users.json"));
@@ -92,6 +94,7 @@ app.get("/api/discover", async () => discover());
 app.post<{ Body: { host: string; port?: number } }>("/api/connect", async (req) => {
   await demo.stop(); // a real connection replaces the demo
   await station.connect(String(req.body.host), req.body.port);
+  connectionMemory.remember(String(req.body.host), req.body.port); // nach einem Neustart wieder vorbelegen
   return station.snapshot();
 });
 app.post("/api/disconnect", async () => { await demo.stop(); station.client.disconnect(); return station.snapshot(); });
@@ -196,7 +199,7 @@ box.onEnded((e) => history.add("fahrstrasse", `„${routeName(e.routeId)}“: ${
 const automationStore = new AutomationStore(path.join(dataDir, "automations.json"));
 const automations = new AutomationEngine(automationStore, (a, fn, act) => station.setFunction(a, fn, act));
 const achievements = new AchievementStore(path.join(dataDir, "achievements.json"), () => station.notify(), (id) => users.get(id)?.displayName);
-station.addExtra(() => ({ achievements: achievements.view() }));
+station.addExtra(() => ({ achievements: achievements.view(), lastHost: connectionMemory.get()?.host, lastPort: connectionMemory.get()?.port }));
 registerAchievementRoutes(app, achievements);
 station.on("locoChange", (prev, next) => { automations.onLoco(prev, next); achievements.onLocoEvents(detectEvents(prev, next), achievements.actorOf(next.address)); });
 station.on("locosReset", () => automations.cancelPending());

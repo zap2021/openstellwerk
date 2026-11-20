@@ -51,7 +51,9 @@ export function adminPages(state?: StationState): AdminPage[] {
 }
 
 function StationTab({ state, run }: { state?: StationState; run: Run }) {
-  const [host, setHost] = useState("192.168.0.111");
+  // Adresse der Zentrale: was getippt wurde, sonst die laufende oder zuletzt verbundene, sonst ein Beispiel
+  const [typed, setHost] = useState<string>();
+  const host = typed ?? (state?.connected && !state.demo ? state.host : undefined) ?? state?.lastHost ?? "192.168.0.111";
   const [found, setFound] = useState<{ host: string; serial: number }[]>();
   const [example, setExample] = useState<"bahnhof" | "rundkurs">("bahnhof");
   const startDemo = () => {
