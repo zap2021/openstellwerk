@@ -63,7 +63,7 @@ export function JourneyPanel({ state, run }: { state: StationState; run: Run }) 
       {train?.location?.uncertain && <p className="hint warn">Der Standort dieses Zugs ist unsicher. Bestätige ihn unten unter „Standorte der Züge“.</p>}
       {error && <p className="hint warn">{error}</p>}
       <div className="row tight">
-        <button className="active" disabled={!trainId || !target} onClick={() => void change(api("POST", "/api/journeys", { trainId, targetBlockId: target, drive: drive || undefined }))}>Fahrt starten</button>
+        <button className="cta" disabled={!trainId || !target} onClick={() => void change(api("POST", "/api/journeys", { trainId, targetBlockId: target, drive: drive || undefined }))}>Fahrt starten</button>
       </div>
       {journeys.length > 0 && (
         <ul className="loco-list">

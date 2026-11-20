@@ -71,6 +71,9 @@ input.invalid { border-color: var(--danger); }
 td .cell { flex-direction: row; padding: 1px 10px; }
 details { margin-top: 12px; } summary { cursor: pointer; }
 button:disabled { opacity: .5; cursor: not-allowed; }
+/* Hauptaktion: dunkle Taste mit Leuchtstreifen; ohne Eingaben flach, damit sie nicht wie eine gewählte Taste aussieht. */
+button.cta { background: var(--slot); border-color: var(--slot); color: var(--slot-ink); font-weight: 600; box-shadow: inset 0 -4px 0 var(--lit); }
+button.cta:disabled { background: var(--surface); border-color: var(--line); color: var(--muted); box-shadow: none; }
 .card { border-radius: var(--radius); padding: 8px 14px; margin: 6px 0; }
 .rmbus { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; margin-top: 8px; }
 .rmbus .module { margin: 0; border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 10px; }
@@ -143,7 +146,8 @@ header .push { margin-left: auto; }
 /* ---- Stellwerk ---- */
 .grow { flex: 1; margin: 0; }
 .diagram { overflow: auto; border-radius: var(--radius); padding: 6px; max-width: 100%; }
-.diagram svg { display: block; touch-action: manipulation; }
+/* Das Gleisbild füllt die Breite bis anderthalbfach, kleiner als seine Rastergröße wird es nicht (dann scrollt das Feld). */
+.diagram svg { display: block; touch-action: manipulation; width: 100%; height: auto; min-width: var(--natural, 0px); max-width: calc(var(--natural, 100%) * 1.5); }
 .gridline { fill: none; stroke: var(--line); stroke-width: 1; }
 .trk { fill: none; stroke: var(--track); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
 .trk.idle { stroke: var(--muted); stroke-width: 3; opacity: .45; }
@@ -155,8 +159,8 @@ header .push { margin-left: auto; }
 .tile.wanted .trk { stroke: var(--lit); animation: melder 1s steps(1) infinite; }
 .mast { stroke: var(--muted); stroke-width: 2; }
 .lamp { stroke: var(--bg); stroke-width: 1.5; } .lamp.stop { fill: var(--lamp-red); } .lamp.go { fill: var(--lamp-green); } .lamp.unknown { fill: var(--muted); }
-.lbl { fill: var(--muted); font-size: 9px; text-anchor: middle; pointer-events: none; } .lbl.big { fill: var(--fg); font-size: 13px; } .lbl.sig { text-anchor: start; }
-.adr { fill: var(--warn); font-size: 9px; pointer-events: none; } .fb { fill: var(--ok); }
+.lbl { fill: var(--muted); font-size: 12px; text-anchor: middle; pointer-events: none; } .lbl.big { fill: var(--fg); font-size: 16px; } .lbl.sig { text-anchor: start; }
+.adr { fill: var(--warn); font-size: 11px; pointer-events: none; } .fb { fill: var(--ok); }
 .sel { fill: color-mix(in srgb, var(--accent) 15%, transparent); stroke: var(--accent); stroke-width: 1.5; }
 .palette .pal { padding: 2px 4px; line-height: 0; } .palette .pal.active .trk { stroke: var(--slot-ink); } .palette .pal.active .lbl { fill: var(--slot-ink); }
 .editor { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; align-items: start; }
@@ -187,7 +191,7 @@ li.open .form.wide { flex-basis: 100%; }
 .chip.fault { box-shadow: inset 0 -4px 0 var(--lamp-red); } .chip.fault { color: var(--danger); border-color: var(--danger); }
 .muted { color: var(--muted); }
 .display .diagram { border: 0; background: var(--surface); padding: 14px; border-radius: var(--radius); }
-.display .diagram svg { width: 100%; height: auto; pointer-events: none; }
+.display .diagram svg { width: 100%; height: auto; max-width: none; min-width: 0; pointer-events: none; }
 
 /* ---- Demo-Modus ---- */
 .demo-badge { padding: 2px 10px; border-radius: var(--radius); background: var(--lit); color: var(--slot); font-weight: 600; font-size: 13px; }
@@ -203,7 +207,18 @@ fieldset.between { border: 1px solid var(--line); border-radius: var(--radius); 
 .areas { display: inline-flex; margin-left: 12px; padding: 3px; gap: 3px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 .areas button { border: 0; border-radius: var(--radius); padding: 4px 18px; background: transparent; }
 .areas button.active { background: var(--slot); color: var(--slot-ink); }
-header .power { margin-left: auto; }
+header .power { order: 2; margin-left: auto; }
+header .tools { display: flex; gap: 6px; }
+header .status { min-width: 0; }
+@media (max-width: 600px) {
+  /* Handy: Name und Zustand in einer Zeile, darunter Bereiche mit den Werkzeugen, zuletzt die Zentrale. Die Statusschrift entfällt, der Punkt zeigt den Zustand. */
+  header { gap: 8px; padding: 10px 0; }
+  header .status { display: none; }
+  header .areas { margin-left: 0; }
+  header .power { flex: 1 1 100%; margin-left: 0; }
+  header .power .pill { margin-right: auto; }
+  header .tools { margin-left: auto; }
+}
 header .status { color: var(--muted); }
 header .version { color: var(--muted); font-size: 13px; }
 .operatenav { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0; }
@@ -311,7 +326,7 @@ button.danger, .big-stop { font-weight: 600; }
 @media (max-width: 600px) {
   /* Nothalt bleibt in Daumenreichweite */
   .estop { position: fixed; left: 12px; right: 12px; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 40; min-height: 52px; font-size: 18px; box-shadow: 0 0 0 4px var(--bg); }
-  .app:has(.estop) { padding-bottom: 96px; }
+  .shell:has(.estop) { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
 }
 @media (prefers-reduced-motion: reduce) {
   .route.setting, .chip.setting, .tile.wanted .trk, .achievement-banner { animation: none; }

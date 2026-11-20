@@ -54,7 +54,7 @@ function Main({ logout, user, refresh }: { logout?: () => void; user?: SessionUs
           <h1>OpenStellwerk</h1>
           {version && <small className="version" title="Installierte Version">v{version}</small>}
           {isAdmin && state?.update?.available && <button className="update-badge" onClick={() => go({ area: "admin", page: "update" })} title="Zur Update-Seite">Update v{state.update.latest}</button>}
-          <span className={`dot ${connected ? "ok" : online ? "warn" : "bad"}`} />
+          <span className={`dot ${connected ? "ok" : online ? "warn" : "bad"}`} title={state?.demo ? "Simulierte Zentrale" : connected ? "Mit Zentrale verbunden" : online ? "Nicht mit Zentrale verbunden" : "Server offline"} />
           {state?.demo && <span className="demo-badge" title="Simulierte Zentrale ohne Hardware">Demo</span>}
           <span className="status">{state?.demo ? "Simulierte Zentrale" : connected ? `${state?.hw?.hwName ?? "Z21"}, ${state?.host}` : online ? "nicht mit Zentrale verbunden" : "Server offline"}</span>
           <div className="areas" role="tablist" aria-label="Bereich">
@@ -63,9 +63,11 @@ function Main({ logout, user, refresh }: { logout?: () => void; user?: SessionUs
           </div>
           {connected && kind !== "decoder" && state && <PowerBar state={state} run={run} />}
           {user && <button className={profile ? "active" : ""} onClick={() => go({ area: "profile" })} title="Profil und Erfolge">{user.displayName}{user.role === "admin" ? " (Admin)" : ""}</button>}
-          <ReportButton by={user?.displayName} />
-          <NightButton />
-          <FullscreenButton />
+          <div className="tools">
+            <ReportButton by={user?.displayName} />
+            <NightButton />
+            <FullscreenButton />
+          </div>
           {logout && <button onClick={logout} title="Abmelden">Abmelden</button>}
         </header>
         {error && <div className="error" onClick={() => setError(undefined)}>{error}</div>}
