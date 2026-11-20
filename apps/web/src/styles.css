@@ -2,23 +2,23 @@
    Zustände leuchten wie am Gleisbildstellwerk: gelb = gestellt/gewählt, rot = belegt/Störung, grün nur für Signal „Fahrt“ und Gleisspannung.
    Nachtschaltung ist der Standard (dunkle Felder für den abgedunkelten Anlagenraum); data-theme="day" am <html> schaltet helle Felder ein. */
 :root {
-  --lit: #ffc400; --lamp-red: #e3262d; --lamp-green: #2fa84f; --slot: #151816; --slot-ink: #f1f3ec;
+  --lit: #ffb81c; --lamp-red: #e3262d; --lamp-green: #2fa84f; --slot: #0a1016; --slot-ink: #f0f4f7;
   /* Pult */
-  --bg: #111514; --fg: #e4e8df; --muted: #96a199; --line: #343d39;
-  --surface: #252d2a; --surface-2: #2e3733;
+  --bg: #0d151c; --fg: #e3eaf0; --muted: #8fa1b0; --line: #2b3a47;
+  --surface: #25333f; --surface-2: #2c3b48;
   --accent: var(--lit); --danger: #ff5a52; --ok: #4cc77a; --warn: #ff9a1f; --focus: var(--lit);
   /* Tischfeld bei Nacht */
-  --field: #1e2522; --field-2: #283029; --field-fg: #e2e6dd; --field-muted: #8f9a92; --field-line: #353f3a; --field-key: #2b3430;
-  --field-accent: var(--lit); --field-danger: #ff5a52; --field-ok: #4cc77a; --field-warn: #ff9a1f; --track: #c9cfc5;
+  --field: #162330; --field-2: #1d2d3b; --field-fg: #e3eaf0; --field-muted: #8fa1b0; --field-line: #2b3a47; --field-key: #25333f;
+  --field-accent: var(--lit); --field-danger: #ff5a52; --field-ok: #4cc77a; --field-warn: #ff9a1f; --track: #c4d0da;
   --radius: 3px; --touch: 40px;
   --text: "Barlow", system-ui, sans-serif; --narrow: "Barlow Condensed", "Barlow", system-ui, sans-serif;
   color-scheme: dark;
 }
 :root[data-theme="day"] {
-  --bg: #e4e7de; --fg: #151816; --muted: #46514b; --line: #b4bbaf; --surface: #f3f5ee; --surface-2: #d9ddd1;
-  --accent: #6d4e00; --danger: #b3141b; --ok: #1b6f33; --warn: #8f4700; --focus: #151816;
-  --field: #f8f9f4; --field-2: #e9ece2; --field-fg: #151816; --field-muted: #46514b; --field-line: #b4bbaf; --field-key: #eceee6;
-  --field-accent: #6d4e00; --field-danger: #b3141b; --field-ok: #1b6f33; --field-warn: #8f4700; --track: #151816;
+  --bg: #dfe6ec; --fg: #0f1a24; --muted: #43566a; --line: #aab8c5; --surface: #e8eef3; --surface-2: #dbe4eb;
+  --accent: #6d4e00; --danger: #b3141b; --ok: #1b6f33; --warn: #8f4700; --focus: #0f1a24;
+  --field: #f5f8fa; --field-2: #dbe4eb; --field-fg: #0f1a24; --field-muted: #43566a; --field-line: #aab8c5; --field-key: #e8eef3;
+  --field-accent: #6d4e00; --field-danger: #b3141b; --field-ok: #1b6f33; --field-warn: #8f4700; --track: #0f1a24; --slot: #46596a;
 }
 /* Alles, was ein Tischfeld ist, bringt seine eigenen Farben mit; Inhalte darin nutzen dieselben Variablennamen wie auf dem Pult. */
 .panel, .card, .diagram, .route, .release-notes, .achievement-banner, .login {
