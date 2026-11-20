@@ -22,6 +22,7 @@ import { discover } from "./z21-client.js";
 import { setting } from "./env.js";
 import { exposureProblem, registerAuth, requestPath } from "./auth.js";
 import { ConnectionMemory } from "./connection-memory.js";
+import { FeedbackService, registerFeedbackRoutes } from "./feedback.js";
 import { bool } from "./validate.js";
 import { UserStore } from "./users.js";
 import { registerLayoutRoutes, SignalBox } from "./layout.js";
@@ -292,6 +293,13 @@ registerLocoImageRoutes(app, station.garage, locoImages, () => station.notify())
 
 /* ---------- backup: everything the user maintains that the Z21 does not store ---------- */
 registerBackupRoutes(app, new BackupService(station.garage, box, cameraStore, trains, runner, locoImages, () => station.notify(), { automations: automationStore, achievements, users, layoutRules: ruleStore, calibration: calibrationStore }));
+
+/* ---------- Problem melden: Issue auf der Git-Plattform, mit dem Zugriffstoken des Updates (issue #24) ---------- */
+registerFeedbackRoutes(app, new FeedbackService({
+  baseUrl: setting("UPDATE_URL") || "https://git.wuelfi.ng",
+  repo: setting("UPDATE_REPO") || "sebastian/z21-web",
+  token: setting("UPDATE_TOKEN") || undefined,
+}));
 
 /* ---------- update: new versions from the git platform (issue #1) ---------- */
 const updates = new UpdateService({
