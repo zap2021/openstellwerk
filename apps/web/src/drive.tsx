@@ -5,6 +5,7 @@ import { kmh } from "./calibration";
 import { api, type GarageLoco, type StationState } from "./api";
 import { Automations } from "./automations";
 import { sure } from "./confirm";
+import { LOCO_PRESETS, findPreset } from "./loco-presets";
 
 type Run = (p: Promise<unknown>) => Promise<void>;
 const post = (url: string, body?: unknown) => api("POST", url, body);
@@ -310,12 +311,21 @@ function LocoSettings({ addr, state, run, garage }: { addr: number; state: Stati
   const [binary, setBinary] = useState(29);
   const [name, setName] = useState(garage?.name ?? "");
   const [onlyNamed, setOnlyNamed] = useState(onlyNamedStored);
+  const [presetId, setPresetId] = useState("");
   useEffect(() => { setName(garage?.name ?? ""); }, [garage?.name]);
   const loco = state.locos.find((l) => l.address === addr);
   const maxFn = loco && loco.functions.length > 29 ? 31 : 28;
   const saveFnName = (n: number, text: string) => {
     if ((garage?.functionNames?.[n] ?? "") === text) return;
     void run(put(`/api/garage/${addr}`, { functionNames: { ...(garage?.functionNames ?? {}), [n]: text } }));
+  };
+
+  const preset = findPreset(presetId);
+  const applyPreset = () => {
+    if (!preset) return;
+    const has = Object.keys(garage?.functionNames ?? {}).length > 0;
+    if (has && !sure(`Die vorhandenen Funktionsnamen von Lok ${addr} durch die Vorlage „${preset.article} ${preset.name}“ ersetzen?`)) return;
+    void run(put(`/api/garage/${addr}`, { functionNames: preset.functions, ...(garage?.name ? {} : { name: preset.name }) }));
   };
 
   return (
@@ -336,7 +346,17 @@ function LocoSettings({ addr, state, run, garage }: { addr: number; state: Stati
       </div>
       <LocoPicture address={addr} version={garage?.imageVersion} run={run} />
       <h3>Funktionen beschriften</h3>
-      <div className="fn-grid editing">
+      <div className="row">
+        <label>Vorlage
+          <select value={presetId} onChange={(e) => setPresetId(e.target.value)}>
+            <option value="">Modell wählen …</option>
+            {LOCO_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.article} · {p.name}</option>)}
+          </select>
+        </label>
+        <button disabled={!preset} onClick={applyPreset}>Übernehmen</button>
+      </div>
+      {preset?.note && <p className="hint">{preset.note}</p>}
+      <div className="fn-grid editing" key={JSON.stringify(garage?.functionNames ?? {})}>
         {Array.from({ length: maxFn + 1 }, (_, n) => n).map((n) => (
           <label key={n} className="fn-edit">
             <span>F{n}</span>
