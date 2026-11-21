@@ -20,6 +20,7 @@ const USER_ROUTES: [method: string, pattern: RegExp][] = [
   ["PUT", /^\/api\/me$/],
   ["POST", /^\/api\/me\/password$/],
   ["POST", /^\/api\/feedback$/],
+  ["POST", /^\/api\/reconnect$/],
 ];
 
 export function requiredRole(method: string, url: string): Role {

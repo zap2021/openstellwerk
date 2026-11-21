@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, useStation, type LocoNetLine, type SessionUser, type StationState } from "./api";
 import { ProfilePage } from "./profile";
 import { AdminView } from "./admin";
@@ -40,6 +40,20 @@ function Main({ logout, user, refresh }: { logout?: () => void; user?: SessionUs
   useEffect(() => { if (online) api<{ version: string }>("GET", "/api/version").then((v) => setVersion(v.version), () => {}); }, [online]);
   const run: Run = async (p) => { try { setError(undefined); await p; } catch (e) { setError((e as Error).message); } };
 
+  // Nach der Anmeldung einmal versuchen, die hinterlegte Zentrale wieder zu verbinden (eine Zentrale für alle Benutzer).
+  const triedReconnect = useRef(false);
+  const [reconnecting, setReconnecting] = useState(false);
+  const reconnect = async (quiet = false) => {
+    setReconnecting(true);
+    try { setError(undefined); await post("/api/reconnect"); } catch (e) { if (!quiet) setError((e as Error).message); else setReconnectFailed((e as Error).message); } finally { setReconnecting(false); }
+  };
+  const [reconnectFailed, setReconnectFailed] = useState<string>();
+  useEffect(() => {
+    if (!state || triedReconnect.current) return;
+    triedReconnect.current = true;
+    if (!state.connected && !state.demo && state.lastHost) void reconnect(true);
+  }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const connected = !!state?.connected;
   const kind = state?.hw?.kind;
   const isAdmin = !user || user.role === "admin"; // without accounts (shared password) everybody administers
@@ -79,7 +93,7 @@ function Main({ logout, user, refresh }: { logout?: () => void; user?: SessionUs
             cameras={cameras} reloadCameras={reloadCameras} run={run} page={route.area === "admin" ? route.page : undefined} go={go}
           />
         ) : (
-          <Operate state={state} online={online} run={run} go={go} canAdmin={isAdmin} />
+          <Operate state={state} online={online} run={run} go={go} canAdmin={isAdmin} reconnect={{ busy: reconnecting, failed: reconnectFailed, retry: () => { setReconnectFailed(undefined); void reconnect(true); } }} />
         )}
       </div>
       {!admin && !profile && camColumn && <CameraSidebar cameras={cameras} demo={state?.demo} onConfigure={() => go({ area: "admin", page: "cameras" })} />}
@@ -87,11 +101,13 @@ function Main({ logout, user, refresh }: { logout?: () => void; user?: SessionUs
   );
 }
 
-function Operate({ state, online, run, go, canAdmin }: { state?: StationState; online: boolean; run: Run; go: (r: Route) => void; canAdmin: boolean }) {
+type Reconnect = { busy: boolean; failed?: string; retry: () => void };
+
+function Operate({ state, online, run, go, canAdmin, reconnect }: { state?: StationState; online: boolean; run: Run; go: (r: Route) => void; canAdmin: boolean; reconnect: Reconnect }) {
   const pages = operatePages(state);
   const [tab, setTab] = useState<OperatePage>("drive");
   const current: OperatePage | undefined = pages.some(([id]) => id === tab) ? tab : pages[0]?.[0];
-  if (!state || !current) return <NotReady state={state} online={online} run={run} go={go} />;
+  if (!state || !current) return <NotReady state={state} online={online} run={run} go={go} reconnect={reconnect} canAdmin={canAdmin} />;
   /** Sprung in die Verwaltung; nur für Admins, sonst bleibt der Hinweis reiner Text. */
   const toAdmin = canAdmin ? (page: string) => go({ area: "admin", page }) : undefined;
   const toStellwerk = (state.layout?.tiles.length ?? 0) > 0 ? () => setTab("layout") : undefined;
@@ -113,7 +129,7 @@ function Operate({ state, online, run, go, canAdmin }: { state?: StationState; o
 }
 
 /** Nothing to operate yet: say why and offer the way forward instead of showing empty tabs. */
-function NotReady({ state, online, run, go }: { state?: StationState; online: boolean; run: Run; go: (r: Route) => void }) {
+function NotReady({ state, online, run, go, reconnect, canAdmin }: { state?: StationState; online: boolean; run: Run; go: (r: Route) => void; reconnect: Reconnect; canAdmin: boolean }) {
   if (!online) return <div className="panel notready"><h2>Server nicht erreichbar</h2><p className="hint">Die Verbindung zum Server ist unterbrochen. Die Seite verbindet sich von selbst wieder.</p></div>;
   if (state?.connected) {
     return (
@@ -124,12 +140,26 @@ function NotReady({ state, online, run, go }: { state?: StationState; online: bo
       </div>
     );
   }
+  if (state?.lastHost && !state.demo) {
+    return (
+      <div className="panel notready">
+        <h2>{reconnect.busy ? "Verbinde mit der Zentrale …" : "Nicht mit der Zentrale verbunden"}</h2>
+        <p className="hint">Hinterlegte Zentrale: {state.lastHost}{state.lastPort ? `:${state.lastPort}` : ""}.{" "}
+          {reconnect.busy ? "Das dauert wenige Sekunden." : reconnect.failed ?? "Ist sie eingeschaltet, kannst du es erneut versuchen."}</p>
+        <div className="row">
+          <button className="active" disabled={reconnect.busy} onClick={reconnect.retry}>Erneut verbinden</button>
+          {canAdmin && <button onClick={() => go({ area: "admin", page: "station" })}>Andere Zentrale …</button>}
+          <button onClick={() => run(post("/api/demo", { on: true }))}>Demo starten</button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="panel notready">
       <h2>Nicht mit einer Zentrale verbunden</h2>
-      <p className="hint">Verbinde dich mit deiner Z21, oder probiere alles ohne Hardware im Demo-Modus aus.</p>
+      <p className="hint">{canAdmin ? "Verbinde dich mit deiner Z21, oder probiere alles ohne Hardware im Demo-Modus aus." : "Es ist noch keine Zentrale hinterlegt. Das richtet ein Administrator in der Verwaltung ein."}</p>
       <div className="row">
-        <button className="active" onClick={() => go({ area: "admin", page: "station" })}>Mit Zentrale verbinden</button>
+        {canAdmin && <button className="active" onClick={() => go({ area: "admin", page: "station" })}>Mit Zentrale verbinden</button>}
         <button onClick={() => run(post("/api/demo", { on: true }))}>Demo starten</button>
       </div>
     </div>

@@ -22,6 +22,7 @@ import { discover } from "./z21-client.js";
 import { setting } from "./env.js";
 import { exposureProblem, registerAuth, requestPath } from "./auth.js";
 import { ConnectionMemory } from "./connection-memory.js";
+import { Reconnector } from "./reconnect.js";
 import { FeedbackService, registerFeedbackRoutes } from "./feedback.js";
 import { bool } from "./validate.js";
 import { UserStore } from "./users.js";
@@ -98,6 +99,13 @@ app.post<{ Body: { host: string; port?: number } }>("/api/connect", async (req) 
   connectionMemory.remember(String(req.body.host), req.body.port); // nach einem Neustart wieder vorbelegen
   return station.snapshot();
 });
+const reconnector = new Reconnector({
+  last: () => connectionMemory.get(),
+  busy: () => station.snapshot().connected || demo.active,
+  connect: async (host, port) => { await station.connect(host, port); },
+});
+/** Für alle Angemeldeten: die hinterlegte Zentrale wieder verbinden (nach der Anmeldung, oder per Knopf, wenn sie vorher aus war). */
+app.post("/api/reconnect", async () => { await reconnector.attempt(); return station.snapshot(); });
 app.post("/api/disconnect", async () => { await demo.stop(); station.client.disconnect(); return station.snapshot(); });
 
 app.post<{ Body: { on: boolean } }>("/api/power", async (req) => { station.setPower(bool(req.body?.on, "Leistung")); return { ok: true }; });
