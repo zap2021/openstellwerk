@@ -1,17 +1,17 @@
 import type { FastifyInstance } from "fastify";
 
 /**
- * Problem melden (Issue #24): legt aus der Oberfläche heraus ein Issue auf der Git-Plattform an.
- * Es nutzt dieselbe Plattform, dasselbe Repository und dasselbe Zugriffstoken wie das Update (OPENSTELLWERK_UPDATE_*).
+ * Problem melden (Issue #24): legt aus der Oberfläche heraus ein Issue auf GitHub an.
+ * Es nutzt dasselbe Repository und dasselbe Zugriffstoken wie das Update (OPENSTELLWERK_UPDATE_*); das Token braucht das Recht „Issues: Lesen und Schreiben“.
  * Das Token verlässt den Server nie. Der Text kommt fertig aus der Oberfläche, der Server ergänzt nichts.
  */
 
 export interface FeedbackConfig {
-  /** Basis-URL der Git-Plattform (Forgejo/Gitea) */
-  baseUrl: string;
-  /** "besitzer/repository" */
+  /** "besitzer/repository" auf GitHub */
   repo: string;
   token?: string;
+  /** Basis-URL der GitHub-API, nur für Tests und GitHub Enterprise */
+  apiUrl?: string;
 }
 
 export interface FeedbackDeps {
@@ -39,25 +39,15 @@ export class FeedbackService {
     this.now = deps.now ?? Date.now;
   }
 
-  private get base() { return this.cfg.baseUrl.replace(/\/+$/, ""); }
+  private get api() { return (this.cfg.apiUrl ?? "https://api.github.com").replace(/\/+$/, ""); }
 
   /** Für die Oberfläche: ob gesendet werden kann und wohin (ohne das Token). */
   status() {
-    return { enabled: !!this.cfg.token, repo: this.cfg.repo, baseUrl: this.base };
+    return { enabled: !!this.cfg.token, repo: this.cfg.repo, baseUrl: "https://github.com" };
   }
 
   private headers() {
-    return { accept: "application/json", "content-type": "application/json", authorization: `token ${this.cfg.token}` };
-  }
-
-  /** Label-Nummer zum Namen, falls das Repository das Label kennt; Fehler dabei sind unkritisch. */
-  private async labelId(kind: FeedbackKind): Promise<number | undefined> {
-    try {
-      const res = await this.fetchFn(`${this.base}/api/v1/repos/${this.cfg.repo}/labels?limit=100`, { headers: this.headers(), signal: AbortSignal.timeout(10_000) });
-      if (!res.ok) return undefined;
-      const list = await res.json() as { id?: number; name?: string }[];
-      return list.find((l) => l.name === LABEL_NAME[kind])?.id;
-    } catch { return undefined; }
+    return { accept: "application/vnd.github+json", "content-type": "application/json", "user-agent": "OpenStellwerk-Feedback", "x-github-api-version": "2022-11-28", authorization: `Bearer ${this.cfg.token}` };
   }
 
   async submit(input: { kind?: unknown; title?: unknown; body?: unknown; by?: string }): Promise<{ number: number; url: string }> {
@@ -76,28 +66,27 @@ export class FeedbackService {
     if (prev !== undefined && t - prev < MIN_GAP_MS) throw httpError(429, `Bitte kurz warten: höchstens eine Meldung alle ${MIN_GAP_MS / 1000} Sekunden`);
     this.last.set(who, t);
 
-    const labelId = await this.labelId(kind);
     let res: Response;
     try {
-      res = await this.fetchFn(`${this.base}/api/v1/repos/${this.cfg.repo}/issues`, {
+      res = await this.fetchFn(`${this.api}/repos/${this.cfg.repo}/issues`, {
         method: "POST",
         headers: this.headers(),
-        body: JSON.stringify({ title, body, ...(labelId ? { labels: [labelId] } : {}) }),
+        body: JSON.stringify({ title, body, labels: [LABEL_NAME[kind]] }),
         signal: AbortSignal.timeout(20_000),
       });
     } catch {
       this.last.delete(who);
-      throw httpError(502, "Die Git-Plattform ist nicht erreichbar");
+      throw httpError(502, "GitHub ist nicht erreichbar");
     }
-    if (res.status === 401) { this.last.delete(who); throw httpError(502, "Die Git-Plattform lehnt das Zugriffstoken ab (OPENSTELLWERK_UPDATE_TOKEN prüfen)"); }
-    if (res.status === 403) { this.last.delete(who); throw httpError(502, "Das Zugriffstoken darf keine Issues anlegen: beim Token die Berechtigung „Issue“ auf „Lesen und Schreiben“ stellen"); }
+    if (res.status === 401) { this.last.delete(who); throw httpError(502, "GitHub lehnt das Zugriffstoken ab (OPENSTELLWERK_UPDATE_TOKEN prüfen)"); }
+    if (res.status === 403) { this.last.delete(who); throw httpError(502, "Das Zugriffstoken darf keine Issues anlegen: beim Token die Berechtigung „Issues“ auf „Lesen und Schreiben“ stellen"); }
     if (res.status === 404) { this.last.delete(who); throw httpError(502, `Repository „${this.cfg.repo}“ nicht gefunden (OPENSTELLWERK_UPDATE_REPO prüfen)`); }
     const json = await res.json().catch(() => ({})) as { number?: number; html_url?: string; message?: string };
     if (!res.ok || typeof json.number !== "number") {
       this.last.delete(who);
-      throw httpError(502, `Die Git-Plattform hat die Meldung abgelehnt (HTTP ${res.status}${json.message ? `: ${String(json.message).slice(0, 160)}` : ""})`);
+      throw httpError(502, `GitHub hat die Meldung abgelehnt (HTTP ${res.status}${json.message ? `: ${String(json.message).slice(0, 160)}` : ""})`);
     }
-    return { number: json.number, url: typeof json.html_url === "string" ? json.html_url : `${this.base}/${this.cfg.repo}/issues/${json.number}` };
+    return { number: json.number, url: typeof json.html_url === "string" ? json.html_url : `https://github.com/${this.cfg.repo}/issues/${json.number}` };
   }
 }
 

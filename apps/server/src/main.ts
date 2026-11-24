@@ -302,17 +302,18 @@ registerLocoImageRoutes(app, station.garage, locoImages, () => station.notify())
 /* ---------- backup: everything the user maintains that the Z21 does not store ---------- */
 registerBackupRoutes(app, new BackupService(station.garage, box, cameraStore, trains, runner, locoImages, () => station.notify(), { automations: automationStore, achievements, users, layoutRules: ruleStore, calibration: calibrationStore }));
 
-/* ---------- Problem melden: Issue auf der Git-Plattform, mit dem Zugriffstoken des Updates (issue #24) ---------- */
+/* Repository auf GitHub. Ein Eintrag aus der Zeit vor dem Umzug (Forgejo, sebastian/…) wird ignoriert. */
+const updateRepo = (() => { const r = setting("UPDATE_REPO"); return r && !/^sebastian\/(z21-web|openstellwerk)$/.test(r) ? r : "zap2021/openstellwerk"; })();
+
+/* ---------- Problem melden: Issue auf GitHub, mit dem Zugriffstoken des Updates (issue #24) ---------- */
 registerFeedbackRoutes(app, new FeedbackService({
-  baseUrl: setting("UPDATE_URL") || "https://git.wuelfi.ng",
-  repo: setting("UPDATE_REPO") || "sebastian/z21-web",
+  repo: updateRepo,
   token: setting("UPDATE_TOKEN") || undefined,
 }));
 
-/* ---------- update: new versions from the git platform (issue #1) ---------- */
+/* ---------- update: new versions from GitHub (issue #1) ---------- */
 const updates = new UpdateService({
-  baseUrl: setting("UPDATE_URL") || "https://git.wuelfi.ng",
-  repo: setting("UPDATE_REPO") || "sebastian/z21-web",
+  repo: updateRepo,
   token: setting("UPDATE_TOKEN") || undefined,
   installDir: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.."),
   workDir: path.join(dataDir, "update"),
