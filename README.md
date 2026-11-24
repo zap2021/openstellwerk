@@ -85,7 +85,7 @@ Build und manueller Produktionsstart wurden auf einem Raspberry Pi mit Raspbian 
 
 ### Version und Update
 
-Die installierte Version steht oben in der Kopfzeile neben „OpenStellwerk“ (z. B. `v0.5.9`) und über `GET /api/version`. Sie kommt aus dem `version`-Feld der `package.json`; Releases sind Git-Tags der Form `vX.Y.Z` mit einem GitHub-Release im öffentlichen Repository `zap2021/openstellwerk`.
+Die installierte Version steht oben in der Kopfzeile neben „OpenStellwerk“ (z. B. `v0.6.0`) und über `GET /api/version`. Sie kommt aus dem `version`-Feld der `package.json`; Releases sind Git-Tags der Form `vX.Y.Z` mit einem GitHub-Release im öffentlichen Repository `zap2021/openstellwerk`.
 
 **Update aus der Oberfläche** (Verwaltung → Verbindung → Update, nur Admin). Der Server fragt GitHub alle 12 Stunden nach dem neuesten Release; Admins sehen dann oben „Update vX.Y.Z“. Die Seite zeigt die Release-Notizen und spielt die Version auf Knopfdruck ein:
 
@@ -116,7 +116,7 @@ sudo chown -R openstellwerk: /opt/openstellwerk && sudo systemctl start openstel
 **Update von Hand** (ohne Zugriff des Pi auf GitHub); die Daten in `/var/lib/openstellwerk` und `/etc/openstellwerk.env` bleiben unberührt:
 
 ```bash
-# auf dem Rechner mit dem Checkout (neue Version ausgecheckt, z. B. git checkout v0.5.9)
+# auf dem Rechner mit dem Checkout (neue Version ausgecheckt, z. B. git checkout v0.6.0)
 rsync -az --delete --exclude=.git --exclude=node_modules --exclude='*/node_modules' --exclude='*/dist' ./ <pi>:/tmp/openstellwerk-new/
 
 # auf dem Pi
