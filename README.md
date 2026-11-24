@@ -1,6 +1,6 @@
 # OpenStellwerk
 
-Projektseite: <https://openstellwerk.de> · Quellcode, Releases und Issues: <https://github.com/zap2021/openstellwerk>
+Projektseite: <https://openstellwerk.de> · Quellcode, Releases und Issues: <https://github.com/zap2021/openstellwerk> · Kontakt: <mail@openstellwerk.de>
 
 Freie Modellbahnsteuerung im Browser für Zentralen mit Z21-LAN-Protokoll: Fahren, Stellwerk mit gesicherten Fahrstraßen, Fahrplan und Verwaltung. Ersetzt außerdem die meisten Funktionen der `Z21_Maintenance.exe` (Windows/Delphi). Läuft auf macOS, Linux und Windows mit Node.js ≥ 22.
 
