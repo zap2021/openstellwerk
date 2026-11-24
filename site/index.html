@@ -129,6 +129,11 @@ section > .wrap > h2 { font-size: clamp(38px, 5vw, 60px); text-transform: upperc
 .features h3 { font-size: 29px; display: flex; align-items: center; gap: 10px; }
 .lamp { width: 12px; height: 12px; border-radius: 50%; flex: none; background: var(--free); }
 .features p { margin-top: 8px; font-size: 17px; color: var(--muted); }
+.morehead { margin-top: 56px; font-size: 29px; }
+.more { list-style: none; padding: 0; margin: 16px 0 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 40px; }
+.more li { border-top: 1px solid var(--line); padding: 12px 0; font-size: 17px; color: var(--muted); }
+.more b { color: var(--ink); font-weight: 600; }
+@media (max-width: 720px) { .more { grid-template-columns: 1fr; } }
 
 /* ---------- Video ---------- */
 .film { margin-top: 34px; }
@@ -279,22 +284,27 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 28px; padding-block: 22p
       <h2>Fahren, stellen, Fahrplan fahren</h2>
       <p class="intro">Du brauchst kein Windows-Programm und keine App aus einem Store. OpenStellwerk öffnest du wie eine Internetseite.</p>
       <div class="features">
-        <article><h3><span class="lamp"></span>Loks fahren</h3><p>Fahrregler, Licht, Horn und alle weiteren Funktionen. Jede Lok bekommt ihren Namen und auf Wunsch ein Foto, das breit über dem Fahrpult steht, damit du sie sofort wiederfindest.</p></article>
-        <article><h3><span class="lamp"></span>Funktionen aus der Vorlage</h3><p>Welche Taste ist das Horn, welche das Licht im Führerstand? Für ausgewählte Modelle von Piko, Trix und Roco trägst du die Beschriftung mit einem Klick aus der Herstelleranleitung ein. Eigene Namen bleiben jederzeit änderbar.</p></article>
-        <article><h3><span class="lamp"></span>Verbindet sich von selbst</h3><p>Die Zentrale wird einmal eingetragen und gilt für alle Benutzer. Nach der Anmeldung verbindet OpenStellwerk sie wieder von selbst. Ist die Zentrale noch aus, genügt später ein Tipp auf „Erneut verbinden“.</p></article>
-        <article><h3><span class="lamp"></span>Tag, Nacht und Web-App</h3><p>Die Oberfläche gibt es hell für den Tag und dunkel für den Abend an der Anlage. Auf dem Tablet legst du sie als Web-App auf den Home-Bildschirm, im Vollbild und ohne Browserleiste.</p></article>
+        <article><h3><span class="lamp"></span>Loks fahren</h3><p>Fahrregler, Licht, Horn und alle weiteren Funktionen. Dazu kannst du jede Lok benennen und mit einem Foto versehen.</p></article>
         <article><h3><span class="lamp"></span>Dein Gleisplan</h3><p>Du zeichnest deine Anlage aus Gleisstücken nach. Danach stellst du Weichen und Signale mit einem Fingertipp direkt im Plan.</p></article>
         <article><h3><span class="lamp"></span>Sichere Fahrstraßen</h3><p>Ein Zug bekommt nur freie Fahrt, wenn sein Weg frei ist. Die Weichen auf dem Weg bleiben gesperrt, bis der Zug durch ist. Dafür braucht die Anlage Gleisbesetztmelder.</p></article>
         <article><h3><span class="lamp"></span>Fahrplan und Abfahrtstafel</h3><p>Du legst Abfahrtszeiten fest. OpenStellwerk stellt zur richtigen Zeit Weichen und Signal. Auf einem zweiten Bildschirm läuft die Abfahrtstafel wie am Bahnhof.</p></article>
         <article><h3><span class="lamp"></span>Decoder einstellen</h3><p>Adresse, Höchstgeschwindigkeit, Anfahr- und Bremsverhalten: Die Einstellwerte (CVs) deiner Loks liest und änderst du am Programmiergleis.</p></article>
         <article><h3><span class="lamp"></span>Erst ohne Anlage ausprobieren</h3><p>Ein eingebauter Vorführmodus spielt eine Zentrale mit Beispiel-Anlage, Zügen und Fahrplan. So lernst du alles kennen, bevor ein echter Zug rollt.</p></article>
-        <article><h3><span class="lamp"></span>Automatik für jede Lok</h3><p>Zum Beispiel: Licht an, sobald die Lok anfährt. Oder ein Pfiff beim Anhalten. Du legst fest, was wann passiert.</p></article>
-        <article><h3><span class="lamp"></span>Erfolge sammeln</h3><p>Zehnmal sauber angefahren, zehn Fahrplanfahrten geschafft: Dafür gibt es Punkte. Ein neuer Erfolg erscheint mit Feuerwerk auf jeder Seite und groß auf der Abfahrtstafel.</p></article>
-        <article><h3><span class="lamp"></span>Mitfahrer mit eigenem Konto</h3><p>Kinder und Gäste dürfen fahren und schalten. Gleisplan, Fahrplan und Decoder-Einstellungen bleiben dir als Admin vorbehalten. Jeder sammelt seine eigenen Erfolge.</p></article>
-        <article><h3><span class="lamp"></span>Update auf Knopfdruck</h3><p>Neue Versionen holt OpenStellwerk selbst, wenn du es willst. Vor dem Einspielen läuft ein Probelauf. Deine Daten bleiben unangetastet.</p></article>
-        <article><h3><span class="lamp"></span>Sicherung mit einem Klick</h3><p>Loks, Gleisplan, Fahrplan, Automatik und Erfolge lädst du als eine Datei herunter und spielst sie bei Bedarf wieder ein.</p></article>
-        <article><h3><span class="lamp"></span>Nothalt immer griffbereit</h3><p>Der Nothalt steht auf jeder Seite oben und stoppt alle Loks, egal wo du gerade bist.</p></article>
       </div>
+      <h3 class="morehead">Und außerdem</h3>
+      <ul class="more">
+        <li><b>Nothalt.</b> Steht auf jeder Seite oben und stoppt alle Loks, egal wo du gerade bist.</li>
+        <li><b>Funktionen aus Vorlagen.</b> Für ausgewählte Modelle von Piko, Trix und Roco trägst du die Tastenbeschriftung mit einem Klick aus der Herstelleranleitung ein. Eigene Namen bleiben änderbar.</li>
+        <li><b>Verbindet sich von selbst.</b> Die Zentrale wird einmal eingetragen und gilt für alle Benutzer. Nach der Anmeldung wird sie wieder verbunden; ist sie noch aus, genügt später „Erneut verbinden“.</li>
+        <li><b>Lokfotos.</b> Jede Lok bekommt ihren Namen und auf Wunsch ein Foto über dem Fahrpult.</li>
+        <li><b>Automatik für jede Lok.</b> Zum Beispiel Licht an, sobald die Lok anfährt, oder ein Pfiff beim Anhalten.</li>
+        <li><b>Mitfahrer mit eigenem Konto.</b> Kinder und Gäste dürfen fahren und schalten. Gleisplan, Fahrplan und Decoder-Einstellungen bleiben beim Admin.</li>
+        <li><b>Erfolge sammeln.</b> Zehnmal angefahren, zehn Fahrplanfahrten geschafft: Dafür gibt es Punkte, und ein neuer Erfolg erscheint mit Feuerwerk.</li>
+        <li><b>Tag- und Nachtansicht.</b> Hell für den Tag, dunkel für den Abend an der Anlage.</li>
+        <li><b>Web-App.</b> Auf dem Tablet als Symbol auf dem Home-Bildschirm, im Vollbild und ohne Browserleiste.</li>
+        <li><b>Update auf Knopfdruck.</b> Neue Versionen holt OpenStellwerk von GitHub. Vor dem Einspielen läuft ein Probelauf, deine Daten bleiben unangetastet.</li>
+        <li><b>Sicherung mit einem Klick.</b> Loks, Gleisplan, Fahrplan, Automatik und Erfolge als eine Datei herunterladen und wieder einspielen.</li>
+      </ul>
     </div>
   </section>
 
