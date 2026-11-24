@@ -2,6 +2,7 @@
   "name": "openstellwerk",
   "version": "0.6.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "workspaces": [
     "packages/*",
