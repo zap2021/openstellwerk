@@ -1,5 +1,7 @@
 # OpenStellwerk
 
+Projektseite: <https://openstellwerk.de>
+
 Freie Modellbahnsteuerung im Browser für Zentralen mit Z21-LAN-Protokoll: Fahren, Stellwerk mit gesicherten Fahrstraßen, Fahrplan und Verwaltung. Ersetzt außerdem die meisten Funktionen der `Z21_Maintenance.exe` (Windows/Delphi). Läuft auf macOS, Linux und Windows mit Node.js ≥ 22.
 
 OpenStellwerk ist ein privates Projekt und kein Produkt von Roco, Fleischmann oder der Modelleisenbahn GmbH und wird von ihnen nicht unterstützt. „Z21“ ist eine Marke ihres Inhabers und steht hier nur für das Gerät und sein öffentlich dokumentiertes LAN-Protokoll. Bis Version 0.4.1 hieß das Projekt „z21-web“.
