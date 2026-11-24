@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 H=ftp://w00d7152.kasserver.com
-for f in fonts/*.woff2 fonts.css poster.png film.webm index.html impressum.html datenschutz.html fonts/LICENSE-OFL.txt; do
+for f in fonts/*.woff2 fonts.css poster.png film.webm index.html impressum.html datenschutz.html fonts/LICENSE-OFL.txt .htaccess; do
   curl -sS --netrc --ssl-reqd --ftp-create-dirs -T "$f" "$H/$f"
 done
 echo "Hochgeladen."
