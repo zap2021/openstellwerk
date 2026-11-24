@@ -2,7 +2,7 @@
 
 Diese Anleitung bringt OpenStellwerk auf einem Raspberry Pi zum Laufen, der noch nichts darauf hat: ohne Bildschirm und Tastatur, nur mit Netzwerk. Am Ende läuft OpenStellwerk als Dienst, startet mit dem Pi und ist von Tablet, Handy oder Rechner im Heimnetz erreichbar.
 
-> **Stand:** Das Installationsskript ist geschrieben und geprüft, wurde aber noch nicht auf einem frisch aufgesetzten Pi durchgespielt (siehe README). Klappt ein Schritt nicht, bitte ein [Issue](https://github.com/zap2021/openstellwerk/issues) mit der Fehlermeldung anlegen.
+> **Stand:** Download, Bau und Start (Schritte 4, 5 und 6) sind auf einem sauberen ARM64-Rechner ohne Vorinstallation nachgespielt: Archiv laden, `npm ci`, `npm run build`, Dienst-Start mit den Einstellungen des Dienstes, Anmeldung als `admin`, Demo-Modus und Update-Prüfung gegen GitHub. Das Skript selbst (Benutzer anlegen, systemd, Node.js laden) und die Schritte 1 bis 3 sind noch nicht auf einem frisch aufgesetzten Pi durchgespielt. Klappt ein Schritt nicht, bitte ein [Issue](https://github.com/zap2021/openstellwerk/issues) mit der Fehlermeldung anlegen.
 
 ## Was du brauchst
 
@@ -53,9 +53,11 @@ Nach etwa einer Minute wieder per `ssh` anmelden.
 Auf dem Pi (die Versionsnummer durch die neueste aus der [Release-Liste](https://github.com/zap2021/openstellwerk/releases/latest) ersetzen, hier 0.6.0):
 
 ```bash
-mkdir ~/openstellwerk && cd ~/openstellwerk
+cd ~
 curl -fsSL -o openstellwerk.tar.gz https://github.com/zap2021/openstellwerk/archive/refs/tags/v0.6.0.tar.gz
-tar -xzf openstellwerk.tar.gz --strip-components=1
+mkdir openstellwerk
+tar -xzf openstellwerk.tar.gz -C openstellwerk --strip-components=1
+cd openstellwerk
 ```
 
 ## Schritt 5: Installieren
