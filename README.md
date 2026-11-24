@@ -59,6 +59,8 @@ Installationen aus der Zeit vor der Umbenennung (bis 0.4.1) laufen weiter: Wo ei
 
 ### Raspberry Pi: Installation per Kommandozeile
 
+**Neu am Raspberry Pi?** Die Schritt-für-Schritt-Anleitung von der leeren SD-Karte bis zur ersten Fahrt steht in [docs/INSTALLATION-RASPBERRY-PI.md](docs/INSTALLATION-RASPBERRY-PI.md).
+
 Voraussetzungen sind Raspberry Pi OS (ARM64/64 Bit oder ARMv7/32 Bit), Internetzugang, `sudo`, systemd und ein Projekt-Checkout auf dem Pi. Im Projektverzeichnis ausführen:
 
 ```bash
