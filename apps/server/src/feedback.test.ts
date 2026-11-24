@@ -3,15 +3,14 @@ import { BODY_MAX, FeedbackService, MIN_GAP_MS } from "./feedback.js";
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
-function setup(o: { token?: string; issue?: () => Response | Promise<Response>; labels?: unknown } = {}) {
+function setup(o: { token?: string; issue?: () => Response | Promise<Response> } = {}) {
   const requests: { url: string; method: string; auth?: string; body?: Record<string, unknown> }[] = [];
   let t = 1_000_000;
-  const service = new FeedbackService({ baseUrl: "https://git.example/", repo: "me/proj", token: "token" in o ? o.token : "geheim" }, {
+  const service = new FeedbackService({ apiUrl: "https://api.example/", repo: "me/proj", token: "token" in o ? o.token : "geheim" }, {
     now: () => t,
     fetch: (async (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => {
       requests.push({ url, method: init?.method ?? "GET", auth: init?.headers?.authorization, body: init?.body ? JSON.parse(init.body) : undefined });
-      if (url.includes("/labels")) return json(200, o.labels ?? [{ id: 7, name: "bug" }, { id: 9, name: "enhancement" }]);
-      return o.issue ? o.issue() : json(201, { number: 42, html_url: "https://git.example/me/proj/issues/42" });
+      return o.issue ? o.issue() : json(201, { number: 42, html_url: "https://github.com/me/proj/issues/42" });
     }) as unknown as typeof fetch,
   });
   return { service, requests, tick: (ms: number) => { t += ms; } };
@@ -20,7 +19,7 @@ function setup(o: { token?: string; issue?: () => Response | Promise<Response>; 
 describe("FeedbackService", () => {
   it("meldet ohne Token, ohne es preiszugeben", () => {
     const { service } = setup({ token: undefined });
-    expect(service.status()).toEqual({ enabled: false, repo: "me/proj", baseUrl: "https://git.example" });
+    expect(service.status()).toEqual({ enabled: false, repo: "me/proj", baseUrl: "https://github.com" });
     expect(JSON.stringify(service.status())).not.toContain("geheim");
     return expect(service.submit({ title: "Ein Titel", body: "Text" })).rejects.toThrow(/Zugriffstoken/);
   });
@@ -29,20 +28,17 @@ describe("FeedbackService", () => {
     const { service, requests } = setup();
     expect(service.status().enabled).toBe(true);
     const r = await service.submit({ kind: "bug", title: "  Knopf   tut nichts ", body: "Beschreibung", by: "u1" });
-    expect(r).toEqual({ number: 42, url: "https://git.example/me/proj/issues/42" });
+    expect(r).toEqual({ number: 42, url: "https://github.com/me/proj/issues/42" });
     const post = requests.find((q) => q.method === "POST")!;
-    expect(post.url).toBe("https://git.example/api/v1/repos/me/proj/issues");
-    expect(post.auth).toBe("token geheim");
-    expect(post.body).toEqual({ title: "Knopf tut nichts", body: "Beschreibung", labels: [7] });
+    expect(post.url).toBe("https://api.example/repos/me/proj/issues");
+    expect(post.auth).toBe("Bearer geheim");
+    expect(post.body).toEqual({ title: "Knopf tut nichts", body: "Beschreibung", labels: ["bug"] });
   });
 
-  it("nimmt für Wünsche das Label enhancement und kommt auch ohne Label zurecht", async () => {
+  it("nimmt für Wünsche das Label enhancement", async () => {
     const a = setup();
     await a.service.submit({ kind: "idea", title: "Gute Idee hier", body: "x" });
-    expect(a.requests.find((q) => q.method === "POST")!.body!.labels).toEqual([9]);
-    const b = setup({ labels: [] });
-    await b.service.submit({ kind: "bug", title: "Ohne Label hier", body: "x" });
-    expect(b.requests.find((q) => q.method === "POST")!.body).not.toHaveProperty("labels");
+    expect(a.requests.find((q) => q.method === "POST")!.body!.labels).toEqual(["enhancement"]);
   });
 
   it("prüft Titel und Text", async () => {

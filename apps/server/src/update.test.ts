@@ -11,7 +11,7 @@ afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 /** A fake platform and fake commands: `tar` writes the package.json of the "release" into the staging folder. */
-function setup(o: { release?: unknown; status?: number; archiveVersion?: string; fail?: string; token?: string; blocked?: () => string | undefined; smoke?: () => Promise<void>; failSwitch?: boolean; failRestore?: boolean } = {}) {
+function setup(o: { release?: unknown; status?: number; archiveVersion?: string; fail?: string; token?: string; blocked?: () => string | undefined; smoke?: () => Promise<void>; failSwitch?: boolean; failRestore?: boolean; rejectToken?: boolean } = {}) {
   const calls: string[] = [];
   const npmEnvs: (NodeJS.ProcessEnv | undefined)[] = [];
   const requests: { url: string; auth?: string }[] = [];
@@ -20,7 +20,8 @@ function setup(o: { release?: unknown; status?: number; archiveVersion?: string;
   const deps: UpdateDeps = {
     fetch: (async (url: string, init?: { headers?: Record<string, string> }) => {
       requests.push({ url, auth: init?.headers?.authorization });
-      if (url.includes("/archive/")) return new Response("archive-bytes", { status: 200 });
+      if (o.rejectToken && init?.headers?.authorization) return new Response("{}", { status: 401 });
+      if (url.includes("/tarball/")) return new Response("archive-bytes", { status: 200 });
       return json(o.status ?? 200, o.release ?? { tag_name: "v0.4.0", body: "Neu: alles" });
     }) as unknown as typeof fetch,
     run: async (cmd, args, opts) => {
@@ -38,7 +39,7 @@ function setup(o: { release?: unknown; status?: number; archiveVersion?: string;
     log: (text) => { logged.push(text); },
     now: () => 1_000,
   };
-  const service = new UpdateService({ baseUrl: "https://git.example/", repo: "me/openstellwerk", token: o.token, installDir: path.join(dir, "install"), workDir: path.join(dir, "work"), current: "0.3.0" }, deps);
+  const service = new UpdateService({ apiUrl: "https://api.example/", repo: "me/openstellwerk", token: o.token, installDir: path.join(dir, "install"), workDir: path.join(dir, "work"), current: "0.3.0" }, deps);
   const settle = async () => { for (let i = 0; i < 200 && !["idle", "failed", "restarting"].includes(service.view().phase); i++) await new Promise((r) => setTimeout(r, 5)); };
   return { service, calls, npmEnvs, requests, logged, settle, restarted: () => restarted };
 }
@@ -59,13 +60,21 @@ describe("UpdateService", () => {
     const v = await service.check();
     expect(v).toMatchObject({ latest: "0.4.0", notes: "Neu: alles", available: true, checkedAt: 1000 });
     expect(v.error).toBeUndefined();
-    expect(requests[0]).toEqual({ url: "https://git.example/api/v1/repos/me/openstellwerk/releases/latest", auth: "token geheim" });
+    expect(requests[0]).toEqual({ url: "https://api.example/repos/me/openstellwerk/releases/latest", auth: "Bearer geheim" });
     expect(service.summary()).toEqual({ current: "0.3.0", latest: "0.4.0", available: true });
   });
 
+  it("ignores a stale token that GitHub rejects and reads the public release anonymously", async () => {
+    const { service, requests } = setup({ token: "altes-forgejo-token", rejectToken: true });
+    const v = await service.check();
+    expect(v).toMatchObject({ latest: "0.4.0", available: true });
+    expect(v.error).toBeUndefined();
+    expect(requests.map((r) => r.auth)).toEqual(["Bearer altes-forgejo-token", undefined]);
+  });
+
   it("reports why a check failed and offers nothing", async () => {
-    expect((await setup({ status: 403 }).service.check()).error).toMatch(/nicht öffentlich.*OPENSTELLWERK_UPDATE_TOKEN/);
-    expect((await setup({ status: 401, token: "x" }).service.check()).error).toMatch(/lehnt das Zugriffstoken ab/);
+    expect((await setup({ status: 403 }).service.check()).error).toMatch(/verweigert den Zugriff/);
+    expect((await setup({ status: 401, token: "x" }).service.check()).error).toMatch(/verweigert den Zugriff/);
     expect((await setup({ status: 404 }).service.check()).error).toMatch(/Kein veröffentlichtes Release/);
     expect((await setup({ status: 500 }).service.check()).error).toMatch(/HTTP 500/);
     expect((await setup({ release: { tag_name: "v1; rm -rf /" } }).service.check()).error).toMatch(/Unerwarteter Release-Name/);
@@ -104,7 +113,7 @@ describe("UpdateService", () => {
     await settle();
     expect(service.view().phase).toBe("restarting");
     expect(calls).toEqual(["tar -xzf -C --strip-components=1", "npm ci", "npm run build", "smoke", "rsync -a --delete --exclude=/apps/server/data", "rsync -a --delete --exclude=/apps/server/data --exclude=.smoke-data"]);
-    expect(requests[1]!.url).toBe("https://git.example/api/v1/repos/me/openstellwerk/archive/v0.4.0.tar.gz");
+    expect(requests[1]!.url).toBe("https://api.example/repos/me/openstellwerk/tarball/v0.4.0");
     expect(restarted()).toBe(true);
     expect(JSON.parse(readFileSync(path.join(dir, "work", "last.json"), "utf8"))).toEqual({ from: "0.3.0", to: "0.4.0", at: 1000 });
     expect(existsSync(path.join(dir, "work", "staging"))).toBe(false);

@@ -1,6 +1,6 @@
 # OpenStellwerk
 
-Projektseite: <https://openstellwerk.de>
+Projektseite: <https://openstellwerk.de> · Quellcode, Releases und Issues: <https://github.com/zap2021/openstellwerk>
 
 Freie Modellbahnsteuerung im Browser für Zentralen mit Z21-LAN-Protokoll: Fahren, Stellwerk mit gesicherten Fahrstraßen, Fahrplan und Verwaltung. Ersetzt außerdem die meisten Funktionen der `Z21_Maintenance.exe` (Windows/Delphi). Läuft auf macOS, Linux und Windows mit Node.js ≥ 22.
 
@@ -85,9 +85,9 @@ Build und manueller Produktionsstart wurden auf einem Raspberry Pi mit Raspbian 
 
 ### Version und Update
 
-Die installierte Version steht oben in der Kopfzeile neben „OpenStellwerk“ (z. B. `v0.5.9`) und über `GET /api/version`. Sie kommt aus dem `version`-Feld der `package.json`; Releases sind Git-Tags der Form `vX.Y.Z` auf `git.wuelfi.ng`.
+Die installierte Version steht oben in der Kopfzeile neben „OpenStellwerk“ (z. B. `v0.5.9`) und über `GET /api/version`. Sie kommt aus dem `version`-Feld der `package.json`; Releases sind Git-Tags der Form `vX.Y.Z` mit einem GitHub-Release im öffentlichen Repository `zap2021/openstellwerk`.
 
-**Update aus der Oberfläche** (Verwaltung → Verbindung → Update, nur Admin). Der Server fragt die Git-Plattform alle 12 Stunden nach dem neuesten Release; Admins sehen dann oben „Update vX.Y.Z“. Die Seite zeigt die Release-Notizen und spielt die Version auf Knopfdruck ein:
+**Update aus der Oberfläche** (Verwaltung → Verbindung → Update, nur Admin). Der Server fragt GitHub alle 12 Stunden nach dem neuesten Release; Admins sehen dann oben „Update vX.Y.Z“. Die Seite zeigt die Release-Notizen und spielt die Version auf Knopfdruck ein:
 
 1. Archiv des Release-Tags laden und in einen Arbeitsordner entpacken (`<Datenordner>/update/staging`)
 2. dort `npm ci` und `npm run build`
@@ -101,8 +101,8 @@ Einstellungen in `/etc/openstellwerk.env` (danach `sudo systemctl restart openst
 
 | Variable | Bedeutung |
 |---|---|
-| `OPENSTELLWERK_UPDATE_TOKEN` | Zugriffstoken der Git-Plattform. Nötig, wenn das Repository nicht öffentlich ist. Auf `git.wuelfi.ng` immer, denn die Instanz verlangt auch für öffentliche Repositories eine Anmeldung (dort unter Einstellungen → Anwendungen ein Token erzeugen: Repository „Lesen“ reicht für das Update; für den Knopf „Problem melden“ zusätzlich Issue „Lesen und Schreiben“). |
-| `OPENSTELLWERK_UPDATE_URL`, `OPENSTELLWERK_UPDATE_REPO` | Git-Plattform (Forgejo/Gitea) und Repository, Standard `https://git.wuelfi.ng` und `sebastian/z21-web` (so heißt das Repository dort noch) |
+| `OPENSTELLWERK_UPDATE_REPO` | GitHub-Repository „besitzer/name“, Standard `zap2021/openstellwerk` (nur für einen eigenen Fork nötig). Ein alter Eintrag `sebastian/z21-web` wird ignoriert. |
+| `OPENSTELLWERK_UPDATE_TOKEN` | Optional. Für Update und Prüfung ist kein Token nötig, das Repository ist öffentlich; ein ungültiges (z. B. altes) Token wird dabei übergangen. Nur der Knopf „Problem melden“ braucht eins: ein GitHub-Token (fine-grained, nur dieses Repository, Berechtigung „Issues: Lesen und Schreiben“). |
 | `OPENSTELLWERK_UPDATE_CHECK=0` | keine regelmäßige Prüfung (die Seite kann weiter von Hand prüfen) |
 
 **Zurück zur vorherigen Version**, falls die neue nach dem Neustart Ärger macht (über SSH):
@@ -113,7 +113,7 @@ sudo rsync -a --delete /var/lib/openstellwerk/update/previous/ /opt/openstellwer
 sudo chown -R openstellwerk: /opt/openstellwerk && sudo systemctl start openstellwerk
 ```
 
-**Update von Hand** (ohne Zugriff des Pi auf die Git-Plattform); die Daten in `/var/lib/openstellwerk` und `/etc/openstellwerk.env` bleiben unberührt:
+**Update von Hand** (ohne Zugriff des Pi auf GitHub); die Daten in `/var/lib/openstellwerk` und `/etc/openstellwerk.env` bleiben unberührt:
 
 ```bash
 # auf dem Rechner mit dem Checkout (neue Version ausgecheckt, z. B. git checkout v0.5.9)

@@ -7,7 +7,7 @@ import { pipeline } from "node:stream/promises";
 import type { FastifyInstance } from "fastify";
 
 /*
- * Update (Issue #1): holt neue Versionen von der Git-Plattform (Forgejo/Gitea, Standard git.wuelfi.ng) und spielt sie ein.
+ * Update (Issue #1): holt neue Versionen von GitHub (öffentliches Repository, GitHub-Releases) und spielt sie ein.
  *
  * Ablauf einer Installation, alles als Dienstbenutzer und ohne root:
  *   1. Archiv des Release-Tags laden und in einen Arbeitsordner entpacken
@@ -37,12 +37,12 @@ export interface UpdateView {
 }
 
 export interface UpdateConfig {
-  /** Basis-URL der Git-Plattform, z. B. https://git.wuelfi.ng */
-  baseUrl: string;
-  /** "besitzer/repository" */
+  /** "besitzer/repository" auf GitHub */
   repo: string;
-  /** Zugriffstoken, wenn das Repository nicht öffentlich ist */
+  /** Optionales Zugriffstoken (nur nötig bei einem privaten Fork); ein ungültiges wird beim Lesen ignoriert */
   token?: string;
+  /** Basis-URL der GitHub-API, nur für Tests und GitHub Enterprise */
+  apiUrl?: string;
   /** Verzeichnis der laufenden Installation (Projektstamm) */
   installDir: string;
   /** Arbeitsordner im Datenordner */
@@ -175,19 +175,33 @@ export class UpdateService {
     return { current: v.current, latest: v.latest, available: v.available };
   }
 
-  private headers(): Record<string, string> {
-    return { accept: "application/json", ...(this.cfg.token ? { authorization: `token ${this.cfg.token}` } : {}) };
+  private get api() { return (this.cfg.apiUrl ?? "https://api.github.com").replace(/\/+$/, ""); }
+
+  private headers(anonymous = false): Record<string, string> {
+    return {
+      accept: "application/vnd.github+json",
+      "user-agent": "OpenStellwerk-Update",
+      "x-github-api-version": "2022-11-28",
+      ...(this.cfg.token && !anonymous ? { authorization: `Bearer ${this.cfg.token}` } : {}),
+    };
+  }
+
+  /** GET mit Token; lehnt GitHub das Token ab (z. B. ein altes Token einer früheren Plattform), noch einmal ohne, denn gelesen wird öffentlich. */
+  private async get(url: string, accept?: string, timeoutMs = 15_000): Promise<Response> {
+    const go = (anonymous: boolean) => this.fetch(url, { headers: { ...this.headers(anonymous), ...(accept ? { accept } : {}) }, signal: AbortSignal.timeout(timeoutMs) });
+    const res = await go(false);
+    return res.status === 401 && this.cfg.token ? go(true) : res;
   }
 
   /** Neueste veröffentlichte Version abfragen. Fehler stehen danach in view().error; die Methode wirft nicht. */
   async check(): Promise<UpdateView> {
-    const url = `${this.cfg.baseUrl.replace(/\/+$/, "")}/api/v1/repos/${this.cfg.repo}/releases/latest`;
+    const url = `${this.api}/repos/${this.cfg.repo}/releases/latest`;
     this.checkedAt = this.now();
     try {
-      const res = await this.fetch(url, { headers: this.headers(), signal: AbortSignal.timeout(15_000) });
-      if (res.status === 401 || res.status === 403) throw new Error(this.cfg.token ? "Die Git-Plattform lehnt das Zugriffstoken ab (OPENSTELLWERK_UPDATE_TOKEN prüfen)" : "Das Repository ist nicht öffentlich: Zugriffstoken als OPENSTELLWERK_UPDATE_TOKEN in /etc/openstellwerk.env eintragen");
+      const res = await this.get(url);
+      if (res.status === 401 || res.status === 403) throw new Error(res.status === 403 && res.headers.get("x-ratelimit-remaining") === "0" ? "GitHub begrenzt gerade die Anfragen, die Prüfung klappt später wieder" : "GitHub verweigert den Zugriff auf das Repository (OPENSTELLWERK_UPDATE_REPO und -TOKEN prüfen)");
       if (res.status === 404) throw new Error("Kein veröffentlichtes Release gefunden");
-      if (!res.ok) throw new Error(`Die Git-Plattform antwortet mit HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`GitHub antwortet mit HTTP ${res.status}`);
       const body = (await res.json()) as { tag_name?: unknown; body?: unknown };
       const tag = typeof body.tag_name === "string" ? body.tag_name : "";
       if (!SAFE_TAG.test(tag)) throw new Error(`Unerwarteter Release-Name „${tag.slice(0, 40)}“`);
@@ -195,7 +209,7 @@ export class UpdateService {
       this.error = undefined;
     } catch (e) {
       const m = (e as Error).message;
-      this.error = /fetch failed|timeout|aborted|ENOTFOUND|ECONN/i.test(m) ? "Die Git-Plattform ist nicht erreichbar" : m;
+      this.error = /fetch failed|timeout|aborted|ENOTFOUND|ECONN/i.test(m) ? "GitHub ist nicht erreichbar" : m;
     }
     return this.view();
   }
@@ -238,7 +252,7 @@ export class UpdateService {
     this.step(`Lade Version ${target.version} …`);
     rmSync(staging, { recursive: true, force: true });
     mkdirSync(staging, { recursive: true });
-    const res = await this.fetch(`${this.cfg.baseUrl.replace(/\/+$/, "")}/api/v1/repos/${this.cfg.repo}/archive/${encodeURIComponent(target.tag)}.tar.gz`, { headers: { ...this.headers(), accept: "application/gzip" }, signal: AbortSignal.timeout(5 * 60_000) });
+    const res = await this.get(`${this.api}/repos/${this.cfg.repo}/tarball/${encodeURIComponent(target.tag)}`, undefined, 5 * 60_000);
     if (!res.ok || !res.body) throw new Error(`Archiv nicht ladbar (HTTP ${res.status})`);
     await pipeline(Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]), createWriteStream(archive));
     await this.run("tar", ["-xzf", archive, "-C", staging, "--strip-components=1"], { timeoutMs: 5 * 60_000 });
